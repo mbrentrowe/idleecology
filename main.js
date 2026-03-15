@@ -64,7 +64,7 @@ function renderAll() {
   tabBar.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
   content.innerHTML = '';
   switch (activeTab) {
-    case 'zones':    renderZones();    break;
+    case 'zones':    lastZonesFingerprint = zonesFingerprint(); renderZones();    break;
     case 'market':   renderMarket();   break;
     case 'stats':    renderStats();    break;
     case 'settings': renderSettings(); break;
@@ -177,6 +177,7 @@ function renderZones() {
       if (!acreAtMax) {
         const acreBtn = el('button', 'buy-btn acre-btn', `+1 acre — 🪙 ${shortNumber(acreCost)}`);
         acreBtn.disabled = engine.gold.amount < acreCost;
+        acreBtn.dataset.zoneName = def.name;
         acreBtn.addEventListener('click', () => { engine.upgradeZoneAcres(def.name); renderAll(); });
         acreRow.appendChild(acreBtn);
       } else {
@@ -497,11 +498,32 @@ function showOfflineToast(result, realSecs) {
 }
 
 // ── Update loop ───────────────────────────────────────────────────────────────
+let lastZonesFingerprint = '';
+
+function zonesFingerprint() {
+  const acres = FARM_ZONE_DEFS
+    .filter(d => engine.unlockedFarmZones.has(d.name))
+    .map(d => `${d.name}:${engine.zoneAcres.get(d.name) ?? 1}`).join(',');
+  return `f${engine.unlockedFarmZones.size}|a${engine.artisanWS.unlockedSet.size}|${acres}`;
+}
+
 function liveUpdate() {
   updateHeader();
-  // Re-render zones tab progress bars without full rebuild
   if (activeTab === 'zones') {
-    updateZoneProgressBars();
+    const fp = zonesFingerprint();
+    if (fp !== lastZonesFingerprint) {
+      lastZonesFingerprint = fp;
+      renderAll();
+    } else {
+      updateZoneProgressBars();
+      // Patch acre-button disabled states as gold changes
+      content.querySelectorAll('.acre-btn[data-zone-name]').forEach(btn => {
+        const def = FARM_ZONE_DEFS.find(d => d.name === btn.dataset.zoneName);
+        if (!def) return;
+        const cur = engine.zoneAcres.get(def.name) ?? 1;
+        btn.disabled = engine.gold.amount < acreUpgradeCost(def, cur);
+      });
+    }
   }
 }
 
