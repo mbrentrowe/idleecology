@@ -131,7 +131,9 @@ function renderZones() {
       // Phase info
       const phaseRow = el('div', 'phase-row');
       phaseRow.textContent = ct
-        ? `Phase ${instance.phase + 1} / ${ct.totalPhases}`
+        ? instance.isFullyGrown
+          ? `✅ Ready to harvest`
+          : `Growing — stage ${instance.phase + 1} of ${ct.totalPhases}`
         : '';
       card.appendChild(phaseRow);
 
@@ -509,6 +511,12 @@ function updateZoneProgressBars() {
       bar.style.width = `${Math.round(prog * 100)}%`;
       bar.className   = 'progress-bar ' + (instance.isFullyGrown ? 'ready' : 'growing');
       pctEl.textContent = instance.isFullyGrown ? 'Ready!' : `${Math.round(prog * 100)}%`;
+      const phaseEl = card.querySelector('.phase-row');
+      if (phaseEl) {
+        phaseEl.textContent = instance.isFullyGrown
+          ? '\u2705 Ready to harvest'
+          : `Growing \u2014 stage ${instance.phase + 1} of ${instance.cropType.totalPhases}`;
+      }
     } else {
       const artIndex  = cardIndex - farmCardCount;
       const artDefs   = ARTISAN_ZONE_DEFS.filter(d => engine.artisanWS.unlockedSet.has(d.name));
