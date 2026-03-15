@@ -11,7 +11,12 @@ body {
   display: flex;
   flex-direction: column;
 }
-
+/* ── Sticky wrapper ────────────────────────────────── */
+#sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
 /* ── Header ─────────────────────────────────────────────── */
 #header {
   background: rgba(10,10,10,0.97);
@@ -24,9 +29,7 @@ body {
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  /* sticky is handled by #sticky-top wrapper */
 }
 
 .gold-amount    { color: #ffd700; font-size: 17px; font-weight: bold; }
@@ -73,7 +76,7 @@ body {
   display: flex;
   background: #111;
   border-bottom: 1px solid #333;
-  overflow-x: auto;
+
 }
 
 .tab-btn {

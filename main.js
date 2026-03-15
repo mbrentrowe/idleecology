@@ -62,8 +62,8 @@ document.addEventListener('visibilitychange', () => {
 acquireWakeLock();
 
 // ── Tab state ─────────────────────────────────────────────────────────────────
-const TABS = ['zones', 'market', 'stats', 'settings'];
-let activeTab = 'zones';
+const TABS = ['crops', 'artisan', 'market', 'stats', 'settings'];
+let activeTab = 'crops';
 
 // ── UI Construction ───────────────────────────────────────────────────────────
 function el(tag, cls, text) {
@@ -84,8 +84,9 @@ header.appendChild(nextCropEl);
 
 // Tabs
 const tabBar = document.getElementById('tab-bar');
+const TAB_LABELS = { crops: '🌾 Crops', artisan: '🏺 Artisan', market: '💰 Market', stats: '📊 Stats', settings: '⚙️ Settings' };
 TABS.forEach(tab => {
-  const btn = el('button', 'tab-btn', tab.charAt(0).toUpperCase() + tab.slice(1));
+  const btn = el('button', 'tab-btn', TAB_LABELS[tab] ?? (tab.charAt(0).toUpperCase() + tab.slice(1)));
   btn.dataset.tab = tab;
   btn.addEventListener('click', () => { activeTab = tab; renderAll(); });
   tabBar.appendChild(btn);
@@ -99,7 +100,8 @@ function renderAll() {
   tabBar.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
   content.innerHTML = '';
   switch (activeTab) {
-    case 'zones':    lastZonesFingerprint = zonesFingerprint(); renderZones();    break;
+    case 'crops':    lastZonesFingerprint = zonesFingerprint(); renderCrops();    break;
+    case 'artisan':  lastZonesFingerprint = zonesFingerprint(); renderArtisan();  break;
     case 'market':   renderMarket();   break;
     case 'stats':    renderStats();    break;
     case 'settings': renderSettings(); break;
@@ -140,8 +142,8 @@ function updateHeader() {
   }
 }
 
-// ── ZONES TAB ─────────────────────────────────────────────────────────────────
-function renderZones() {
+// ── CROPS TAB ────────────────────────────────────────────────────────────────
+function renderCrops() {
   const lifetimeGold = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.lifetimeSales, 0);
 
   // ── Farm Zones ──
@@ -256,6 +258,11 @@ function renderZones() {
 
     content.appendChild(card);
   });
+}
+
+// ── ARTISAN TAB ─────────────────────────────────────────────────────
+function renderArtisan() {
+  const lifetimeGold = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.lifetimeSales, 0);
 
   // ── Artisan Workshops ──
   const artHeader = el('h2', 'section-header', '🏺 Artisan Workshops');
@@ -626,7 +633,7 @@ function zonesFingerprint() {
 
 function liveUpdate() {
   updateHeader();
-  if (activeTab === 'zones') {
+  if (activeTab === 'crops' || activeTab === 'artisan') {
     const fp = zonesFingerprint();
     if (fp !== lastZonesFingerprint) {
       lastZonesFingerprint = fp;
@@ -658,17 +665,12 @@ function liveUpdate() {
 
 function updateZoneProgressBars() {
   content.querySelectorAll('.zone-card:not(.locked)').forEach((card, i) => {
-    const bar    = card.querySelector('.progress-bar');
-    const pctEl  = card.querySelector('.progress-pct');
+    const bar   = card.querySelector('.progress-bar');
+    const pctEl = card.querySelector('.progress-pct');
     if (!bar || !pctEl) return;
 
-    const allCards = Array.from(content.querySelectorAll('.zone-card'));
-    const farmCardCount = FARM_ZONE_DEFS.filter(d => engine.unlockedFarmZones.has(d.name)).length;
-    const cardIndex     = allCards.indexOf(card);
-    const isFarm        = cardIndex < farmCardCount;
-
-    if (isFarm) {
-      const zoneDef  = FARM_ZONE_DEFS.filter(d => engine.unlockedFarmZones.has(d.name))[cardIndex];
+    if (activeTab === 'crops') {
+      const zoneDef  = FARM_ZONE_DEFS.filter(d => engine.unlockedFarmZones.has(d.name))[i];
       if (!zoneDef) return;
       const instance = engine.zoneCrops.get(zoneDef.name);
       if (!instance)  return;
@@ -682,10 +684,8 @@ function updateZoneProgressBars() {
           ? '\u2705 Ready to harvest'
           : `Growing \u2014 stage ${instance.phase + 1} of ${instance.cropType.totalPhases}`;
       }
-    } else {
-      const artIndex  = cardIndex - farmCardCount;
-      const artDefs   = ARTISAN_ZONE_DEFS.filter(d => engine.artisanWS.unlockedSet.has(d.name));
-      const def = artDefs[artIndex];
+    } else if (activeTab === 'artisan') {
+      const def = ARTISAN_ZONE_DEFS.filter(d => engine.artisanWS.unlockedSet.has(d.name))[i];
       if (!def) return;
       const cropId  = engine.artisanWS.zoneProductMap.get(def.name);
       const ap      = cropId ? CROPS[cropId]?.artisanProduct : null;
