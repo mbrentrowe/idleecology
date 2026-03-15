@@ -148,32 +148,21 @@ function renderZones() {
   const farmHeader = el('h2', 'section-header', '🌾 Farm Zones');
   content.appendChild(farmHeader);
 
-  // "Set all farms" row — only when 2+ zones are unlocked
+  // "Set all farms" chip row — only when 2+ zones are unlocked
   const unlockedFarmDefs = FARM_ZONE_DEFS.filter(d => engine.unlockedFarmZones.has(d.name));
   if (unlockedFarmDefs.length > 1) {
     const availCrops = Object.values(CROPS).filter(c => c.isUnlocked(engine.cropStats, lifetimeGold));
-    const setAllRow = el('div', 'set-all-row');
-    const setAllSel = document.createElement('select');
-    setAllSel.className = 'crop-select';
-    const ph = document.createElement('option'); ph.value = ''; ph.textContent = '— pick crop —';
-    setAllSel.appendChild(ph);
+    const setAllWrap = el('div', 'set-all-picker');
+    setAllWrap.appendChild(el('span', 'set-all-label', 'Set all farms:'));
+    const chips = el('div', 'set-all-chips');
     availCrops.forEach(ct => {
-      const opt = document.createElement('option');
-      opt.value = ct.id;
-      opt.textContent = `${CROP_EMOJI[ct.id] ?? '🌱'} ${ct.name}`;
-      setAllSel.appendChild(opt);
+      const chip = el('button', 'set-all-chip');
+      chip.innerHTML = cropIconHtml(CROP_ICON_GID[ct.id], 20) + `<span>${ct.name}</span>`;
+      chip.addEventListener('click', () => { unlockedFarmDefs.forEach(d => engine.assignCrop(d.name, ct.id)); renderAll(); });
+      chips.appendChild(chip);
     });
-    const setAllBtn = el('button', 'buy-btn set-all-btn', 'Set All Farms');
-    setAllBtn.addEventListener('click', () => {
-      const id = setAllSel.value;
-      if (!id) return;
-      unlockedFarmDefs.forEach(d => engine.assignCrop(d.name, id));
-      renderAll();
-    });
-    setAllRow.appendChild(el('span', 'set-all-label', 'Set all:'));
-    setAllRow.appendChild(setAllSel);
-    setAllRow.appendChild(setAllBtn);
-    content.appendChild(setAllRow);
+    setAllWrap.appendChild(chips);
+    content.appendChild(setAllWrap);
   }
 
   FARM_ZONE_DEFS.forEach(def => {
@@ -274,32 +263,21 @@ function renderZones() {
   const artHeader = el('h2', 'section-header', '🏺 Artisan Workshops');
   content.appendChild(artHeader);
 
-  // "Set all artisan workshops" row — only when 2+ are unlocked
+  // "Set all workshops" chip row — only when 2+ are unlocked
   const unlockedArtisanDefs = ARTISAN_ZONE_DEFS.filter(d => engine.artisanWS.unlockedSet.has(d.name));
   if (unlockedArtisanDefs.length > 1) {
     const availArtisanCrops = Object.values(CROPS).filter(c => c.artisanProduct && c.isUnlocked(engine.cropStats, lifetimeGold));
-    const artSetAllRow = el('div', 'set-all-row');
-    const artSetAllSel = document.createElement('select');
-    artSetAllSel.className = 'crop-select';
-    const artPh = document.createElement('option'); artPh.value = ''; artPh.textContent = '— pick product —';
-    artSetAllSel.appendChild(artPh);
+    const artSetAllWrap = el('div', 'set-all-picker');
+    artSetAllWrap.appendChild(el('span', 'set-all-label', 'Set all workshops:'));
+    const artChips = el('div', 'set-all-chips');
     availArtisanCrops.forEach(ct => {
-      const opt = document.createElement('option');
-      opt.value = ct.id;
-      opt.textContent = `${CROP_EMOJI[ct.id] ?? '🏺'} ${ct.artisanProduct.name}`;
-      artSetAllSel.appendChild(opt);
+      const chip = el('button', 'set-all-chip');
+      chip.innerHTML = cropIconHtml(CROP_ICON_GID[ct.id], 20) + `<span>${ct.artisanProduct.name}</span>`;
+      chip.addEventListener('click', () => { unlockedArtisanDefs.forEach(d => engine.assignArtisanProduct(d.name, ct.id)); renderAll(); });
+      artChips.appendChild(chip);
     });
-    const artSetAllBtn = el('button', 'buy-btn set-all-btn', 'Set All Workshops');
-    artSetAllBtn.addEventListener('click', () => {
-      const id = artSetAllSel.value;
-      if (!id) return;
-      unlockedArtisanDefs.forEach(d => engine.assignArtisanProduct(d.name, id));
-      renderAll();
-    });
-    artSetAllRow.appendChild(el('span', 'set-all-label', 'Set all:'));
-    artSetAllRow.appendChild(artSetAllSel);
-    artSetAllRow.appendChild(artSetAllBtn);
-    content.appendChild(artSetAllRow);
+    artSetAllWrap.appendChild(artChips);
+    content.appendChild(artSetAllWrap);
   }
 
   ARTISAN_ZONE_DEFS.forEach(def => {
