@@ -400,7 +400,7 @@ function renderSchedule() {
         const last = others[others.length - 1];
         engine.setScheduleHours(last.key, Math.max(0, engine.schedule[last.key] + diff));
       }
-      renderSchedule();
+      renderAll();
     });
 
     row.appendChild(slider);
@@ -422,7 +422,7 @@ function renderSettings() {
   const speedRow = el('div', 'btn-row');
   [1, 3, 6, 12].forEach(spd => {
     const btn = el('button', `speed-btn${engine.gameSpeed === spd ? ' active' : ''}`, `${spd}×`);
-    btn.addEventListener('click', () => { engine.setGameSpeed(spd); renderSettings(); });
+    btn.addEventListener('click', () => { engine.setGameSpeed(spd); renderAll(); });
     speedRow.appendChild(btn);
   });
   speedSection.appendChild(speedRow);
@@ -435,7 +435,7 @@ function renderSettings() {
     'Automatically assigns best crops, routes artisan products, and buys the cheapest available upgrade.'));
   const apBtn = el('button', `ap-btn${engine.autoPilot ? ' ap-on' : ''}`,
     engine.autoPilot ? '🤖 ON' : '🤖 OFF');
-  apBtn.addEventListener('click', () => { engine.setAutoPilot(!engine.autoPilot); renderSettings(); });
+  apBtn.addEventListener('click', () => { engine.setAutoPilot(!engine.autoPilot); renderAll(); });
   apSection.appendChild(apBtn);
   content.appendChild(apSection);
 
