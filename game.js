@@ -17,7 +17,7 @@ export function workerMultiplier(w) { return 1 + (w - 1) / 9; }
 
 /** Cost to hire the next worker. Scales with current worker count. */
 export function workerUpgradeCost(def, currentWorkers) {
-  const base = Math.max(1000, Math.round(def.cost * 0.1));
+  const base = Math.max(3000, Math.round(def.cost * 0.2));
   return Math.round(base * currentWorkers);
 }
 
@@ -41,7 +41,7 @@ export const FARM_ZONE_DEFS = [
 
 /** Cost to buy one extra acre in a given zone. Scales with how many acres already owned. */
 export function acreUpgradeCost(def, currentAcres) {
-  const base = Math.max(500, Math.round(def.cost * 0.05));
+  const base = Math.max(1500, Math.round(def.cost * 0.1));
   return Math.round(base * currentAcres);
 }
 
@@ -75,7 +75,7 @@ class Gold {
 export function createEngine() {
 
   // ── Core state ──────────────────────────────────────────────────────────────
-  const gold         = new Gold(50000);
+  const gold         = new Gold(5000);
   let   gameSpeed    = 1;
   let   autoPilot    = false;
   let   gamePaused   = false;
