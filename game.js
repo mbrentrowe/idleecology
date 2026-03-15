@@ -10,34 +10,34 @@ const SAVE_KEY             = 'idle-ecologist-text-v1';
 
 // ── Zone definitions (no Tiled map needed) ────────────────────────────────────
 export const FARM_ZONE_DEFS = [
-  { name: 'FarmZone01', tileCount:  4, cost:          0 }, // starter, free
-  { name: 'FarmZone02', tileCount:  4, cost:      10000 },
-  { name: 'FarmZone03', tileCount:  6, cost:      20000 },
-  { name: 'FarmZone04', tileCount:  6, cost:      30000 },
-  { name: 'FarmZone05', tileCount:  9, cost:      50000 },
-  { name: 'FarmZone06', tileCount:  9, cost:      70000 },
-  { name: 'FarmZone07', tileCount:  9, cost:     100000 },
-  { name: 'FarmZone08', tileCount: 12, cost:     150000 },
-  { name: 'FarmZone09', tileCount: 12, cost:     200000 },
-  { name: 'FarmZone10', tileCount: 12, cost:     300000 },
-  { name: 'FarmZone11', tileCount: 16, cost:     500000 },
-  { name: 'FarmZone12', tileCount: 16, cost:     750000 },
-  { name: 'FarmZone13', tileCount: 20, cost:    1000000 },
-  { name: 'FarmZone14', tileCount: 20, cost:    1500000 },
-  { name: 'FarmZone15', tileCount: 25, cost:    2000000 },
+  { name: 'Sunflower Patch',    tileCount:  4, cost:          0 }, // starter, free
+  { name: 'Clover Corner',      tileCount:  4, cost:      10000 },
+  { name: 'Buttercup Field',    tileCount:  6, cost:      20000 },
+  { name: 'Willowbrook Plot',   tileCount:  6, cost:      30000 },
+  { name: 'Mossy Hollow',       tileCount:  9, cost:      50000 },
+  { name: 'Foxglove Run',       tileCount:  9, cost:      70000 },
+  { name: 'Hawthorn Strip',     tileCount:  9, cost:     100000 },
+  { name: 'Ember Meadow',       tileCount: 12, cost:     150000 },
+  { name: 'Brackenfold',        tileCount: 12, cost:     200000 },
+  { name: 'Ironwood Terrace',   tileCount: 12, cost:     300000 },
+  { name: 'Stonegate Field',    tileCount: 16, cost:     500000 },
+  { name: 'Copperleaf Plot',    tileCount: 16, cost:     750000 },
+  { name: 'Silverbrook Acre',   tileCount: 20, cost:    1000000 },
+  { name: 'Thornfield Rise',    tileCount: 20, cost:    1500000 },
+  { name: 'The Grand Flat',     tileCount: 25, cost:    2000000 },
 ];
 
 export const ARTISAN_ZONE_DEFS = [
-  { name: 'ArtisanZone01', cost:       75000 },
-  { name: 'ArtisanZone02', cost:      225000 },
-  { name: 'ArtisanZone03', cost:      675000 },
-  { name: 'ArtisanZone04', cost:     2025000 },
-  { name: 'ArtisanZone05', cost:     6075000 },
-  { name: 'ArtisanZone06', cost:    18225000 },
-  { name: 'ArtisanZone07', cost:    54675000 },
-  { name: 'ArtisanZone08', cost:   164025000 },
-  { name: 'ArtisanZone09', cost:   492075000 },
-  { name: 'ArtisanZone10', cost:  1476225000 },
+  { name: 'The Potting Shed',         cost:       75000 },
+  { name: 'Oakwood Workshop',         cost:      225000 },
+  { name: 'Hearthside Cellar',        cost:      675000 },
+  { name: 'Millstone Hall',           cost:     2025000 },
+  { name: 'The Smokehouse',           cost:     6075000 },
+  { name: 'Coppergate Works',         cost:    18225000 },
+  { name: 'Ironbell Distillery',      cost:    54675000 },
+  { name: 'Harvestmoon Press',        cost:   164025000 },
+  { name: 'The Grand Cooperage',      cost:   492075000 },
+  { name: "Elder & Sons Manufactory", cost:  1476225000 },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
