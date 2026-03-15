@@ -155,8 +155,11 @@ function renderZones() {
     const setAllWrap = el('div', 'set-all-picker');
     setAllWrap.appendChild(el('span', 'set-all-label', 'Set all farms:'));
     const chips = el('div', 'set-all-chips');
+    // Highlight chip if all unlocked farms share the same crop
+    const farmCropIds = unlockedFarmDefs.map(d => engine.zoneCrops.get(d.name)?.cropType?.id ?? null);
+    const activeFarmCrop = farmCropIds.every(id => id && id === farmCropIds[0]) ? farmCropIds[0] : null;
     availCrops.forEach(ct => {
-      const chip = el('button', 'set-all-chip');
+      const chip = el('button', `set-all-chip${ct.id === activeFarmCrop ? ' active' : ''}`);
       chip.innerHTML = cropIconHtml(CROP_ICON_GID[ct.id], 20) + `<span>${ct.name}</span>`;
       chip.addEventListener('click', () => { unlockedFarmDefs.forEach(d => engine.assignCrop(d.name, ct.id)); renderAll(); });
       chips.appendChild(chip);
@@ -270,8 +273,11 @@ function renderZones() {
     const artSetAllWrap = el('div', 'set-all-picker');
     artSetAllWrap.appendChild(el('span', 'set-all-label', 'Set all workshops:'));
     const artChips = el('div', 'set-all-chips');
+    // Highlight chip if all unlocked workshops share the same product
+    const artProductIds = unlockedArtisanDefs.map(d => engine.artisanWS.zoneProductMap.get(d.name) ?? null);
+    const activeArtProduct = artProductIds.every(id => id && id === artProductIds[0]) ? artProductIds[0] : null;
     availArtisanCrops.forEach(ct => {
-      const chip = el('button', 'set-all-chip');
+      const chip = el('button', `set-all-chip${ct.id === activeArtProduct ? ' active' : ''}`);
       chip.innerHTML = cropIconHtml(CROP_ICON_GID[ct.id], 20) + `<span>${ct.artisanProduct.name}</span>`;
       chip.addEventListener('click', () => { unlockedArtisanDefs.forEach(d => engine.assignArtisanProduct(d.name, ct.id)); renderAll(); });
       artChips.appendChild(chip);

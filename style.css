@@ -266,6 +266,12 @@ body {
   border-color: rgba(255,215,0,0.45);
   color: #ffd700;
 }
+.set-all-chip.active {
+  background: rgba(255,215,0,0.18);
+  border-color: rgba(255,215,0,0.6);
+  color: #ffd700;
+  font-weight: bold;
+}
 
 /* ── Crop sprite icons ───────────────────────────────────── */
 .crop-icon {
