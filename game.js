@@ -243,6 +243,11 @@ export function createEngine() {
       if (!artisanWS.unlockedSet.has(def.name))
         candidates.push({ type: 'artisan', name: def.name, cost: def.cost });
     }
+    for (const def of FARM_ZONE_DEFS) {
+      if (!unlockedFarmZones.has(def.name)) continue;
+      if ((zoneAcres.get(def.name) ?? BASE_ZONE_ACRES) < MAX_ZONE_ACRES)
+        candidates.push({ type: 'acre', name: def.name, cost: acreUpgradeCost(def) });
+    }
     if (candidates.length > 0) {
       const cheapest = candidates.reduce((a, b) => a.cost < b.cost ? a : b);
       if (gold.amount >= cheapest.cost) {
@@ -251,6 +256,8 @@ export function createEngine() {
           unlockedFarmZones.add(cheapest.name);
           zoneAcres.set(cheapest.name, BASE_ZONE_ACRES);
           if (bestId) zoneCrops.set(cheapest.name, new CropInstance(CROPS[bestId]));
+        } else if (cheapest.type === 'acre') {
+          zoneAcres.set(cheapest.name, (zoneAcres.get(cheapest.name) ?? BASE_ZONE_ACRES) + 1);
         } else {
           artisanWS.unlockedSet.add(cheapest.name);
           if (bestId) artisanWS.zoneProductMap.set(cheapest.name, bestId);
