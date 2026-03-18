@@ -302,6 +302,22 @@ body {
 .action-btn.danger { border-color: rgba(255,80,80,0.4); background: rgba(255,80,80,0.08); color: #ff6060; }
 .action-btn.danger:hover { background: rgba(255,80,80,0.18); }
 
+/* Sell button — compact inline button for the Market inventory cells */
+.sell-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  margin-left: 7px;
+  border: 1px solid rgba(125,255,125,0.4);
+  border-radius: 5px;
+  background: rgba(125,255,125,0.08);
+  color: #7dff7d;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  vertical-align: middle;
+}
+.sell-btn:hover { background: rgba(125,255,125,0.22); }
+
 .speed-btn.active { background: rgba(255,215,0,0.25); border-color: #ffd700; font-weight: bold; }
 
 .ap-btn       { width: 120px; }

@@ -15,47 +15,89 @@ export const BASE_ZONE_WORKERS = 1;
 /** Speed multiplier for a zone with w workers: 1× at 1 worker, 2× at 10. */
 export function workerMultiplier(w) { return 1 + (w - 1) / 9; }
 
-/** Cost to hire the next worker. Scales with current worker count. */
+/** Cost to hire the next worker.
+ *  Cheap for the first 10 (0.4 × n), then quadratic (0.04 × n²) so early
+ *  progress feels snappy while late-game scaling stays meaningful.
+ */
 export function workerUpgradeCost(def, currentWorkers) {
-  const base = Math.max(3000, Math.round(def.cost * 0.2));
-  return Math.round(base * currentWorkers);
+  const base  = Math.max(3000, Math.round(def.cost * 0.2));
+  const scale = currentWorkers <= 10
+    ? 0.4  * currentWorkers
+    : 0.04 * currentWorkers * currentWorkers;
+  return Math.round(base * scale);
 }
 
 export const FARM_ZONE_DEFS = [
-  { name: 'Sunflower Patch',    cropId: 'strawberry',   cost:          0 }, // starter
-  { name: 'Clover Corner',      cropId: 'greenOnion',   cost:      10000 },
-  { name: 'Buttercup Field',    cropId: 'potato',       cost:      20000 },
-  { name: 'Willowbrook Plot',   cropId: 'onion',        cost:      30000 },
-  { name: 'Mossy Hollow',       cropId: 'carrot',       cost:      50000 },
-  { name: 'Foxglove Run',       cropId: 'blueberry',    cost:      70000 },
-  { name: 'Hawthorn Strip',     cropId: 'parsnip',      cost:     100000 },
-  { name: 'Ember Meadow',       cropId: 'lettuce',      cost:     150000 },
-  { name: 'Brackenfold',        cropId: 'cauliflower',  cost:     200000 },
-  { name: 'Ironwood Terrace',   cropId: 'rice',         cost:     300000 },
-  { name: 'Stonegate Field',    cropId: 'broccoli',     cost:     500000 },
-  { name: 'Copperleaf Plot',    cropId: 'asparagus',    cost:     750000 },
+  { name: 'Strawberry Glen',    cropId: 'strawberry',   cost:          0 }, // starter
+  { name: 'Scallion Strip',     cropId: 'greenOnion',   cost:      10000 },
+  { name: 'Spud Furrows',       cropId: 'potato',       cost:      20000 },
+  { name: 'Onion Dell',         cropId: 'onion',        cost:      30000 },
+  { name: 'Carrot Hollow',      cropId: 'carrot',       cost:      50000 },
+  { name: 'Blueberry Thicket',  cropId: 'blueberry',    cost:      70000 },
+  { name: 'Parsnip Heath',      cropId: 'parsnip',      cost:     100000 },
+  { name: 'Lettuce Glade',      cropId: 'lettuce',      cost:     150000 },
+  { name: 'Cauliflower Terrace',cropId: 'cauliflower',  cost:     200000 },
+  { name: 'Rice Paddies',       cropId: 'rice',         cost:     300000 },
+  { name: 'Broccoli Stand',     cropId: 'broccoli',     cost:     500000 },
+  { name: 'Asparagus Spire',    cropId: 'asparagus',    cost:     750000 },
 ];
 
-/** Cost to buy one extra acre in a given zone. Scales with how many acres already owned. */
+/** Cost to buy one extra acre in a given zone.
+ *  Cheap for the first 10 (0.4 × n), then quadratic (0.04 × n²) so early
+ *  progress feels snappy while late-game scaling stays meaningful.
+ */
 export function acreUpgradeCost(def, currentAcres) {
-  const base = Math.max(1500, Math.round(def.cost * 0.1));
-  return Math.round(base * currentAcres);
+  const base  = Math.max(1500, Math.round(def.cost * 0.1));
+  const scale = currentAcres <= 10
+    ? 0.4  * currentAcres
+    : 0.04 * currentAcres * currentAcres;
+  return Math.round(base * scale);
 }
 
 export const ARTISAN_ZONE_DEFS = [
-  { name: 'The Potting Shed',         cropId: 'strawberry',   cost:        75000 },
-  { name: 'Oakwood Workshop',         cropId: 'greenOnion',   cost:       225000 },
-  { name: 'Hearthside Cellar',        cropId: 'potato',       cost:       675000 },
-  { name: 'Millstone Hall',           cropId: 'onion',        cost:      2025000 },
-  { name: 'The Smokehouse',           cropId: 'carrot',       cost:      6075000 },
-  { name: 'Coppergate Works',         cropId: 'blueberry',    cost:     18225000 },
-  { name: 'Ironbell Distillery',      cropId: 'parsnip',      cost:     54675000 },
-  { name: 'Harvestmoon Press',        cropId: 'lettuce',      cost:    164025000 },
-  { name: 'The Grand Cooperage',      cropId: 'cauliflower',  cost:    492075000 },
-  { name: "Elder & Sons Manufactory", cropId: 'rice',         cost:   1476225000 },
-  { name: 'Stonebridge Fermentary',   cropId: 'broccoli',     cost:   4428675000 },
-  { name: 'The Celestial Vault',      cropId: 'asparagus',    cost:  13286025000 },
+  { name: 'The Berry Press',      cropId: 'strawberry',   cost:        75000 },
+  { name: 'The Pickle House',     cropId: 'greenOnion',   cost:       225000 },
+  { name: 'The Root Cellar',      cropId: 'potato',       cost:       675000 },
+  { name: 'The Brine Works',      cropId: 'onion',        cost:      2025000 },
+  { name: 'The Carrot Dryer',     cropId: 'carrot',       cost:      6075000 },
+  { name: 'The Berry Winery',     cropId: 'blueberry',    cost:     18225000 },
+  { name: 'The Parsnip Still',    cropId: 'parsnip',      cost:     54675000 },
+  { name: 'The Leaf Works',       cropId: 'lettuce',      cost:    164025000 },
+  { name: 'The Floret House',     cropId: 'cauliflower',  cost:    492075000 },
+  { name: 'The Rice Mill',        cropId: 'rice',         cost:   1476225000 },
+  { name: 'The Brassica Works',   cropId: 'broccoli',     cost:   4428675000 },
+  { name: 'The Asparagus Cellar', cropId: 'asparagus',    cost:  13286025000 },
 ];
+
+/** Maps old flavour-only zone names → new crop-matching names for save migration. */
+export const ZONE_NAME_MIGRATION = {
+  // Farm zones
+  'Sunflower Patch':           'Strawberry Glen',
+  'Clover Corner':             'Scallion Strip',
+  'Buttercup Field':           'Spud Furrows',
+  'Willowbrook Plot':          'Onion Dell',
+  'Mossy Hollow':              'Carrot Hollow',
+  'Foxglove Run':              'Blueberry Thicket',
+  'Hawthorn Strip':            'Parsnip Heath',
+  'Ember Meadow':              'Lettuce Glade',
+  'Brackenfold':               'Cauliflower Terrace',
+  'Ironwood Terrace':          'Rice Paddies',
+  'Stonegate Field':           'Broccoli Stand',
+  'Copperleaf Plot':           'Asparagus Spire',
+  // Artisan zones
+  'The Potting Shed':          'The Berry Press',
+  'Oakwood Workshop':          'The Pickle House',
+  'Hearthside Cellar':         'The Root Cellar',
+  'Millstone Hall':            'The Brine Works',
+  'The Smokehouse':            'The Carrot Dryer',
+  'Coppergate Works':          'The Berry Winery',
+  'Ironbell Distillery':       'The Parsnip Still',
+  'Harvestmoon Press':         'The Leaf Works',
+  'The Grand Cooperage':       'The Floret House',
+  "Elder & Sons Manufactory":  'The Rice Mill',
+  'Stonebridge Fermentary':    'The Brassica Works',
+  'The Celestial Vault':       'The Asparagus Cellar',
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 export function shortNumber(n) {
@@ -370,6 +412,19 @@ export function createEngine() {
   }
 
   function applyState(s) {
+    // ── Zone-name migration: remap saves made before zones were renamed to match crops ──
+    const _rA = a => Array.isArray(a) ? a.map(n => ZONE_NAME_MIGRATION[n] ?? n) : a;
+    const _rO = o => !o ? o : Object.fromEntries(Object.entries(o).map(([k,v]) => [ZONE_NAME_MIGRATION[k] ?? k, v]));
+    s = { ...s,
+      unlockedFarmZones:    _rA(s.unlockedFarmZones),
+      zoneAcres:            _rO(s.zoneAcres),
+      zoneWorkers:          _rO(s.zoneWorkers),
+      zoneCrops:            _rO(s.zoneCrops),
+      unlockedArtisanZones: _rA(s.unlockedArtisanZones),
+      artisanWorkers:       _rO(s.artisanWorkers),
+      artisanTimers:        _rO(s.artisanTimers),
+      artisanProductMap:    _rO(s.artisanProductMap),
+    };
     if (typeof s.gold         === 'number')  gold.amount   = s.gold;
     if (typeof s.gameSpeed    === 'number')  gameSpeed     = s.gameSpeed;
     if (typeof s.autoPilot    === 'boolean') autoPilot     = s.autoPilot;
@@ -493,6 +548,44 @@ export function createEngine() {
       return true;
     },
     setAutoSell(key, value)  { if (value) autoSellSet.add(key); else autoSellSet.delete(key); },
+
+    /**
+     * Manually sell items from inventory.
+     * key    — a cropId (e.g. 'strawberry') or artisan key (e.g. 'strawberry_artisan')
+     * amount — units to sell; omit or pass undefined to sell everything
+     * Returns the gold earned.
+     */
+    sellInventory(key, amount) {
+      if (key.endsWith('_artisan')) {
+        const inv = artisanWS.productInventory.get(key) || 0;
+        if (inv <= 0) return 0;
+        const cropId = key.slice(0, -'_artisan'.length);
+        const ct = CROPS[cropId];
+        if (!ct?.artisanProduct) return 0;
+        const qty = (amount == null) ? inv : Math.min(Math.floor(amount), inv);
+        if (qty <= 0) return 0;
+        const earned = ct.artisanProduct.goldValue * qty;
+        gold.add(earned);
+        artisanWS.productInventory.set(key, inv - qty);
+        const stat = artisanWS.productStats.get(key);
+        if (stat) { stat.sold += qty; stat.lifetimeSales += earned; }
+        return earned;
+      } else {
+        const ct = CROPS[key];
+        if (!ct) return 0;
+        const inv = cropInventory.get(key) || 0;
+        if (inv <= 0) return 0;
+        const qty = (amount == null) ? inv : Math.min(Math.floor(amount), inv);
+        if (qty <= 0) return 0;
+        const earned = ct.yieldGold * qty;
+        gold.add(earned);
+        cropInventory.set(key, inv - qty);
+        const s = cropStats.get(key);
+        if (s) { s.sold += qty; s.lifetimeSales += earned; }
+        return earned;
+      }
+    },
+
     setGameSpeed(v)          { gameSpeed = v; },
     setAutoPilot(v)          { autoPilot = v; },
 

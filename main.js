@@ -142,6 +142,14 @@ function updateHeader() {
   }
 }
 
+// ── Duration formatter ─────────────────────────────────────────────────────
+function fmtDur(secs) {
+  if (secs < 60)   return `${secs.toFixed(1)}s`;
+  if (secs < 3600) { const m = Math.floor(secs / 60), s = Math.round(secs % 60); return s ? `${m}m ${s}s` : `${m}m`; }
+  const h = Math.floor(secs / 3600), m = Math.round((secs % 3600) / 60);
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
 // ── Time-to-afford helper ────────────────────────────────────────────────────
 function timeToUnlock(cost) {
   const needed = cost - engine.gold.amount;
@@ -198,12 +206,14 @@ function renderCrops() {
       const progress = instance?.overallProgress ?? 0;
       const cropIconEl = ct ? cropIconHtml(CROP_ICON_GID[ct.id]) : '<span style="color:#666;font-size:18px">—</span>';
 
-      // Top row: icon + name + tiles + GPS
+      // Top row: icon + name + tiles + GPS + harvest time
       const topRow = el('div', 'zone-top-row');
+      const _wm  = workerMultiplier(engine.zoneWorkers.get(def.name) ?? 1);
+      const _cyc = ct ? ct.totalGrowthTime / (engine.gameSpeed * _wm * 4) : 0;
       topRow.innerHTML = `
         ${cropIconEl}
         <span class="zone-name">${def.name}</span>
-        <span class="zone-meta">${ct?.name ?? '—'} · ${engine.zoneAcres.get(def.name) ?? 4} acres</span>
+        <span class="zone-meta">${ct?.name ?? '—'} · ${engine.zoneAcres.get(def.name) ?? 4} acres${ct ? ` · ⏱ ${fmtDur(_cyc)}` : ''}</span>
         <span class="zone-gps">🪙 ${shortNumber((ct?.yieldGold ?? 0) * (engine.zoneAcres.get(def.name) ?? 4))} / harvest</span>
       `;
       card.appendChild(topRow);
@@ -304,11 +314,12 @@ function renderArtisan() {
       const artWorkers  = engine.artisanWorkers.get(def.name) ?? 1;
       const artMult     = workerMultiplier(artWorkers);
 
+      const _batchSecs = engine.artisanWS.act.productionIntervalSecs / (engine.gameSpeed * artMult * 4);
       const topRow = el('div', 'zone-top-row');
       topRow.innerHTML = `
         ${cropId && apUnlocked ? cropIconHtml(CROP_ICON_GID[cropId]) : '<span class="zone-emoji">🏺</span>'}
         <span class="zone-name">${def.name}</span>
-        <span class="zone-meta">${apUnlocked ? ap.name : (ap ? '⏳ Unlocking…' : '— unassigned —')}</span>
+        <span class="zone-meta">${apUnlocked ? `${ap.name} · ⏱ ${fmtDur(_batchSecs)}` : (ap ? '⏳ Unlocking…' : '— unassigned —')}</span>
         ${apUnlocked ? `<span class="zone-gps">🪙 ${shortNumber(ap.goldValue)} / batch</span>` : ''}
       `;
       card.appendChild(topRow);
@@ -362,10 +373,18 @@ function renderMarket() {
     const row  = el('tr');
     row.innerHTML = `
       <td>${cropIconHtml(CROP_ICON_GID[ct.id], 20)} ${ct.name}</td>
-      <td>${shortNumber(inv)}</td>
+      <td></td>
       <td></td>
       <td>${shortNumber(gps)}/s</td>
     `;
+    // Inventory cell — show count; add sell buttons when auto-sell is off
+    const invCell = row.children[1];
+    invCell.appendChild(document.createTextNode(shortNumber(inv)));
+    if (!auto && inv > 0) {
+      const sellAllBtn = el('button', 'sell-btn', 'Sell All');
+      sellAllBtn.addEventListener('click', () => { engine.sellInventory(ct.id); renderAll(); });
+      invCell.appendChild(sellAllBtn);
+    }
     const toggle = document.createElement('input');
     toggle.type = 'checkbox'; toggle.checked = auto;
     toggle.addEventListener('change', () => { engine.setAutoSell(ct.id, toggle.checked); renderAll(); });
@@ -389,7 +408,15 @@ function renderMarket() {
     const inv  = engine.artisanWS.productInventory.get(key) || 0;
     const auto = engine.autoSellSet.has(key);
     const row  = el('tr');
-    row.innerHTML = `<td>🏺 ${ap.name}</td><td>${shortNumber(inv)}</td><td></td>`;
+    row.innerHTML = `<td>🏺 ${ap.name}</td><td></td><td></td>`;
+    // Inventory cell
+    const invCell = row.children[1];
+    invCell.appendChild(document.createTextNode(shortNumber(inv)));
+    if (!auto && inv > 0) {
+      const sellAllBtn = el('button', 'sell-btn', 'Sell All');
+      sellAllBtn.addEventListener('click', () => { engine.sellInventory(key); renderAll(); });
+      invCell.appendChild(sellAllBtn);
+    }
     const toggle = document.createElement('input');
     toggle.type = 'checkbox'; toggle.checked = auto;
     toggle.addEventListener('change', () => { engine.setAutoSell(key, toggle.checked); renderAll(); });
