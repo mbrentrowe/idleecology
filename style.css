@@ -627,6 +627,319 @@ body {
   cursor: not-allowed;
 }
 
+/* ── Research banner breakdown ──────────────────────────── */
+.bio-breakdown {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 5px;
+}
+.bio-breakdown strong { color: #88bb88; }
+
+/* ── Native Garden Tab ───────────────────────────────────── */
+
+/* Ecoregion header block */
+.eco-header {
+  background: rgba(30, 60, 30, 0.35);
+  border: 1px solid #2d5a2d;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.eco-header.eco-complete { border-color: #7dff7d; background: rgba(30,80,30,0.45); }
+.eco-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.eco-icon     { font-size: 22px; }
+.eco-name     { font-size: 16px; font-weight: bold; color: #b8e0b8; }
+.eco-progress-text { font-size: 13px; color: #aaa; margin-left: auto; }
+.eco-badge-complete { background: rgba(100,200,100,0.2); color: #7dff7d; border: 1px solid #7dff7d; border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: bold; }
+.eco-desc     { font-size: 12px; color: #999; line-height: 1.5; margin-bottom: 8px; }
+.eco-hnp-link { font-size: 11px; color: #666; margin-top: 8px; }
+.eco-link     { color: #5a9a5a; text-decoration: none; }
+.eco-link:hover { text-decoration: underline; color: #7dff7d; }
+
+/* Garden fill colour (green rather than blue) */
+.bio-bar-fill.garden-fill { background: #4caf50; }
+
+/* Garden plant card */
+.garden-card {
+  background: #111a11;
+  border: 1px solid #2b452b;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  transition: border-color 0.2s;
+}
+.garden-card:hover     { border-color: #4a7a4a; }
+.garden-card.garden-planted  { border-color: #3a7a3a; background: rgba(20,50,20,0.5); }
+.garden-card.garden-active   { border-color: #6abf6a; background: rgba(20,55,20,0.6); }
+
+/* Card header row */
+.garden-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.garden-plant-icon  { font-size: 24px; flex-shrink: 0; line-height: 1.2; }
+.garden-plant-names { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.garden-plant-name  { font-size: 15px; font-weight: bold; color: #c8e6c9; }
+.garden-plant-sci   { font-size: 11px; font-style: italic; color: #668866; }
+.garden-badges      { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; flex-shrink: 0; }
+
+/* Type badges */
+.garden-type-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+}
+.garden-type-flower { background: rgba(255,150,180,0.18); color: #f48fb1; border: 1px solid #c2185b55; }
+.garden-type-shrub  { background: rgba(100,180,100,0.18); color: #a5d6a7; border: 1px solid #43a04755; }
+.garden-type-tree   { background: rgba(80,140,80,0.22);   color: #69b56a; border: 1px solid #2e7d3255; }
+
+/* Status badges */
+.garden-status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.garden-status-badge.planted { background: rgba(60,160,60,0.25); color: #7dff7d; }
+.garden-status-badge.active  { background: rgba(100,200,100,0.2); color: #a5d6a7; }
+
+/* Plant meta row (height, season, caterpillar count) */
+.garden-plant-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.garden-meta-item        { font-size: 11px; color: #888; background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 10px; }
+.garden-meta-item.caterpillar-count { color: #a5d6a7; background: rgba(70,150,70,0.15); }
+
+/* Plant description */
+.garden-desc {
+  font-size: 12px;
+  color: #aaa;
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+
+/* ── Insect & wildlife section ───────────────────────────── */
+.garden-insect-section {
+  background: rgba(10, 25, 10, 0.6);
+  border: 1px solid #1e3a1e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.garden-insect-header {
+  font-size: 12px;
+  font-weight: bold;
+  color: #88bb88;
+  margin-bottom: 8px;
+  letter-spacing: 0.03em;
+}
+
+/* Individual insect row */
+.garden-insect-row {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 8px 0 4px;
+}
+.garden-insect-row:first-of-type { border-top: none; padding-top: 0; }
+
+.garden-insect-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.insect-type-icon { font-size: 14px; }
+.insect-name      { font-size: 13px; font-weight: bold; color: #d0ecd0; }
+.insect-sci       { font-size: 11px; font-style: italic; color: #5a8a5a; }
+
+/* Role badge — coloured by wildlife type */
+.insect-role-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.insect-type-butterfly .insect-role-badge { background: rgba(180,120,220,0.2); color: #ce93d8; border: 1px solid #8e24aa44; }
+.insect-type-moth      .insect-role-badge { background: rgba(80,80,140,0.25);  color: #9fa8da; border: 1px solid #3949ab44; }
+.insect-type-bee       .insect-role-badge { background: rgba(255,180,40,0.2);  color: #ffe082; border: 1px solid #f9a82544; }
+.insect-type-fly       .insect-role-badge { background: rgba(100,200,200,0.2); color: #80deea; border: 1px solid #00838f44; }
+.insect-type-beetle    .insect-role-badge { background: rgba(160,100,60,0.2);  color: #ffcc80; border: 1px solid #e6510044; }
+.insect-type-wasp      .insect-role-badge { background: rgba(200,200,80,0.2);  color: #fff176; border: 1px solid #f57f1744; }
+.insect-type-bird      .insect-role-badge { background: rgba(80,160,220,0.2);  color: #90caf9; border: 1px solid #1565c044; }
+.insect-type-mammal    .insect-role-badge { background: rgba(180,120,80,0.2);  color: #ffab91; border: 1px solid #bf360c44; }
+
+/* Educational note text */
+.insect-note {
+  font-size: 12px;
+  color: #8a9a8a;
+  line-height: 1.5;
+  margin: 0;
+  padding-left: 20px;
+}
+
+/* Wildlife note at bottom of insect section */
+.garden-wildlife-note {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin-top: 8px;
+  padding-top: 8px;
+  font-size: 11px;
+  color: #667766;
+  font-style: italic;
+  line-height: 1.5;
+}
+.wildlife-note-icon { margin-right: 4px; }
+
+/* ── Garden action row ───────────────────────────────────── */
+.garden-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.garden-bonus-label {
+  font-size: 12px;
+  color: #69b56a;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.garden-plant-btn {
+  background: rgba(50,120,50,0.3);
+  border: 1px solid #4caf5088;
+  color: #a5d6a7;
+}
+.garden-plant-btn:hover {
+  background: rgba(70,160,70,0.4);
+  border-color: #4caf50;
+  color: #c8e6c9;
+}
+
+/* Active planting progress bar (green) */
+.research-progress-fill.garden-progress { background: linear-gradient(90deg, #2e7d32, #4caf50); }
+
+/* Garden active card accent */
+.garden-active-card { border-left: 3px solid #4caf50; }
+
+/* ── Garden card collapse ────────────────────────────────── */
+.garden-card-head-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.garden-card-head-clickable:hover {
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+}
+.garden-collapse-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.garden-card-head-clickable:hover .garden-collapse-btn {
+  color: #aaa;
+}
+.garden-card-body {
+  padding-top: 4px;
+}
+
+/* ── iNaturalist links ───────────────────────────────────── */
+.inat-link {
+  color: #7cb87e;
+  text-decoration: none;
+  font-style: italic;
+  font-size: inherit;
+  opacity: 0.85;
+  transition: opacity 0.15s, color 0.15s;
+}
+.inat-link:hover {
+  color: #a5d6a7;
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* ── Tab toggle bar ──────────────────────────────────────── */
+.tab-toggle-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tab-toggle-btn {
+  font-size: 0.75rem;
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid #444;
+  background: rgba(255,255,255,0.05);
+  color: #aaa;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tab-toggle-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: #ccc;
+  border-color: #666;
+}
+.tab-toggle-btn.active {
+  background: rgba(76,175,80,0.15);
+  border-color: #4caf5088;
+  color: #a5d6a7;
+}
+
+/* ── Locked plant cards ──────────────────────────────────── */
+.garden-card-locked {
+  opacity: 0.55;
+  filter: grayscale(60%);
+  border-color: #333;
+  background: rgba(255,255,255,0.02);
+  cursor: default;
+}
+.garden-card-locked .garden-plant-icon {
+  filter: grayscale(100%);
+  opacity: 0.6;
+}
+.garden-card-locked .garden-plant-name {
+  color: #666;
+}
+.garden-card-locked .garden-plant-sci {
+  color: #444;
+}
+.garden-locked-msg {
+  font-size: 0.8rem;
+  color: #777;
+  margin: 4px 0 0 0;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 4px;
+  border-left: 2px solid #555;
+}
+.garden-locked-msg strong {
+  color: #aaa;
+}
+
 /* ── Scrollbar ───────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #111; }

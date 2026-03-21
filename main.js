@@ -2,6 +2,7 @@
 import { createEngine, shortNumber, FARM_ZONE_DEFS, ARTISAN_ZONE_DEFS, DAY_REAL_SECS, acreUpgradeCost, workerUpgradeCost, workerMultiplier } from './game.js';
 import { CROPS } from './crops.js';
 import { RESEARCH, RESEARCH_CATEGORIES } from './research.js';
+import { ECOREGIONS, WILDLIFE_TYPE_ICONS } from './ecoregions.js';
 
 // ── Crop emoji map ────────────────────────────────────────────────────────────
 // Used only in <select> option text (HTML not supported there)
@@ -57,14 +58,21 @@ async function acquireWakeLock() {
     _wakeLock.addEventListener('release', () => { _wakeLock = null; });
   } catch (_) { /* denied or unavailable */ }
 }
+let _resetting = false;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') acquireWakeLock();
+  else if (!_resetting) engine.save(); // save immediately when tab goes to background
 });
 acquireWakeLock();
 
 // ── Tab state ─────────────────────────────────────────────────────────────────
-const TABS = ['crops', 'artisan', 'market', 'stats', 'research', 'settings'];
+const TABS = ['crops', 'artisan', 'market', 'research', 'garden', 'stats', 'settings'];
 let activeTab = 'crops';
+
+// ── Tab toggle state ──────────────────────────────────────────────────────────
+let hideCompletedResearch = false;
+let hideCompletedGarden   = false;
+const collapsedGardenCards = new Set(); // plant IDs currently collapsed
 
 // ── UI Construction ───────────────────────────────────────────────────────────
 function el(tag, cls, text) {
@@ -85,7 +93,7 @@ header.appendChild(nextCropEl);
 
 // Tabs
 const tabBar = document.getElementById('tab-bar');
-const TAB_LABELS = { crops: '🌾 Crops', artisan: '🏺 Artisan', market: '💰 Market', stats: '📊 Stats', research: '🔬 Research', settings: '⚙️ Settings' };
+const TAB_LABELS = { crops: '🌾 Crops', artisan: '🏺 Artisan', market: '💰 Market', stats: '📊 Stats', research: '🔬 Research', garden: '🌿 Garden', settings: '⚙️ Settings' };
 TABS.forEach(tab => {
   const btn = el('button', 'tab-btn', TAB_LABELS[tab] ?? (tab.charAt(0).toUpperCase() + tab.slice(1)));
   btn.dataset.tab = tab;
@@ -106,6 +114,7 @@ function renderAll() {
     case 'market':   renderMarket();   break;
     case 'stats':    renderStats();    break;
     case 'research': renderResearch(); break;
+    case 'garden':   renderGarden();   break;
     case 'settings': renderSettings(); break;
   }
 }
@@ -163,6 +172,11 @@ function fmtDur(secs) {
   if (secs < 3600) { const m = Math.floor(secs / 60), s = Math.round(secs % 60); return s ? `${m}m ${s}s` : `${m}m`; }
   const h = Math.floor(secs / 3600), m = Math.round((secs % 3600) / 60);
   return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+/** Generate an iNaturalist taxa-search URL for a scientific name. */
+function inatUrl(sci) {
+  return `https://www.inaturalist.org/taxa/search?q=${encodeURIComponent(sci)}`;
 }
 
 // ── Time-to-afford helper ────────────────────────────────────────────────────
@@ -551,20 +565,29 @@ function renderResearch() {
   const activeId   = engine.activeResearchId;
   const activeTimer= engine.activeResearchTimer;
   const pts        = engine.researchPoints;
-  const biosphere  = engine.getBiosphereScore();
+  const biosphere    = engine.getBiosphereScore();
+  const gardenBio    = engine.getGardenBiosphereScore();
+  const totalBio     = biosphere + gardenBio;
   const maxBiosphere = RESEARCH.reduce((s, r) => s + (r.effect?.biosphereBonus ?? 0), 0);
+  const maxGardenBio = ECOREGIONS.flatMap(e => e.plants).reduce((s, p) => s + (p.biosphereBonus ?? 0), 0);
+  const maxTotal     = maxBiosphere + maxGardenBio;
 
   // ── Biosphere Score banner ──────────────────────────────────────────────────
   const banner = el('div', 'research-banner');
-  const bioPct = Math.round(biosphere / maxBiosphere * 100);
+  const bioPct    = Math.round(totalBio / maxTotal * 100);
+  const gardenPct = maxGardenBio > 0 ? Math.round(gardenBio / maxGardenBio * 100) : 0;
   banner.innerHTML = `
     <div class="research-banner-row">
       <span class="bio-label">🌍 Biosphere Score</span>
-      <span class="bio-score">${biosphere} <span class="bio-max">/ ${maxBiosphere}</span></span>
+      <span class="bio-score">${totalBio} <span class="bio-max">/ ${maxTotal}</span></span>
       <span class="research-pts">🔬 ${pts} pts</span>
     </div>
     <div class="bio-bar-track"><div class="bio-bar-fill" style="width:${bioPct}%"></div></div>
-    <p class="research-hint">Research points are earned passively — ${engine.unlockedFarmZones.size} pt${engine.unlockedFarmZones.size !== 1 ? 's' : ''}/day from your ${engine.unlockedFarmZones.size} unlocked farm zone${engine.unlockedFarmZones.size !== 1 ? 's' : ''}.</p>
+    <div class="bio-breakdown">
+      <span>🔬 Research: <strong>${biosphere}</strong></span>
+      <span>🌿 Garden: <strong>${gardenBio}</strong> / ${maxGardenBio} &nbsp;<span style="color:#aaa;font-size:11px">(${gardenPct}%)</span></span>
+    </div>
+    <p class="research-hint">Research points are earned passively — ${engine.unlockedFarmZones.size} pt${engine.unlockedFarmZones.size !== 1 ? 's' : ''}/day from your ${engine.unlockedFarmZones.size} unlocked farm zone${engine.unlockedFarmZones.size !== 1 ? 's' : ''}. Plant native species in the 🌿 Garden tab to add more.</p>
   `;
   content.appendChild(banner);
 
@@ -599,6 +622,22 @@ function renderResearch() {
     content.appendChild(idleNote);
   }
 
+  // ── Hide-completed toggle ────────────────────────────────────────────────
+  const researchDoneCount = RESEARCH.filter(r => completed.has(r.id)).length;
+  const researchToggleBar = el('div', 'tab-toggle-bar');
+  const researchToggleBtn = el('button',
+    `tab-toggle-btn${hideCompletedResearch ? ' active' : ''}`,
+    hideCompletedResearch
+      ? `👁 Show completed (${researchDoneCount})`
+      : `✓ Hide completed (${researchDoneCount})`
+  );
+  researchToggleBtn.addEventListener('click', () => {
+    hideCompletedResearch = !hideCompletedResearch;
+    renderAll();
+  });
+  researchToggleBar.appendChild(researchToggleBtn);
+  content.appendChild(researchToggleBar);
+
   // ── Category sections ──────────────────────────────────────────────────────
   for (const cat of Object.values(RESEARCH_CATEGORIES)) {
     const catProjects = RESEARCH.filter(r => r.category === cat.id);
@@ -612,6 +651,7 @@ function renderResearch() {
 
     for (const project of catProjects) {
       const isDone   = completed.has(project.id);
+      if (hideCompletedResearch && isDone) continue;
       const isActive = activeId === project.id;
       const prereqsMet = project.requires.every(req => completed.has(req));
       const canAfford  = pts >= project.cost;
@@ -677,6 +717,239 @@ function renderResearch() {
     }
 
     content.appendChild(section);
+  }
+}
+// ── NATIVE GARDEN TAB ───────────────────────────────────────────────────────
+function renderGarden() {
+  const planted           = engine.plantedSpecies;
+  const activePId         = engine.activePlantingId;
+  const activePTimer      = engine.activePlantingTimer;
+  const pts               = engine.researchPoints;
+  const completedResearch = engine.completedResearch;
+  const researchById      = Object.fromEntries(RESEARCH.map(r => [r.id, r]));
+
+  // ── Hide-planted toggle ─────────────────────────────────────────────────
+  const gardenPlantedCount = ECOREGIONS.flatMap(e => e.plants).filter(p => planted.has(p.id)).length;
+  const gardenToggleBar = el('div', 'tab-toggle-bar');
+  const gardenToggleBtn = el('button',
+    `tab-toggle-btn${hideCompletedGarden ? ' active' : ''}`,
+    hideCompletedGarden
+      ? `👁 Show planted (${gardenPlantedCount})`
+      : `✓ Hide planted (${gardenPlantedCount})`
+  );
+  gardenToggleBtn.addEventListener('click', () => {
+    hideCompletedGarden = !hideCompletedGarden;
+    renderAll();
+  });
+  gardenToggleBar.appendChild(gardenToggleBtn);
+
+  const allPlantIds = ECOREGIONS.flatMap(e => e.plants).map(p => p.id);
+  const allCollapsed = allPlantIds.every(id => collapsedGardenCards.has(id));
+  const collapseAllBtn = el('button', 'tab-toggle-btn', allCollapsed ? '▶ Expand all' : '▼ Collapse all');
+  collapseAllBtn.addEventListener('click', () => {
+    if (allCollapsed) allPlantIds.forEach(id => collapsedGardenCards.delete(id));
+    else              allPlantIds.forEach(id => collapsedGardenCards.add(id));
+    renderAll();
+  });
+  gardenToggleBar.appendChild(collapseAllBtn);
+  content.appendChild(gardenToggleBar);
+
+  for (const ecoregion of ECOREGIONS) {
+    // ── Ecoregion header ─────────────────────────────────────────────────────────
+    const plantedCount = ecoregion.plants.filter(p => planted.has(p.id)).length;
+    const totalCount   = ecoregion.plants.length;
+    const ecoComplete  = plantedCount === totalCount;
+    const ecoPct       = Math.round(plantedCount / totalCount * 100);
+
+    const ecoHeader = el('div', `eco-header${ecoComplete ? ' eco-complete' : ''}`);
+    ecoHeader.innerHTML = `
+      <div class="eco-header-row">
+        <span class="eco-icon">${ecoregion.icon}</span>
+        <span class="eco-name">${ecoregion.label}</span>
+        <span class="eco-progress-text">${plantedCount} / ${totalCount} planted</span>
+        ${ecoComplete ? '<span class="eco-badge-complete">🏆 Complete!</span>' : ''}
+      </div>
+      <p class="eco-desc">${ecoregion.desc}</p>
+      <div class="bio-bar-track" style="margin-top:8px">
+        <div class="bio-bar-fill garden-fill" style="width:${ecoPct}%"></div>
+      </div>
+      <p class="eco-hnp-link">Source: <a href="${ecoregion.hnpUrl}" target="_blank" rel="noopener noreferrer" class="eco-link">Homegrown National Park – Keystone Plants ↗</a></p>
+    `;
+    content.appendChild(ecoHeader);
+
+    // ── Active planting card ──────────────────────────────────────────────────────────
+    const activePlant = activePId ? ecoregion.plants.find(p => p.id === activePId) : null;
+    if (activePlant) {
+      const pct       = Math.min(100, Math.round(activePTimer / activePlant.duration * 100));
+      const remaining = Math.max(0, activePlant.duration - activePTimer);
+      const activeCard = el('div', 'research-active-card garden-active-card');
+      activeCard.innerHTML = `
+        <div class="research-active-header">
+          <span class="research-active-icon">${activePlant.icon}</span>
+          <span class="research-active-name">Planting ${activePlant.name}…</span>
+          <span class="research-active-time">${fmtDur(remaining / engine.gameSpeed)} remaining</span>
+        </div>
+        <div class="research-progress-track">
+          <div class="research-progress-fill garden-progress" style="width:${pct}%"></div>
+        </div>
+        <div class="research-active-footer">
+          <span class="research-active-pct">${pct}% established</span>
+          <button class="action-btn danger research-cancel-btn">✕ Cancel</button>
+        </div>
+      `;
+      activeCard.querySelector('.research-cancel-btn').addEventListener('click', () => {
+        engine.cancelPlanting();
+        renderAll();
+      });
+      content.appendChild(activeCard);
+    } else if (!activePId) {
+      const idleNote = el('p', 'research-idle-note', '— No plant being established. Choose one below. —');
+      content.appendChild(idleNote);
+    }
+
+    // ── Plant type sections ──────────────────────────────────────────────────────────────
+    const typeGroups = [
+      { type: 'flower',  label: '🌸 Wildflowers & Groundcovers' },
+      { type: 'shrub',   label: '🌿 Shrubs' },
+      { type: 'tree',    label: '🌳 Trees' },
+    ];
+
+    for (const { type, label } of typeGroups) {
+      const groupPlants = ecoregion.plants.filter(p => p.type === type);
+      if (groupPlants.length === 0) continue;
+
+      const groupHeader = el('h2', 'section-header', label);
+      content.appendChild(groupHeader);
+
+      for (const plant of groupPlants) {
+        const isPlanted  = planted.has(plant.id);
+        if (hideCompletedGarden && isPlanted) continue;
+        const isActive   = activePId === plant.id;
+        const canAfford  = pts >= plant.cost;
+        const canPlant   = canAfford && !isPlanted && !activePId;
+        const isUnlocked = (plant.requiresResearch ?? []).every(rid => completedResearch.has(rid));
+
+        // ── Locked card (research prerequisite not met) ───────────────────────────
+        if (!isUnlocked) {
+          const lockedReqs = (plant.requiresResearch ?? []).filter(rid => !completedResearch.has(rid));
+          const reqNames   = lockedReqs.map(rid => researchById[rid]?.name ?? rid).join(', ');
+          const lockedCard = el('div', 'garden-card garden-card-locked');
+          lockedCard.innerHTML = `
+            <div class="garden-card-head">
+              <span class="garden-plant-icon">🔒</span>
+              <div class="garden-plant-names">
+                <span class="garden-plant-name">${plant.name}</span>
+                <a class="garden-plant-sci inat-link" href="${inatUrl(plant.sci)}" target="_blank" rel="noopener noreferrer">${plant.sci} ↗</a>
+              </div>
+              <div class="garden-badges">
+                <span class="garden-type-badge garden-type-${plant.type}">${plant.type}</span>
+              </div>
+            </div>
+            <p class="garden-locked-msg">🔬 Requires research: <strong>${reqNames}</strong></p>
+          `;
+          content.appendChild(lockedCard);
+          continue;
+        }
+
+        const card = el('div', `garden-card${isPlanted ? ' garden-planted' : ''}${isActive ? ' garden-active' : ''}`);
+        const isCollapsed = collapsedGardenCards.has(plant.id);
+
+        // ── Card header row: icon + name + badges + collapse toggle ───────────────
+        const cardHead = el('div', 'garden-card-head garden-card-head-clickable');
+        cardHead.innerHTML = `
+          <span class="garden-plant-icon">${plant.icon}</span>
+          <div class="garden-plant-names">
+            <span class="garden-plant-name">${plant.name}</span>
+            <a class="garden-plant-sci inat-link" href="${inatUrl(plant.sci)}" target="_blank" rel="noopener noreferrer">${plant.sci} ↗</a>
+          </div>
+          <div class="garden-badges">
+            <span class="garden-type-badge garden-type-${plant.type}">${plant.type}</span>
+            ${isPlanted ? '<span class="garden-status-badge planted">✅ Planted</span>' : ''}
+            ${isActive  ? '<span class="garden-status-badge active">🌱 Establishing…</span>' : ''}
+          </div>
+          <button class="garden-collapse-btn" title="${isCollapsed ? 'Expand' : 'Collapse'}">${isCollapsed ? '▶' : '▼'}</button>
+        `;
+        // Toggle on header click (but not on inat link clicks)
+        cardHead.addEventListener('click', e => {
+          if (e.target.closest('.inat-link')) return;
+          if (collapsedGardenCards.has(plant.id)) collapsedGardenCards.delete(plant.id);
+          else collapsedGardenCards.add(plant.id);
+          renderAll();
+        });
+        card.appendChild(cardHead);
+
+        // ── Collapsible body ──────────────────────────────────────────────────────
+        if (isCollapsed) { content.appendChild(card); continue; }
+        const cardBody = el('div', 'garden-card-body');
+
+        // ── Plant description ─────────────────────────────────────────────────────
+        const plantMeta = el('div', 'garden-plant-meta');
+        plantMeta.innerHTML = `
+          <span class="garden-meta-item">↕️ ${plant.height}</span>
+          <span class="garden-meta-item">🌱 ${plant.seasonOfInterest}</span>
+          ${plant.caterpillarSpp ? `<span class="garden-meta-item caterpillar-count">🐦 ${plant.caterpillarSpp}+ caterpillar species</span>` : ''}
+        `;
+        cardBody.appendChild(plantMeta);
+
+        const descEl = el('p', 'garden-desc', plant.desc);
+        cardBody.appendChild(descEl);
+
+        // ── Insects & Wildlife hosted (educational section) ───────────────────────
+        const insectSection = el('div', 'garden-insect-section');
+        insectSection.innerHTML = '<div class="garden-insect-header">🦸 Insects & Wildlife Hosted</div>';
+
+        for (const creature of plant.insectsHosted) {
+          const typeIcon = WILDLIFE_TYPE_ICONS[creature.type] ?? '🐞';
+          const insectRow = el('div', `garden-insect-row insect-type-${creature.type}`);
+          insectRow.innerHTML = `
+            <div class="garden-insect-label">
+              <span class="insect-type-icon">${typeIcon}</span>
+              <span class="insect-name">${creature.name}</span>
+              ${creature.sci ? `<a class="insect-sci inat-link" href="${inatUrl(creature.sci)}" target="_blank" rel="noopener noreferrer">(${creature.sci}) ↗</a>` : ''}
+            </div>
+            <div class="insect-role-badge">${creature.role}</div>
+            <p class="insect-note">${creature.note}</p>
+          `;
+          insectSection.appendChild(insectRow);
+        }
+
+        if (plant.wildlifeNote) {
+          const wildlifeEl = el('div', 'garden-wildlife-note');
+          wildlifeEl.innerHTML = `<span class="wildlife-note-icon">🌿</span> ${plant.wildlifeNote}`;
+          insectSection.appendChild(wildlifeEl);
+        }
+
+        cardBody.appendChild(insectSection);
+
+        // ── Cost & action row ──────────────────────────────────────────────────────────────
+        if (!isPlanted) {
+          const actionRow = el('div', 'garden-action-row');
+          const bonusLabel = el('span', 'garden-bonus-label', `🌍 +${plant.biosphereBonus} Biosphere`);
+          actionRow.appendChild(bonusLabel);
+
+          const btn = el('button',
+            `action-btn${canPlant ? ' garden-plant-btn' : ' disabled'}`,
+            isActive ? `🌱 Establishing… ${fmtDur(Math.max(0, plant.duration - activePTimer) / engine.gameSpeed)}`
+            : canPlant ? `🌱 Establish — 🔬 ${plant.cost} pts · ${fmtDur(plant.duration / engine.gameSpeed)}`
+            : !activePId ? `🔬 Need ${plant.cost - pts} more pts`
+            : 'Busy establishing another plant'
+          );
+          if (canPlant) {
+            btn.addEventListener('click', () => {
+              const result = engine.startPlanting(plant.id);
+              if (result.ok) renderAll();
+            });
+          } else {
+            btn.disabled = true;
+          }
+          actionRow.appendChild(btn);
+          cardBody.appendChild(actionRow);
+        }
+
+        card.appendChild(cardBody);
+        content.appendChild(card);
+      }
+    }
   }
 }
 
@@ -747,6 +1020,7 @@ function renderSettings() {
   saveBtn.addEventListener('click', () => { engine.save(); saveBtn.textContent = '✅ Saved!'; setTimeout(() => { saveBtn.textContent = '💾 Save Now'; }, 1500); });
   resetBtn.addEventListener('click', () => {
     if (confirm('Reset all progress? This cannot be undone.')) {
+      _resetting = true;
       engine.clearSave();
       location.reload();
     }

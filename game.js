@@ -4,6 +4,7 @@
 import { CROPS, CropInstance } from './crops.js';
 import { WORK_ACTIVITIES }     from './activityRegistry.js';
 import { RESEARCH }            from './research.js';
+import { ECOREGIONS, findPlant } from './ecoregions.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 export const DAY_REAL_SECS = 240; // 4 real minutes = 1 in-game day
@@ -130,6 +131,11 @@ export function createEngine() {
   let   activeResearchId    = null;
   let   activeResearchTimer = 0;   // elapsed seconds (×gameSpeed)
   const completedResearch    = new Set();
+
+  // ── Native Garden / Ecoregion state ──────────────────────────────────────
+  const plantedSpecies     = new Set(); // planted plant IDs
+  let   activePlantingId   = null;      // plant currently being established
+  let   activePlantingTimer = 0;        // elapsed seconds (×gameSpeed)
 
   // ── Farm zones ──────────────────────────────────────────────────────────────
   const unlockedFarmZones = new Set(); // populated by checkAutoUnlocks()
@@ -360,6 +366,19 @@ export function createEngine() {
       }
     }
 
+    // Native planting timer
+    if (activePlantingId) {
+      const result = findPlant(activePlantingId);
+      if (result) {
+        activePlantingTimer += gameSpeed;
+        if (activePlantingTimer >= result.plant.duration) {
+          plantedSpecies.add(activePlantingId);
+          activePlantingId    = null;
+          activePlantingTimer = 0;
+        }
+      }
+    }
+
     runAutoPilot();
     checkAutoUnlocks();
   }
@@ -373,7 +392,8 @@ export function createEngine() {
     let t = 0;
     while (t < simSecs) {
       t++;
-      calendarAccum = (calendarAccum + 1) % DAY_REAL_SECS;
+      calendarAccum++;
+      if (calendarAccum >= DAY_REAL_SECS) { calendarAccum -= DAY_REAL_SECS; inGameDay++; }
       {
         for (const [zoneName, instance] of zoneCrops) {
           if (!unlockedFarmZones.has(zoneName)) continue;
@@ -413,7 +433,7 @@ export function createEngine() {
   // ── Save / Load ─────────────────────────────────────────────────────────────
   function getState() {
     return {
-      gold: gold.amount, gameSpeed, autoPilot,
+      gold: gold.amount, autoPilot,
       calendarAccum, inGameDay,
       unlockedFarmZones: [...unlockedFarmZones],
       zoneAcres:   Object.fromEntries(zoneAcres),
@@ -431,6 +451,8 @@ export function createEngine() {
       researchPoints, researchAccum,
       activeResearchId, activeResearchTimer,
       completedResearch: [...completedResearch],
+      plantedSpecies:    [...plantedSpecies],
+      activePlantingId,  activePlantingTimer,
       savedAt: Date.now(),
     };
   }
@@ -458,7 +480,7 @@ export function createEngine() {
       artisanProductMap:    _rO(s.artisanProductMap),
     };
     if (typeof s.gold         === 'number')  gold.amount   = s.gold;
-    if (typeof s.gameSpeed    === 'number')  gameSpeed     = s.gameSpeed;
+    // gameSpeed is intentionally NOT restored — always resets to 1× on load
     if (typeof s.autoPilot    === 'boolean') autoPilot     = s.autoPilot;
     if (typeof s.calendarAccum === 'number') calendarAccum = s.calendarAccum;
     if (typeof s.inGameDay    === 'number')  inGameDay     = s.inGameDay;
@@ -521,6 +543,12 @@ export function createEngine() {
       completedResearch.clear();
       s.completedResearch.forEach(id => completedResearch.add(id));
     }
+    if (Array.isArray(s.plantedSpecies)) {
+      plantedSpecies.clear();
+      s.plantedSpecies.forEach(id => plantedSpecies.add(id));
+    }
+    if ('activePlantingId'    in s) activePlantingId    = s.activePlantingId;
+    if (typeof s.activePlantingTimer === 'number') activePlantingTimer = s.activePlantingTimer;
     checkAutoUnlocks(); // re-derive zoneProductMap and catch any new unlocks
   }
 
@@ -640,6 +668,39 @@ export function createEngine() {
         return sum + (r?.effect?.biosphereBonus ?? 0);
       }, 0);
     },
+    getGardenBiosphereScore() {
+      return [...plantedSpecies].reduce((sum, id) => {
+        const result = findPlant(id);
+        return sum + (result?.plant?.biosphereBonus ?? 0);
+      }, 0);
+    },
+    getTotalBiosphereScore() {
+      return this.getBiosphereScore() + this.getGardenBiosphereScore();
+    },
+    // Native Garden API
+    get plantedSpecies()      { return plantedSpecies; },
+    get activePlantingId()    { return activePlantingId; },
+    get activePlantingTimer() { return activePlantingTimer; },
+    startPlanting(plantId) {
+      if (activePlantingId) return { ok: false, reason: 'already_active' };
+      const result = findPlant(plantId);
+      if (!result) return { ok: false, reason: 'not_found' };
+      if (plantedSpecies.has(plantId)) return { ok: false, reason: 'already_planted' };
+      if (researchPoints < result.plant.cost) return { ok: false, reason: 'insufficient_pts' };
+      researchPoints     -= result.plant.cost;
+      activePlantingId    = plantId;
+      activePlantingTimer = 0;
+      return { ok: true };
+    },
+    cancelPlanting() {
+      if (!activePlantingId) return;
+      const result = findPlant(activePlantingId);
+      if (result) researchPoints += result.plant.cost;
+      activePlantingId    = null;
+      activePlantingTimer = 0;
+    },
+    ECOREGIONS,
+    findPlant,
     startResearch(id) {
       if (activeResearchId) return false;
       const project = RESEARCH.find(r => r.id === id);
