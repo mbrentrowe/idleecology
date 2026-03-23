@@ -84,6 +84,8 @@ body {
 .gps            { color: var(--s-grow); font-size: 13px; background: rgba(var(--s-grow-rgb), 0.1); padding: 2px 8px; border-radius: 12px; }
 .bio-header     { color: var(--s-grow); font-size: 13px; background: rgba(var(--s-grow-rgb), 0.09); padding: 2px 8px; border-radius: 12px; }
 .rp-header      { color: var(--s-accent); font-size: 13px; background: rgba(var(--s-accent-rgb), 0.09); padding: 2px 8px; border-radius: 12px; }
+.acres-header   { color: #8ab4c4; font-size: 13px; background: rgba(100,160,200,0.1); padding: 2px 8px; border-radius: 12px; }
+.acres-header.acres-full { color: #c4a47a; background: rgba(196,164,122,0.12); }
 .activity-badge { font-size: 13px; color: #ddd; }
 .season-badge-hud { color: #ddd; font-size: 13px; font-weight: bold; }
 .day-counter      { color: #999; font-size: 12px; }
@@ -176,6 +178,235 @@ body {
   50%       { box-shadow: 0 4px 16px rgba(0,0,0,0.55), 0 0 0 3px #ffe066, 0 0 22px 8px rgba(255,220,60,0.70); }
 }
 
+/* ── Notification FAB ──────────────────────────────────────────── */
+#notif-wrap {
+  position: fixed;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  right: calc(86px + env(safe-area-inset-right));
+  z-index: 101;
+  width: 52px;
+  height: 52px;
+}
+#notif-btn {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: #1e2a1e;
+  color: #aaa;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.5);
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#notif-btn:hover { background: #2a3a2a; color: #ccc; }
+#notif-wrap.has-unread #notif-btn {
+  border-color: #e09030;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px #e09030, 0 0 12px 4px rgba(224,144,48,0.5);
+  animation: notif-glow 1.8s ease-in-out infinite;
+}
+@keyframes notif-glow {
+  0%, 100% { box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px #e09030, 0 0 10px 3px rgba(224,144,48,0.4); }
+  50%       { box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px #ffb84d, 0 0 18px 7px rgba(255,184,60,0.65); }
+}
+#notif-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(25%, -25%);
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #e09030;
+  color: #111;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+#notif-badge:empty { display: none; }
+
+/* ── Notification Modal ─────────────────────────────────────────── */
+#notif-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+#notif-modal[hidden] { display: none; }
+#notif-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+}
+#notif-panel {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  max-height: 78vh;
+  background: #141f14;
+  border-radius: 16px 16px 0 0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1;
+  animation: slideUpPanel 0.22s ease;
+}
+@keyframes slideUpPanel {
+  from { transform: translateY(50px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+#notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+#notif-title { font-size: 15px; font-weight: 700; color: #ddd; }
+#notif-header-actions { display: flex; align-items: center; gap: 8px; }
+#notif-dismiss-all {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: #888;
+  cursor: pointer;
+  font-family: inherit;
+}
+#notif-dismiss-all:hover { color: #fff; background: rgba(255,255,255,0.1); }
+#notif-close {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+}
+#notif-close:hover { color: #ccc; }
+#notif-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+  padding: 0 12px;
+}
+.notif-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #666;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 9px 0;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-weight: 500;
+}
+.notif-tab:hover { color: #aaa; }
+.notif-tab.active {
+  color: #e09030;
+  border-bottom-color: #e09030;
+}
+#notif-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+.notif-empty {
+  text-align: center;
+  color: #555;
+  font-size: 13px;
+  padding: 28px;
+}
+.notif-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: background 0.12s;
+}
+.notif-entry:hover { background: rgba(255,255,255,0.025); }
+.notif-entry.notif-read { opacity: 0.5; }
+.notif-entry-thumb {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notif-thumb { width: 52px; height: 52px; object-fit: cover; }
+.notif-type-icon { font-size: 28px; }
+.notif-entry-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.notif-entry-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+.notif-badge-label {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 8px;
+  letter-spacing: 0.02em;
+}
+.notif-badge-discovery  { background: rgba(58,140,58,0.25);   color: #7ecf7e; }
+.notif-badge-extirpated { background: rgba(160,50,50,0.25);   color: #f08888; }
+.notif-badge-crop       { background: rgba(200,160,60,0.25);  color: #f0c840; }
+.notif-badge-ranch      { background: rgba(180,120,60,0.25);  color: #e0a060; }
+.notif-badge-plant      { background: rgba(60,160,120,0.25);  color: #7edcb0; }
+.notif-badge-research   { background: rgba(100,160,220,0.22); color: #90caf9; }
+.notif-entry-date { font-size: 11px; color: #555; margin-left: auto; white-space: nowrap; }
+.notif-entry-name { font-size: 14px; font-weight: 700; color: #e0e0e0; }
+.notif-entry-host { font-size: 12px; color: #777; }
+.notif-entry-host strong { color: #aaa; }
+.notif-entry-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.notif-icon-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px;
+  line-height: 1;
+  opacity: 0.45;
+  transition: opacity 0.15s;
+}
+.notif-icon-btn:hover { opacity: 1; }
+
 /* Menu list that fans upward */
 #fab-menu {
   position: fixed;
@@ -241,6 +472,42 @@ body {
   padding-bottom: 4px;
 }
 .section-header:first-child { margin-top: 4px; }
+
+/* ── Buy quantity toggle (Crops tab) ─────────────────────── */
+.buy-qty-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.buy-qty-bar::before {
+  content: 'Buy:';
+  font-size: 12px;
+  color: #888;
+  margin-right: 2px;
+}
+.buy-qty-btn {
+  font-size: 0.75rem;
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid #444;
+  background: rgba(255,255,255,0.05);
+  color: #aaa;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.buy-qty-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: #ccc;
+  border-color: #666;
+}
+.buy-qty-btn.active {
+  background: rgba(76,175,80,0.18);
+  border-color: #4caf5088;
+  color: #a5d6a7;
+  font-weight: 600;
+}
 
 /* ── Zone cards ──────────────────────────────────────────── */
 .zone-card {
@@ -355,6 +622,15 @@ body {
 }
 .phase-label.active { color: var(--s-accent, #c4a45a); font-weight: 600; }
 .phase-label.passed { color: #4a7a4a; }
+
+/* Compact phase status — shown on narrow screens instead of the label row */
+.phase-status-compact {
+  display: none;
+  font-size: 11px;
+  color: #777;
+  margin-bottom: 4px;
+}
+.phase-status-compact.active-phase { color: var(--s-accent, #c4a45a); font-weight: 600; }
 
 /* ── Seasonal dormancy ──────────────────────────────────── */
 .zone-card.dormant-zone { opacity: 0.72; }
@@ -641,6 +917,11 @@ body {
   background: rgba(58, 140, 58, 0.25);
   border-bottom: 1px solid rgba(58, 140, 58, 0.3);
 }
+.discovery-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .discovery-new-badge {
   font-weight: 700;
   font-size: 13px;
@@ -657,17 +938,55 @@ body {
   line-height: 1;
 }
 .discovery-close:hover { color: #ccc; }
+.discovery-goto {
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.discovery-goto:hover { opacity: 1; }
+.zone-info-btn {
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.45;
+  transition: opacity 0.15s;
+}
+.zone-info-btn:hover { opacity: 1; }
 .discovery-body {
   display: flex;
   gap: 10px;
-  padding: 10px 12px 8px;
+  padding: 10px 12px 10px;
   align-items: flex-start;
+}
+.discovery-thumb-wrap {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.discovery-thumb {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 8px;
 }
 .discovery-type-icon {
   font-size: 36px;
   line-height: 1;
-  flex-shrink: 0;
-  margin-top: 2px;
 }
 .discovery-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .discovery-name { font-size: 15px; font-weight: 700; color: #e8e8e8; }
@@ -690,15 +1009,14 @@ body {
 }
 .discovery-date { font-size: 11px; color: #666; }
 .discovery-bp   { font-size: 12px; color: #7ecf7e; font-weight: 600; }
-.discovery-timer-track {
-  height: 3px;
-  background: rgba(58, 140, 58, 0.2);
-  overflow: hidden;
+@keyframes discoveryHighlight {
+  0%   { box-shadow: 0 0 0 3px rgba(58,140,58,0.8); }
+  50%  { box-shadow: 0 0 0 6px rgba(58,140,58,0.4); }
+  100% { box-shadow: none; }
 }
-.discovery-timer-fill {
-  height: 100%;
-  width: 100%;
-  background: #3a8c3a;
+.discovery-highlight {
+  animation: discoveryHighlight 2s ease-out forwards;
+  scroll-margin: 80px;
 }
 
 /* ── Discovery History List ──────────────────────────────── */
@@ -1020,6 +1338,16 @@ body {
 .garden-status-badge.planted { background: rgba(60,160,60,0.25); color: #7dff7d; }
 .garden-status-badge.active  { background: rgba(100,200,100,0.2); color: #a5d6a7; }
 
+/* Species-hosted count badge */
+.garden-hosted-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(120,170,255,0.15);
+  color: #90caf9;
+  border: 1px solid rgba(120,170,255,0.25);
+}
+
 /* Plant meta row (height, season, caterpillar count) */
 .garden-plant-meta {
   display: flex;
@@ -1321,15 +1649,6 @@ body {
 .collection-crop-stat strong {
   color: #c8e6c9;
 }
-.collection-crop-artisan {
-  color: #7a8a7a;
-  font-style: italic;
-}
-.collection-crop-artisan.unlocked {
-  color: #aed581;
-  font-style: normal;
-}
-
 .collection-plant-card {
   background: #1a2a1a;
   border: 1px solid #2a4a2a;
@@ -1688,6 +2007,10 @@ body {
   /* Acre upgrade row: allow wrap */
   .acre-upgrade-row { flex-wrap: wrap; }
 
+  /* Phase labels: hide bar labels on mobile, show compact single-line status */
+  .phase-labels-row { display: none; }
+  .phase-status-compact { display: block; }
+
   /* Offline toast: full-width, above tab bar */
   .offline-toast {
     left: 10px;
@@ -1775,3 +2098,111 @@ body {
   border-top: 1px solid #2a2a1a;
   padding-top: 8px;
 }
+
+/* ── Shared utility ──────────────────────────────────────── */
+.danger-btn {
+  background: #4a1a1a !important;
+  border-color: #8b3030 !important;
+  color: #e57070 !important;
+}
+.danger-btn:hover:not(:disabled) { background: #6a2020 !important; }
+.acre-queued { color: #8bc48a; font-size: 11px; font-weight: normal; }
+
+/* ── Land Tab ────────────────────────────────────────────── */
+.land-banner {
+  background: #1a1e16;
+  border: 1px solid #3a3a2a;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.land-banner-row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.land-stat       { color: #aaa; font-size: 13px; }
+.land-stat-num   { font-size: 22px; font-weight: 700; color: #c4a45a; margin-right: 4px; }
+.land-stat-free .land-stat-num { color: #8bc48a; }
+.land-bar-track  { height: 6px; background: #2a2e22; border-radius: 3px; }
+.land-bar-fill   {
+  height: 100%;
+  background: linear-gradient(90deg, #4a7a44, #c4a45a);
+  border-radius: 3px;
+  transition: width 0.5s;
+}
+.land-section        { margin-bottom: 24px; }
+.land-section-header {
+  font-size: 15px;
+  color: #c4a45a;
+  border-bottom: 1px solid #3a3a2a;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+.land-queue-card {
+  background: #1a1e16;
+  border: 1px solid #3a3a2a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.land-queue-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.land-queue-type { font-size: 12px; color: #888; min-width: 60px; }
+.land-queue-name { flex: 1; font-weight: 600; color: #e0d4b0; }
+.land-queue-time { font-size: 12px; color: #aaa; }
+.land-queue-more { font-size: 11px; color: #888; margin-top: 4px; }
+.land-market-card {
+  background: #1a1e16;
+  border: 1px solid #3a3a2a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.land-market-row   { display: flex; align-items: center; gap: 12px; }
+.land-market-acres { flex: 1; font-weight: 600; color: #8bc48a; }
+.land-market-cost  { color: #ffd700; }
+.land-buy-btn      { padding: 5px 14px; font-size: 13px; }
+.land-empty-note   { color: #666; font-size: 13px; font-style: italic; }
+
+/* Land tile grid */
+.land-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.land-tile {
+  width: 44px;
+  height: 44px;
+  background: #1a1e16;
+  border: 1px solid #3a3a2a;
+  border-radius: 6px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: default;
+}
+.land-tile-crop         { border-color: #4a6a3a; }
+.land-tile-ranch        { border-color: #6a4a2a; }
+.land-tile-native       { border-color: #3a5a4a; }
+.land-tile-free         { border-color: #2a2e22; opacity: 0.4; }
+.land-tile-establishing { opacity: 0.55; border-style: dashed; }
+.land-tile-thumb {
+  width: 38px;
+  height: 38px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+.land-tile-icon { font-size: 20px; line-height: 1; }
+
+/* ── Garden acre info ────────────────────────────────────── */
+.garden-acre-info { color: #8bc48a; font-size: 12px; margin-right: 8px; }
+
+/* ── Habitat loss popup ──────────────────────────────────── */
+.habitat-loss-popup            { border-color: #8b3030 !important; }
+.habitat-loss-header           { background: linear-gradient(135deg, #3a1010, #2a1a1a) !important; }
+.habitat-loss-badge            { background: #8b3030 !important; color: #ffcccc !important; }
+.habitat-loss-note             { color: #e57070; font-weight: 600; }

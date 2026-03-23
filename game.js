@@ -79,6 +79,7 @@ export function calendarDate(totalDays) {
 // ── Zone definitions (no Tiled map needed) ────────────────────────────────────
 export const BASE_ZONE_ACRES   = 1;
 export const BASE_ZONE_WORKERS = 1;
+export const TICKS_PER_SEC     = 4; // setInterval fires every 250ms
 
 /** Speed multiplier for a zone with w workers: 1× at 1 worker, 4× at 10. */
 export function workerMultiplier(w) { return 1 + (w - 1) / 3; }
@@ -136,6 +137,14 @@ export const ARTISAN_ZONE_DEFS = [
   { name: 'The Brassica Works',        cropId: 'broccoli',    cost:   4428675000 },
   { name: 'The Tomato Works',          cropId: 'asparagus',   cost:  13286025000 },
 ];
+
+// ── Land system constants ─────────────────────────────────────────────────────
+export const STARTING_LAND_ACRES         = 6;   // acres owned at game start
+export const ESTABLISH_DAYS              = 7;   // in-game days to establish one acre
+export const LAND_MARKET_INTERVAL_DAYS   = 14;  // in-game days between market parcels
+export const HABITAT_RISK_BASE_PCT       = 0.02;  // 2% daily creature-loss chance after removal
+export const HABITAT_RISK_INCREMENT      = 0.005; // +0.5% per additional in-game day at risk
+export const HABITAT_RISK_MAX_PCT        = 0.30;  // cap at 30%
 
 /** Maps all historical zone names → current SE USA Plains names for save migration.
  *  Single-pass lookup — all intermediate names point directly to the final SE name.
@@ -224,9 +233,27 @@ export function createEngine() {
   const completedResearch    = new Set();
 
   // ── Native Garden / Ecoregion state ──────────────────────────────────────
-  const plantedSpecies     = new Set(); // planted plant IDs
-  let   activePlantingId   = null;      // plant currently being established
-  let   activePlantingTimer = 0;        // elapsed in-game days
+  const plantedSpecies      = new Set(); // plant IDs with ≥1 established acre
+  const plantedSpeciesAcres = new Map(); // plantId → established acre count
+  // Legacy single-slot planting (kept for save migration; replaced by nativeEstablishQueue)
+  let   activePlantingId    = null;
+  let   activePlantingTimer = 0;
+
+  // ── Land pool state ───────────────────────────────────────────────────────
+  let totalLandAcres = STARTING_LAND_ACRES;
+  // Per-type establishing queues — each item = 1 acre, ~ESTABLISH_DAYS each
+  const cropEstablishQueue   = []; // [{zoneName}]
+  const ranchEstablishQueue  = []; // [{animalId}]
+  const nativeEstablishQueue = []; // [{plantId}]
+  let cropEstablishTimer   = 0;    // elapsed real-seconds for in-progress item
+  let ranchEstablishTimer  = 0;
+  let nativeEstablishTimer = 0;
+  // Habitat-risk state for creatures whose host plant acres have been removed
+  const habitatRiskCreatures = new Map(); // ckey → {daysAtRisk, riskPct}
+  // Land market
+  const landMarket        = [];  // [{id, acres, cost}]
+  let nextMarketDripDay   = LAND_MARKET_INTERVAL_DAYS;
+  let _landMarketNextId   = 1;
 
   // ── Creature discovery state ──────────────────────────────────────────────
   // Each insect/wildlife in ecoregion plants is discovered via daily rolls.
@@ -237,9 +264,22 @@ export function createEngine() {
   const creaturePity          = new Map();  // creatureKey → days of opportunity elapsed
   const creatureDiscoveryLog  = new Map();  // creatureKey → inGameDay when first discovered
 
-  /** Stable key for a creature tied to a specific host plant. */
-  function creatureKey(plantId, creatureName) {
-    return `${plantId}__${creatureName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+  /** Stable key for a creature, based on its name only (plant-independent). */
+  function creatureKey(creatureName) {
+    return creatureName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  }
+
+  // Reverse lookup: creature slug → array of plantIds that host it (built once)
+  const creatureHostPlants = new Map();
+  for (const _heco of ECOREGIONS) {
+    for (const _hplant of _heco.plants) {
+      for (const _hc of (_hplant.insectsHosted ?? [])) {
+        const _hck = creatureKey(_hc.name);
+        const _harr = creatureHostPlants.get(_hck);
+        if (_harr) _harr.push(_hplant.id);
+        else creatureHostPlants.set(_hck, [_hplant.id]);
+      }
+    }
   }
 
   // ── Farm zones ──────────────────────────────────────────────────────────────
@@ -249,7 +289,7 @@ export function createEngine() {
   const zoneWorkers = new Map(); // zoneName → worker count
 
   function farmTileCount(zoneName) {
-    return zoneAcres.get(zoneName) ?? BASE_ZONE_ACRES;
+    return zoneAcres.get(zoneName) ?? 0;
   }
 
   // ── Artisan workState ───────────────────────────────────────────────────────
@@ -280,7 +320,7 @@ export function createEngine() {
       if (unlockedRanchAnimals.has(animal.id)) continue;
       if (totalSold >= animal.unlockCriteria.totalSold) {
         unlockedRanchAnimals.add(animal.id);
-        if (!ranchAcres.has(animal.id))   ranchAcres.set(animal.id, 1);
+        // acres are allocated from the land pool — not auto-granted
         if (!ranchWorkers.has(animal.id)) ranchWorkers.set(animal.id, BASE_ZONE_WORKERS);
       }
     }
@@ -296,16 +336,16 @@ export function createEngine() {
   // Scales from 1× (0 BP) to 5× (all BP unlocked) using a power-1.5 curve.
   const MAX_BP = RESEARCH.reduce((s, r) => s + (r.effect?.biosphereBonus ?? 0), 0)
                + ECOREGIONS.flatMap(e => e.plants).reduce((s, p) => s + (p.biosphereBonus ?? 0), 0)
-               + ECOREGIONS.flatMap(e => e.plants).reduce((s, p) => s + (p.insectsHosted?.length ?? 0), 0);
+               + new Set(ECOREGIONS.flatMap(e => e.plants).flatMap(p => (p.insectsHosted ?? []).map(c => creatureKey(c.name)))).size;
 
   function goldMultiplier() {
     if (MAX_BP <= 0) return 1;
     const currentBP = [...completedResearch].reduce((sum, id) => {
       const r = RESEARCH.find(p => p.id === id);
       return sum + (r?.effect?.biosphereBonus ?? 0);
-    }, 0) + [...plantedSpecies].reduce((sum, id) => {
+    }, 0) + [...plantedSpeciesAcres.entries()].reduce((sum, [id, acres]) => {
       const result = findPlant(id);
-      return sum + (result?.plant?.biosphereBonus ?? 0);
+      return sum + (result?.plant?.biosphereBonus ?? 0) * acres;
     }, 0) + discoveredCreatures.size;
     const t = currentBP / MAX_BP;
     return 1 + 4 * Math.pow(t, 1.5);
@@ -325,6 +365,26 @@ export function createEngine() {
     };
   }
 
+  // ── Land pool helpers ─────────────────────────────────────────────────────────
+  function getAllocatedAcres() {
+    let n = 0;
+    for (const v of zoneAcres.values())          n += v;
+    for (const v of ranchAcres.values())         n += v;
+    for (const v of plantedSpeciesAcres.values()) n += v;
+    n += cropEstablishQueue.length;
+    n += ranchEstablishQueue.length;
+    n += nativeEstablishQueue.length;
+    return n;
+  }
+  function getFreeAcres() { return totalLandAcres - getAllocatedAcres(); }
+
+  function _generateMarketParcel() {
+    // Size & cost scale with how many parcels the player already owns
+    const size = Math.min(5, 1 + Math.floor(totalLandAcres / 20));
+    const cost = Math.round(Math.max(5000, 2000 * totalLandAcres) * size * (0.8 + Math.random() * 0.4));
+    return { id: _landMarketNextId++, acres: size, cost };
+  }
+
   // ── Auto-unlock: criteria-based zone activation ──────────────────────────────
   function checkAutoUnlocks() {
     const lifetimeGold = Array.from(cropStats.values()).reduce((s, v) => s + v.lifetimeSales, 0);
@@ -334,7 +394,9 @@ export function createEngine() {
       if (!crop) continue;
       if (crop.isUnlocked(cropStats, lifetimeGold)) {
         unlockedFarmZones.add(def.name);
-        if (!zoneAcres.has(def.name))   zoneAcres.set(def.name, BASE_ZONE_ACRES);
+        // Starter zone (cost 0) gets 1 free acre from the land pool on first unlock
+        if (def.cost === 0 && !zoneAcres.has(def.name)) zoneAcres.set(def.name, BASE_ZONE_ACRES);
+        // All other zones start with 0 acres — player allocates from pool
         if (!zoneWorkers.has(def.name)) zoneWorkers.set(def.name, BASE_ZONE_WORKERS);
         if (!zoneCrops.has(def.name))   zoneCrops.set(def.name, new CropInstance(crop));
       }
@@ -377,14 +439,16 @@ export function createEngine() {
     for (const [zoneName, instance] of zoneCrops) {
       if (!unlockedFarmZones.has(zoneName)) continue;
       const ct  = instance.cropType;
+      if (!ct.isInSeason(lastSeasonName)) continue; // dormant — no earnings
       const ap  = ct.artisanProduct;
       const cyc = (ct.growthPhaseGIDs.length - 1) * ct.growthTimePerPhase;
       if (cyc <= 0) continue;
       const tc = farmTileCount(zoneName);
+      const wm  = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
       const holdRaw = ap
         && (cropStats.get(ct.id)?.sold ?? 0) >= ap.unlockCropSold
         && [...artisanWS.unlockedSet].some(zn => artisanWS.zoneProductMap.get(zn) === ct.id);
-      if (!holdRaw && autoSellSet.has(ct.id)) gps += (ct.yieldGold * tc) / cyc;
+      if (!holdRaw && autoSellSet.has(ct.id)) gps += (ct.yieldGold * tc * wm * TICKS_PER_SEC) / cyc;
     }
     for (const zn of artisanWS.unlockedSet) {
       gps += artisanAct.getGPS(
@@ -396,9 +460,10 @@ export function createEngine() {
     for (const animalId of unlockedRanchAnimals) {
       const animal = RANCH_ANIMALS[animalId];
       if (!animal) continue;
-      const acres = ranchAcres.get(animalId) ?? 1;
+      const acres = ranchAcres.get(animalId) ?? 0;
+      if (acres <= 0) continue;
       const wm    = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
-      gps += (animal.goldPerCycle * acres * wm * goldMultiplier()) / animal.productionIntervalSecs;
+      gps += (animal.goldPerCycle * acres * wm * goldMultiplier() * TICKS_PER_SEC) / animal.productionIntervalSecs;
     }
     return gps;
   }
@@ -423,12 +488,10 @@ export function createEngine() {
       }
     }
 
-    // 2. AUTO-BUY — cheapest available upgrade (acres and workers only)
+    // 2. AUTO-BUY — cheapest available worker upgrade (acres come from the land pool now)
     const candidates = [];
     for (const def of FARM_ZONE_DEFS) {
       if (!unlockedFarmZones.has(def.name)) continue;
-      const curAcres = zoneAcres.get(def.name) ?? BASE_ZONE_ACRES;
-      candidates.push({ type: 'acre',       name: def.name, cost: acreUpgradeCost(def, curAcres) });
       const curFW = zoneWorkers.get(def.name) ?? BASE_ZONE_WORKERS;
       candidates.push({ type: 'farmWorker', name: def.name, cost: workerUpgradeCost(def, curFW) });
     }
@@ -441,9 +504,7 @@ export function createEngine() {
       const cheapest = candidates.reduce((a, b) => a.cost < b.cost ? a : b);
       if (gold.amount >= cheapest.cost) {
         gold.add(-cheapest.cost);
-        if (cheapest.type === 'acre') {
-          zoneAcres.set(cheapest.name, (zoneAcres.get(cheapest.name) ?? BASE_ZONE_ACRES) + 1);
-        } else if (cheapest.type === 'farmWorker') {
+        if (cheapest.type === 'farmWorker') {
           zoneWorkers.set(cheapest.name, (zoneWorkers.get(cheapest.name) ?? BASE_ZONE_WORKERS) + 1);
         } else {
           artisanWorkers.set(cheapest.name, (artisanWorkers.get(cheapest.name) ?? BASE_ZONE_WORKERS) + 1);
@@ -452,6 +513,10 @@ export function createEngine() {
     }
   }
 
+  // ── Habitat-loss event (overridable from UI layer) ───────────────────────
+  // The UI can set engine.onCreatureExtirpated to a function(ckey) for notifications.
+  let _onCreatureExtirpated = (ckey) => { /* default: no-op; UI overrides this */ };
+
   // ── Season transitions ─────────────────────────────────────────────────────
   function onSeasonChange(oldSeason, newSeason) {
     for (const [zoneName, instance] of zoneCrops) {
@@ -459,9 +524,9 @@ export function createEngine() {
       const ct = instance.cropType;
       if (ct.isInSeason(oldSeason) && !ct.isInSeason(newSeason)) {
         // End of this crop's growing season — harvest if ready, then freeze
-        if (instance.isFullyGrown) {
+        const tc = farmTileCount(zoneName);
+        if (instance.isFullyGrown && tc > 0) {
           const id = ct.id;
-          const tc = farmTileCount(zoneName);
           const s  = cropStats.get(id);
           s.grown += tc;
           if (autoSellSet.has(id)) {
@@ -499,11 +564,12 @@ export function createEngine() {
       for (const [zoneName, instance] of zoneCrops) {
         if (!unlockedFarmZones.has(zoneName)) continue;
         if (!instance.cropType.isInSeason(lastSeasonName)) continue; // dormant
+        const tc = farmTileCount(zoneName);
+        if (tc <= 0) continue; // no land allocated — pause growth
         const wm = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
         instance.tick(gameSpeed * wm);
         if (instance.isFullyGrown) {
           const id    = instance.cropType.id;
-          const tc    = farmTileCount(zoneName);
           const s     = cropStats.get(id);
           s.grown    += tc;
           if (autoSellSet.has(id)) {
@@ -539,9 +605,10 @@ export function createEngine() {
       if (!animal) continue;
       const wm = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
       let t = (ranchTimers.get(animalId) ?? 0) + gameSpeed * wm;
+      const acres = ranchAcres.get(animalId) ?? 0;
+      if (acres <= 0) { ranchTimers.set(animalId, 0); continue; }
       while (t >= animal.productionIntervalSecs) {
         t -= animal.productionIntervalSecs;
-        const acres  = ranchAcres.get(animalId) ?? 1;
         const earned = animal.goldPerCycle * acres * _gMult;
         gold.add(earned);
         const st = ranchStats.get(animalId);
@@ -571,12 +638,49 @@ export function createEngine() {
       }
     }
 
-    // Native planting timer
+    // ── Establishing queues (per-type, one acre at a time) ─────────────────────
+    const ESTABLISH_SECS = ESTABLISH_DAYS * DAY_REAL_SECS;
+    if (cropEstablishQueue.length > 0) {
+      cropEstablishTimer += gameSpeed;
+      while (cropEstablishTimer >= ESTABLISH_SECS && cropEstablishQueue.length > 0) {
+        cropEstablishTimer -= ESTABLISH_SECS;
+        const { zoneName } = cropEstablishQueue.shift();
+        if (unlockedFarmZones.has(zoneName)) {
+          zoneAcres.set(zoneName, (zoneAcres.get(zoneName) ?? 0) + 1);
+          if (!zoneCrops.has(zoneName)) zoneCrops.set(zoneName, new CropInstance(CROPS[FARM_ZONE_DEFS.find(d => d.name === zoneName)?.cropId]));
+        }
+      }
+    }
+    if (ranchEstablishQueue.length > 0) {
+      ranchEstablishTimer += gameSpeed;
+      while (ranchEstablishTimer >= ESTABLISH_SECS && ranchEstablishQueue.length > 0) {
+        ranchEstablishTimer -= ESTABLISH_SECS;
+        const { animalId } = ranchEstablishQueue.shift();
+        if (unlockedRanchAnimals.has(animalId)) {
+          ranchAcres.set(animalId, (ranchAcres.get(animalId) ?? 0) + 1);
+        }
+      }
+    }
+    if (nativeEstablishQueue.length > 0) {
+      nativeEstablishTimer += gameSpeed;
+      while (nativeEstablishTimer >= ESTABLISH_SECS && nativeEstablishQueue.length > 0) {
+        nativeEstablishTimer -= ESTABLISH_SECS;
+        const { plantId } = nativeEstablishQueue.shift();
+        const newCount = (plantedSpeciesAcres.get(plantId) ?? 0) + 1;
+        plantedSpeciesAcres.set(plantId, newCount);
+        plantedSpecies.add(plantId); // keep Set in sync for legacy checks
+      }
+    }
+
+    // Native planting timer (legacy migration — runs until activePlantingId is cleared)
     if (activePlantingId) {
       const result = findPlant(activePlantingId);
       if (result) {
         activePlantingTimer += gameSpeed / DAY_REAL_SECS;
         if (activePlantingTimer >= result.plant.duration) {
+          // Migrate to new plantedSpeciesAcres
+          const newCount = (plantedSpeciesAcres.get(activePlantingId) ?? 0) + 1;
+          plantedSpeciesAcres.set(activePlantingId, newCount);
           plantedSpecies.add(activePlantingId);
           activePlantingId    = null;
           activePlantingTimer = 0;
@@ -586,21 +690,52 @@ export function createEngine() {
 
     // Creature discovery rolls (once per in-game day)
     if (calendarAccum < gameSpeed) { // true only on the tick where calendarAccum just rolled over
-      for (const plantId of plantedSpecies) {
+      // Aggregate total acres per unique creature across all planted host plants
+      const _creatureAcresMap = new Map(); // ckey → total acres of all host plants
+      for (const [plantId, acres] of plantedSpeciesAcres) {
         const result = findPlant(plantId);
         if (!result) continue;
         for (const creature of (result.plant.insectsHosted ?? [])) {
-          const ckey = creatureKey(plantId, creature.name);
+          const ckey = creatureKey(creature.name);
           if (discoveredCreatures.has(ckey)) continue;
-          const pity = creaturePity.get(ckey) ?? 0;
-          const chance = Math.min(1, CREATURE_BASE_CHANCE + (pity / CREATURE_PITY_DAYS) * (1 - CREATURE_BASE_CHANCE));
-          if (Math.random() < chance) {
-            discoveredCreatures.add(ckey);
-            creatureDiscoveryLog.set(ckey, inGameDay);
-          } else {
-            creaturePity.set(ckey, pity + 1);
-          }
+          _creatureAcresMap.set(ckey, (_creatureAcresMap.get(ckey) ?? 0) + acres);
         }
+      }
+      // Roll once per unique creature — more host-plant acres = faster discovery
+      for (const [ckey, totalAcres] of _creatureAcresMap) {
+        const pity = creaturePity.get(ckey) ?? 0;
+        const pityGain = Math.min(totalAcres, 3); // cap bonus at 3×
+        const chance = Math.min(1, CREATURE_BASE_CHANCE + (pity / CREATURE_PITY_DAYS) * (1 - CREATURE_BASE_CHANCE));
+        if (Math.random() < chance) {
+          discoveredCreatures.add(ckey);
+          creatureDiscoveryLog.set(ckey, inGameDay);
+        } else {
+          creaturePity.set(ckey, pity + pityGain);
+        }
+      }
+
+      // ── Habitat risk rolls (once per in-game day) ───────────────────────────
+      for (const [ckey, risk] of habitatRiskCreatures) {
+        if (!discoveredCreatures.has(ckey)) { habitatRiskCreatures.delete(ckey); continue; }
+        // Cancel risk if ANY host plant has been re-established
+        const _hostPids = creatureHostPlants.get(ckey) ?? [];
+        if (_hostPids.some(pid => (plantedSpeciesAcres.get(pid) ?? 0) > 0)) { habitatRiskCreatures.delete(ckey); continue; }
+        const newDays = risk.daysAtRisk + 1;
+        const newPct  = Math.min(HABITAT_RISK_MAX_PCT, HABITAT_RISK_BASE_PCT + newDays * HABITAT_RISK_INCREMENT);
+        if (Math.random() < newPct) {
+          discoveredCreatures.delete(ckey);
+          creaturePity.delete(ckey);
+          habitatRiskCreatures.delete(ckey);
+          _onCreatureExtirpated(ckey);
+        } else {
+          habitatRiskCreatures.set(ckey, { daysAtRisk: newDays, riskPct: newPct });
+        }
+      }
+
+      // ── Land market drip (once per in-game day) ────────────────────────────
+      if (inGameDay >= nextMarketDripDay) {
+        nextMarketDripDay = inGameDay + LAND_MARKET_INTERVAL_DAYS;
+        if (landMarket.length < 3) landMarket.push(_generateMarketParcel());
       }
     }
 
@@ -619,11 +754,11 @@ export function createEngine() {
     let offlineSeason = lastSeasonName;
     // Each loop iteration = 1 real second. Live tick fires every 250ms (4/sec),
     // so we advance 4 units per second to match the live rate.
-    const TICKS_PER_SEC = 4;
+    const TICKS_PER_SEC_LOCAL = TICKS_PER_SEC;
     let t = 0;
     while (t < simSecs) {
       t++;
-      calendarAccum += TICKS_PER_SEC;
+      calendarAccum += TICKS_PER_SEC_LOCAL;
       while (calendarAccum >= DAY_REAL_SECS) {
         calendarAccum -= DAY_REAL_SECS;
         inGameDay++;
@@ -638,11 +773,12 @@ export function createEngine() {
         for (const [zoneName, instance] of zoneCrops) {
           if (!unlockedFarmZones.has(zoneName)) continue;
           if (!instance.cropType.isInSeason(offlineSeason)) continue; // dormant
+          const tc = farmTileCount(zoneName);
+          if (tc <= 0) continue; // no land allocated — pause growth
           const wm = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
-          instance.tick(wm * TICKS_PER_SEC);
+          instance.tick(wm * TICKS_PER_SEC_LOCAL);
           if (instance.isFullyGrown) {
             const id = instance.cropType.id;
-            const tc = farmTileCount(zoneName);
             const s  = cropStats.get(id);
             s.grown += tc;
             if (autoSellSet.has(id)) {
@@ -659,7 +795,7 @@ export function createEngine() {
       const ctx = buildArtisanCtx();
       for (const zn of artisanWS.unlockedSet) {
         const wm = workerMultiplier(artisanWorkers.get(zn) ?? BASE_ZONE_WORKERS);
-        let acc = (simTimers.get(zn) ?? 0) + wm * TICKS_PER_SEC;
+        let acc = (simTimers.get(zn) ?? 0) + wm * TICKS_PER_SEC_LOCAL;
         while (acc >= artisanAct.productionIntervalSecs) {
           acc -= artisanAct.productionIntervalSecs;
           artisanAct.produce({ name: zn }, ctx);
@@ -671,10 +807,10 @@ export function createEngine() {
         const animal = RANCH_ANIMALS[animalId];
         if (!animal) continue;
         const wm = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
-        let acc = (simRanchTimers.get(animalId) ?? 0) + wm * TICKS_PER_SEC;
+        const acres = ranchAcres.get(animalId) ?? 0;
+        let acc = (simRanchTimers.get(animalId) ?? 0) + (acres > 0 ? wm * TICKS_PER_SEC_LOCAL : 0);
         while (acc >= animal.productionIntervalSecs) {
           acc -= animal.productionIntervalSecs;
-          const acres  = ranchAcres.get(animalId) ?? 1;
           const earned = animal.goldPerCycle * acres * _offMult;
           gold.add(earned);
           const st = ranchStats.get(animalId);
@@ -711,6 +847,7 @@ export function createEngine() {
       activeResearchId, activeResearchTimer,
       completedResearch:    [...completedResearch],
       plantedSpecies:       [...plantedSpecies],
+      plantedSpeciesAcres:  Object.fromEntries(plantedSpeciesAcres),
       activePlantingId,     activePlantingTimer,
       discoveredCreatures:   [...discoveredCreatures],
       creaturePity:          Object.fromEntries(creaturePity),
@@ -720,6 +857,15 @@ export function createEngine() {
       ranchWorkers:         Object.fromEntries(ranchWorkers),
       ranchTimers:          Object.fromEntries(ranchTimers),
       ranchStats:           Object.fromEntries([...ranchStats].map(([k, v]) => [k, { ...v }])),
+      // Land pool
+      totalLandAcres,
+      cropEstablishQueue:   cropEstablishQueue.map(i => ({ ...i })),
+      ranchEstablishQueue:  ranchEstablishQueue.map(i => ({ ...i })),
+      nativeEstablishQueue: nativeEstablishQueue.map(i => ({ ...i })),
+      cropEstablishTimer, ranchEstablishTimer, nativeEstablishTimer,
+      habitatRiskCreatures: Object.fromEntries([...habitatRiskCreatures].map(([k, v]) => [k, { ...v }])),
+      landMarket:           landMarket.map(p => ({ ...p })),
+      nextMarketDripDay,    _landMarketNextId,
       savedAt: Date.now(),
     };
   }
@@ -760,8 +906,10 @@ export function createEngine() {
     if (s.zoneAcres) {
       zoneAcres.clear();
       Object.entries(s.zoneAcres).forEach(([k, v]) => zoneAcres.set(k, v));
+      // Only fill in missing STARTER zone — others start at 0 until allocated
       for (const n of unlockedFarmZones) {
-        if (!zoneAcres.has(n)) zoneAcres.set(n, BASE_ZONE_ACRES);
+        const def = FARM_ZONE_DEFS.find(d => d.name === n);
+        if (def?.cost === 0 && !zoneAcres.has(n)) zoneAcres.set(n, BASE_ZONE_ACRES);
       }
     }
     if (s.zoneWorkers) {
@@ -815,19 +963,32 @@ export function createEngine() {
       plantedSpecies.clear();
       s.plantedSpecies.forEach(id => plantedSpecies.add(id));
     }
+    // New land system: restore plantedSpeciesAcres; migrate old saves that only have plantedSpecies
+    plantedSpeciesAcres.clear();
+    if (s.plantedSpeciesAcres) {
+      Object.entries(s.plantedSpeciesAcres).forEach(([k, v]) => {
+        plantedSpeciesAcres.set(k, v);
+        plantedSpecies.add(k); // keep Set in sync
+      });
+    } else if (Array.isArray(s.plantedSpecies)) {
+      // Migration: each previously-planted plant gets 1 ace
+      s.plantedSpecies.forEach(id => plantedSpeciesAcres.set(id, 1));
+    }
     if ('activePlantingId'    in s) activePlantingId    = s.activePlantingId;
     if (typeof s.activePlantingTimer === 'number') activePlantingTimer = s.activePlantingTimer;
+    // Migrate old-format ckeys: "plantId__creature_slug" → "creature_slug"
+    const _migrateKey = k => k.includes('__') ? k.substring(k.indexOf('__') + 2) : k;
     if (Array.isArray(s.discoveredCreatures)) {
       discoveredCreatures.clear();
-      s.discoveredCreatures.forEach(k => discoveredCreatures.add(k));
+      s.discoveredCreatures.forEach(k => discoveredCreatures.add(_migrateKey(k)));
     }
     if (s.creaturePity) {
       creaturePity.clear();
-      Object.entries(s.creaturePity).forEach(([k, v]) => creaturePity.set(k, v));
+      Object.entries(s.creaturePity).forEach(([k, v]) => creaturePity.set(_migrateKey(k), Math.max(v, creaturePity.get(_migrateKey(k)) ?? 0)));
     }
     if (s.creatureDiscoveryLog) {
       creatureDiscoveryLog.clear();
-      Object.entries(s.creatureDiscoveryLog).forEach(([k, v]) => creatureDiscoveryLog.set(k, v));
+      Object.entries(s.creatureDiscoveryLog).forEach(([k, v]) => { const mk = _migrateKey(k); if (!creatureDiscoveryLog.has(mk)) creatureDiscoveryLog.set(mk, v); });
     }
     if (Array.isArray(s.ranchAnimals)) {
       unlockedRanchAnimals.clear();
@@ -837,6 +998,33 @@ export function createEngine() {
     if (s.ranchWorkers) { ranchWorkers.clear(); Object.entries(s.ranchWorkers).forEach(([k, v]) => ranchWorkers.set(k, v)); }
     if (s.ranchTimers)  { ranchTimers.clear();  Object.entries(s.ranchTimers).forEach(([k, v])  => ranchTimers.set(k, v)); }
     if (s.ranchStats)   Object.entries(s.ranchStats).forEach(([id, rs]) => { if (ranchStats.has(id)) Object.assign(ranchStats.get(id), rs); });
+
+    // ── Land pool restore / migration ──────────────────────────────────────
+    cropEstablishQueue.length   = 0;
+    ranchEstablishQueue.length  = 0;
+    nativeEstablishQueue.length = 0;
+    if (Array.isArray(s.cropEstablishQueue))   s.cropEstablishQueue.forEach(i   => cropEstablishQueue.push({ ...i }));
+    if (Array.isArray(s.ranchEstablishQueue))  s.ranchEstablishQueue.forEach(i  => ranchEstablishQueue.push({ ...i }));
+    if (Array.isArray(s.nativeEstablishQueue)) s.nativeEstablishQueue.forEach(i => nativeEstablishQueue.push({ ...i }));
+    if (typeof s.cropEstablishTimer   === 'number') cropEstablishTimer   = s.cropEstablishTimer;
+    if (typeof s.ranchEstablishTimer  === 'number') ranchEstablishTimer  = s.ranchEstablishTimer;
+    if (typeof s.nativeEstablishTimer === 'number') nativeEstablishTimer = s.nativeEstablishTimer;
+    habitatRiskCreatures.clear();
+    if (s.habitatRiskCreatures) Object.entries(s.habitatRiskCreatures).forEach(([k, v]) => habitatRiskCreatures.set(_migrateKey(k), { ...v }));
+    landMarket.length = 0;
+    if (Array.isArray(s.landMarket)) s.landMarket.forEach(p => landMarket.push({ ...p }));
+    if (typeof s.nextMarketDripDay  === 'number') nextMarketDripDay  = s.nextMarketDripDay;
+    if (typeof s._landMarketNextId  === 'number') _landMarketNextId  = s._landMarketNextId;
+    if (typeof s.totalLandAcres     === 'number') {
+      totalLandAcres = s.totalLandAcres;
+    } else {
+      // Migration: derive totalLandAcres from existing allocations + starting buffer
+      const existingCrop   = s.zoneAcres    ? Object.values(s.zoneAcres).reduce((a, b) => a + b, 0) : 0;
+      const existingRanch  = s.ranchAcres   ? Object.values(s.ranchAcres).reduce((a, b) => a + b, 0) : 0;
+      const existingNative = Array.isArray(s.plantedSpecies) ? s.plantedSpecies.length : 0;
+      totalLandAcres = existingCrop + existingRanch + existingNative + STARTING_LAND_ACRES;
+    }
+
     checkAutoUnlocks(); // re-derive zoneProductMap and catch any new unlocks
     checkRanchUnlocks();
   }
@@ -984,9 +1172,10 @@ export function createEngine() {
       }, 0);
     },
     getGardenBiosphereScore() {
-      return [...plantedSpecies].reduce((sum, id) => {
+      // Each established acre of a plant contributes its biosphereBonus
+      return [...plantedSpeciesAcres.entries()].reduce((sum, [id, acres]) => {
         const result = findPlant(id);
-        return sum + (result?.plant?.biosphereBonus ?? 0);
+        return sum + (result?.plant?.biosphereBonus ?? 0) * acres;
       }, 0);
     },
     getCreatureBiosphereScore() {
@@ -1004,15 +1193,18 @@ export function createEngine() {
     creatureKey,
     get CREATURE_PITY_DAYS() { return CREATURE_PITY_DAYS; },
     // Native Garden API
-    get plantedSpecies()      { return plantedSpecies; },
-    get activePlantingId()    { return activePlantingId; },
-    get activePlantingTimer() { return activePlantingTimer; },
+    get plantedSpecies()        { return plantedSpecies; },
+    get plantedSpeciesAcres()   { return plantedSpeciesAcres; },
+    get activePlantingId()      { return activePlantingId; },
+    get activePlantingTimer()   { return activePlantingTimer; },
+    // Legacy startPlanting — kept for save-migration path; use queueNativeAcre for new plants
     startPlanting(plantId) {
       if (activePlantingId) return { ok: false, reason: 'already_active' };
       const result = findPlant(plantId);
       if (!result) return { ok: false, reason: 'not_found' };
       if (plantedSpecies.has(plantId)) return { ok: false, reason: 'already_planted' };
       if (researchPoints < result.plant.cost) return { ok: false, reason: 'insufficient_pts' };
+      if (getFreeAcres() < 1) return { ok: false, reason: 'no_free_acres' };
       researchPoints     -= result.plant.cost;
       activePlantingId    = plantId;
       activePlantingTimer = 0;
@@ -1027,6 +1219,158 @@ export function createEngine() {
     },
     ECOREGIONS,
     findPlant,
+
+    // ── Land pool API ──────────────────────────────────────────────────────────
+    get totalLandAcres()        { return totalLandAcres; },
+    get landMarket()            { return landMarket; },
+    get cropEstablishQueue()    { return cropEstablishQueue; },
+    get ranchEstablishQueue()   { return ranchEstablishQueue; },
+    get nativeEstablishQueue()  { return nativeEstablishQueue; },
+    get cropEstablishTimer()    { return cropEstablishTimer; },
+    get ranchEstablishTimer()   { return ranchEstablishTimer; },
+    get nativeEstablishTimer()  { return nativeEstablishTimer; },
+    get habitatRiskCreatures()  { return habitatRiskCreatures; },
+    getAllocatedAcres,
+    getFreeAcres,
+    set onCreatureExtirpated(fn) { _onCreatureExtirpated = fn; },
+
+    buyLandParcel(parcelId) {
+      const idx = landMarket.findIndex(p => p.id === parcelId);
+      if (idx < 0) return false;
+      const parcel = landMarket[idx];
+      if (gold.amount < parcel.cost) return false;
+      gold.add(-parcel.cost);
+      totalLandAcres += parcel.acres;
+      landMarket.splice(idx, 1);
+      return true;
+    },
+
+    /** Queue N acres from the pool to a crop zone. Returns actual queued count. */
+    queueCropAcre(zoneName, qty = 1) {
+      if (!unlockedFarmZones.has(zoneName)) return 0;
+      const free = getFreeAcres();
+      const n = Math.min(qty, free);
+      if (n <= 0) return 0;
+      for (let i = 0; i < n; i++) cropEstablishQueue.push({ zoneName });
+      return n;
+    },
+
+    /** Queue N acres from the pool to a ranch animal. Returns actual queued count. */
+    queueRanchAcre(animalId, qty = 1) {
+      if (!unlockedRanchAnimals.has(animalId)) return 0;
+      const free = getFreeAcres();
+      const n = Math.min(qty, free);
+      if (n <= 0) return 0;
+      for (let i = 0; i < n; i++) ranchEstablishQueue.push({ animalId });
+      return n;
+    },
+
+    /**
+     * Queue N acres for a native plant. First acre also deducts the CP cost.
+     * Returns {ok, queued, reason}.
+     */
+    queueNativeAcre(plantId, qty = 1) {
+      const result = findPlant(plantId);
+      if (!result) return { ok: false, queued: 0, reason: 'not_found' };
+      const free = getFreeAcres();
+      const n = Math.min(qty, free);
+      if (n <= 0) return { ok: false, queued: 0, reason: 'no_free_acres' };
+      // Deduct CP cost only on the very first acre of this plant species
+      const isFirstAcre = (plantedSpeciesAcres.get(plantId) ?? 0) === 0
+                        && !nativeEstablishQueue.some(i => i.plantId === plantId)
+                        && activePlantingId !== plantId;
+      if (isFirstAcre) {
+        if (researchPoints < result.plant.cost) return { ok: false, queued: 0, reason: 'insufficient_pts' };
+        researchPoints -= result.plant.cost;
+      }
+      for (let i = 0; i < n; i++) nativeEstablishQueue.push({ plantId });
+      return { ok: true, queued: n };
+    },
+
+    /** Immediately return 1 acre from a crop zone back to the pool. */
+    deallocateCropAcre(zoneName) {
+      const current = zoneAcres.get(zoneName) ?? 0;
+      if (current <= 0) return false;
+      const newVal = current - 1;
+      if (newVal === 0) zoneAcres.delete(zoneName);
+      else              zoneAcres.set(zoneName, newVal);
+      return true;
+    },
+
+    /** Cancel the next queued crop-acre for a zone (before it establishes). */
+    cancelCropQueueItem(zoneName) {
+      const idx = cropEstablishQueue.findIndex(i => i.zoneName === zoneName);
+      if (idx < 0) return false;
+      cropEstablishQueue.splice(idx, 1);
+      if (cropEstablishQueue.length === 0) cropEstablishTimer = 0;
+      return true;
+    },
+
+    /** Immediately return 1 acre from a ranch animal back to the pool. */
+    deallocateRanchAcre(animalId) {
+      const current = ranchAcres.get(animalId) ?? 0;
+      if (current <= 0) return false;
+      const newVal = current - 1;
+      if (newVal === 0) ranchAcres.delete(animalId);
+      else              ranchAcres.set(animalId, newVal);
+      return true;
+    },
+
+    /** Cancel the next queued ranch-acre for an animal. */
+    cancelRanchQueueItem(animalId) {
+      const idx = ranchEstablishQueue.findIndex(i => i.animalId === animalId);
+      if (idx < 0) return false;
+      ranchEstablishQueue.splice(idx, 1);
+      if (ranchEstablishQueue.length === 0) ranchEstablishTimer = 0;
+      return true;
+    },
+
+    /**
+     * Remove N established acres of a native plant. Triggers habitat risk for
+     * associated creatures if the last acre of that plant is removed.
+     * Returns actual removed count.
+     */
+    deallocateNativeAcre(plantId, qty = 1) {
+      const current = plantedSpeciesAcres.get(plantId) ?? 0;
+      const removing = Math.min(qty, current);
+      if (removing <= 0) return 0;
+      const newCount = current - removing;
+      if (newCount === 0) {
+        plantedSpeciesAcres.delete(plantId);
+        plantedSpecies.delete(plantId);
+        // Trigger habitat risk for all discovered creatures on this plant
+        const result = findPlant(plantId);
+        for (const creature of (result?.plant?.insectsHosted ?? [])) {
+          const ckey = creatureKey(creature.name);
+          if (!discoveredCreatures.has(ckey) || habitatRiskCreatures.has(ckey)) continue;
+          // Only trigger risk if no other host plant still has established acres
+          const _hostPids = creatureHostPlants.get(ckey) ?? [];
+          const _hasOtherHost = _hostPids.some(pid => pid !== plantId && (plantedSpeciesAcres.get(pid) ?? 0) > 0);
+          if (!_hasOtherHost) {
+            habitatRiskCreatures.set(ckey, { daysAtRisk: 0, riskPct: HABITAT_RISK_BASE_PCT });
+          }
+        }
+      } else {
+        plantedSpeciesAcres.set(plantId, newCount);
+      }
+      return removing;
+    },
+
+    /** Cancel the next queued native-acre for a plant. Refunds CP if it was the first. */
+    cancelNativeQueueItem(plantId) {
+      const idx = nativeEstablishQueue.findIndex(i => i.plantId === plantId);
+      if (idx < 0) return false;
+      // Refund CP only if this was the first-ever queued acre and plant isn't established yet
+      const isFirst = (plantedSpeciesAcres.get(plantId) ?? 0) === 0
+                    && nativeEstablishQueue.filter(i => i.plantId === plantId).length === 1;
+      if (isFirst) {
+        const result = findPlant(plantId);
+        if (result) researchPoints += result.plant.cost;
+      }
+      nativeEstablishQueue.splice(idx, 1);
+      if (nativeEstablishQueue.length === 0) nativeEstablishTimer = 0;
+      return true;
+    },
     startResearch(id) {
       if (activeResearchId) return false;
       const project = RESEARCH.find(r => r.id === id);

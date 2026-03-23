@@ -21,6 +21,27 @@
     <div id="fab-backdrop"></div>
     <div id="fab-menu"></div>
     <button id="fab-btn" aria-label="Open navigation"></button>
+    <div id="notif-wrap">
+      <button id="notif-btn" aria-label="View notifications">🔔</button>
+      <span id="notif-badge"></span>
+    </div>
+    <div id="notif-modal" hidden>
+      <div id="notif-backdrop"></div>
+      <div id="notif-panel">
+        <div id="notif-header">
+          <span id="notif-title">🔔 Notifications</span>
+          <div id="notif-header-actions">
+            <button id="notif-dismiss-all">Mark all read</button>
+            <button id="notif-close" aria-label="Close">×</button>
+          </div>
+        </div>
+        <div id="notif-tabs">
+          <button id="notif-tab-unread" class="notif-tab active">Unread</button>
+          <button id="notif-tab-read" class="notif-tab">Read</button>
+        </div>
+        <div id="notif-list"></div>
+      </div>
+    </div>
   </nav>
   <script type="module" src="main.js"></script>
 </body>
