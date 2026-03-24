@@ -1997,6 +1997,16 @@ function renderCollection() {
 function renderSettings() {
   content.appendChild(el('h2', 'section-header', '⚙️ Settings'));
 
+  // Pause / Resume
+  const pauseSection = el('div', 'settings-section');
+  pauseSection.appendChild(el('div', 'settings-label', 'Game Paused'));
+  pauseSection.appendChild(el('p', 'settings-desc', 'Pause the game to prevent time from advancing. Your progress is preserved exactly as-is.'));
+  const pauseBtn = el('button', `action-btn${engine.gamePaused ? ' active' : ''}`,
+    engine.gamePaused ? '▶ Resume' : '⏸ Pause');
+  pauseBtn.addEventListener('click', () => { engine.setPaused(!engine.gamePaused); renderAll(); });
+  pauseSection.appendChild(pauseBtn);
+  content.appendChild(pauseSection);
+
   // Game speed
   const speedSection = el('div', 'settings-section');
   speedSection.appendChild(el('div', 'settings-label', 'Game Speed'));

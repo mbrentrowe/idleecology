@@ -139,7 +139,7 @@ export const ARTISAN_ZONE_DEFS = [
 ];
 
 // ── Land system constants ─────────────────────────────────────────────────────
-export const STARTING_LAND_ACRES         = 6;   // acres owned at game start
+export const STARTING_LAND_ACRES         = 50;  // acres owned at game start
 export const ESTABLISH_DAYS              = 7;   // in-game days to establish one acre
 export const LAND_MARKET_INTERVAL_DAYS   = 14;  // in-game days between market parcels
 export const HABITAT_RISK_BASE_PCT       = 0.02;  // 2% daily creature-loss chance after removal
@@ -1036,6 +1036,7 @@ export function createEngine() {
     // Live state (read-only references)
     gold,
     get gameSpeed()    { return gameSpeed;    },
+    get gamePaused()   { return gamePaused;   },
     get autoPilot()    { return autoPilot;    },
     get calendarAccum()     { return calendarAccum;  },
     get inGameDay()         { return inGameDay;       },
@@ -1158,6 +1159,7 @@ export function createEngine() {
     },
 
     setGameSpeed(v)          { gameSpeed = v; },
+    setPaused(v)             { gamePaused = v; },
     setAutoPilot(v)          { autoPilot = v; },
 
     // Research
