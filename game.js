@@ -140,7 +140,7 @@ export const ARTISAN_ZONE_DEFS = [
 
 // ── Land system constants ─────────────────────────────────────────────────────
 export const STARTING_LAND_ACRES         = 50;  // acres owned at game start
-export const ESTABLISH_DAYS              = 7;   // in-game days to establish one acre
+export const ESTABLISH_DAYS              = 2;   // in-game days to establish one acre
 export const LAND_MARKET_INTERVAL_DAYS   = 14;  // in-game days between market parcels
 export const HABITAT_RISK_BASE_PCT       = 0.02;  // 2% daily creature-loss chance after removal
 export const HABITAT_RISK_INCREMENT      = 0.005; // +0.5% per additional in-game day at risk

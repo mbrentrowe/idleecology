@@ -181,17 +181,15 @@ const gpsEl        = el('span', 'gps');
 const bioHeaderEl  = el('span', 'bio-header');
 const rpHeaderEl   = el('span', 'rp-header');
 const acresEl      = el('span', 'acres-header');
-[goldEl, gpsEl, bioHeaderEl, rpHeaderEl, acresEl].forEach(e => hudRow1.appendChild(e));
-// Row 2: calendar / time
+[goldEl, gpsEl, bioHeaderEl, rpHeaderEl].forEach(e => hudRow1.appendChild(e));
+// Row 2: calendar / time (acres merged in here)
 const hudRow2      = el('div', 'hud-row hud-row-time');
 const seasonEl     = el('span', 'season-badge-hud');
 const dayEl        = el('span', 'day-counter');
 const timeEl       = el('span', 'time-display');
 const nextSeasonEl = el('span', 'next-season-hud');
-[seasonEl, dayEl, timeEl, nextSeasonEl].forEach(e => hudRow2.appendChild(e));
-// Row 3: next crop unlock
-const nextCropEl = el('div', 'next-crop-bar');
-[hudRow1, hudRow2, nextCropEl].forEach(e => header.appendChild(e));
+[acresEl, seasonEl, dayEl, timeEl, nextSeasonEl].forEach(e => hudRow2.appendChild(e));
+[hudRow1, hudRow2].forEach(e => header.appendChild(e));
 
 // ── FAB Navigation ────────────────────────────────────────────────────────────
 const TAB_LABELS = { crops: '🌾 Crops', ranch: '🐄 Ranch', research: '🌱 Conservation', garden: '🌿 Native Garden', land: '🗺️ Land', collection: '📚 Collection', settings: '⚙️ Settings' };
@@ -351,58 +349,6 @@ function updateHeader() {
   const _gardenBusy = !!engine.activePlantingId || engine.nativeEstablishQueue.length > 0;
   if (tabBtns.research) tabBtns.research.textContent = `🌱 Conservation${hasAffordableResearch && !engine.activeResearchId ? ' ❗' : ''}`;
   if (tabBtns.garden)   tabBtns.garden.textContent   = `🌿 Native Garden${hasAffordableGarden && !_gardenBusy ? ' ❗' : ''}`;
-
-  // Next crop unlock progress
-  const lifetimeGold = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.lifetimeSales, 0);
-  const totalSoldAllCrops = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
-  const nextCrop = Object.values(CROPS).find(ct => !ct.isUnlocked(engine.cropStats));
-  if (!nextCrop || !nextCrop.unlockCriteria) {
-    nextCropEl.textContent = '🏆 All crops unlocked!';
-    nextCropEl.className   = 'next-crop-bar all-unlocked';
-  } else {
-    const { totalSold: required } = nextCrop.unlockCriteria;
-    const soldPct  = Math.min(1, totalSoldAllCrops / required);
-    const dstThumb = nextCrop.sciName ? inatThumbHtml(nextCrop.sciName, 'next-thumb', nextCrop.name) : '';
-
-    // Estimate crops-sold rate (per real second) across all active in-season auto-sell zones
-    let _cropsPerRealSec = 0;
-    for (const _zd of FARM_ZONE_DEFS) {
-      if (!engine.unlockedFarmZones.has(_zd.name)) continue;
-      const _inst = engine.zoneCrops.get(_zd.name);
-      if (!_inst) continue;
-      const _ct = _inst.cropType;
-      if (!_ct.isInSeason(engine.currentSeasonName)) continue;
-      const _cyc = (_ct.totalPhases - 1) * _ct.growthTimePerPhase;
-      if (_cyc <= 0) continue;
-      const _acres = engine.zoneAcres.get(_zd.name) ?? 1;
-      const _wm    = workerMultiplier(engine.zoneWorkers.get(_zd.name) ?? 1);
-      _cropsPerRealSec += (_acres * _wm * engine.gameSpeed) / _cyc;
-    }
-    const _remaining  = required - totalSoldAllCrops;
-    const _etaStr     = (_cropsPerRealSec > 0 && _remaining > 0)
-      ? ` · ~${fmtDays(_remaining / (_cropsPerRealSec * DAY_REAL_SECS))}`
-      : '';
-
-    nextCropEl.className = 'next-crop-bar';
-    nextCropEl.innerHTML = `
-      <span class="next-label">Next crop unlock: ${dstThumb} ${nextCrop.name}</span>
-      <span class="next-req">
-        ${shortNumber(totalSoldAllCrops)}<span class="next-sep">/</span>${shortNumber(required)} total crops sold
-        <span class="next-mini-bar"><span class="next-mini-fill" style="width:${Math.round(soldPct*100)}%"></span></span>
-        <span class="next-eta">${_etaStr}</span>
-      </span>
-    `;
-    // Load iNat photos into the newly rendered next-crop bar
-    nextCropEl.querySelectorAll('img.inat-thumb[data-sci]').forEach(img => {
-      const sci = img.dataset.sci;
-      if (sci in inatPhotoCache) {
-        const url = inatPhotoCache[sci];
-        if (url) img.src = url;
-      } else {
-        fetchInatPhoto(sci).then(url => { if (url && img.isConnected) img.src = url; });
-      }
-    });
-  }
 }
 
 // ── Duration formatter (real seconds) ────────────────────────────────────────
@@ -470,7 +416,9 @@ function maxAffordableCount(costFn, current, budget) {
 
 // ── CROPS TAB ────────────────────────────────────────────────────────────────
 function renderCrops() {
-  // ── Buy qty toggle ──
+  // ── Top bar: buy qty + speed/pause ──
+  const topBar = el('div', 'crops-top-bar');
+
   const qtyBar = el('div', 'buy-qty-bar');
   for (const qty of [1, 5, 10, 25, 'max']) {
     const btn = el('button', `buy-qty-btn${cropBuyQty === qty ? ' active' : ''}`, qty === 'max' ? 'Max' : `×${qty}`);
@@ -478,7 +426,22 @@ function renderCrops() {
     btn.addEventListener('click', () => { cropBuyQty = qty; renderAll(); });
     qtyBar.appendChild(btn);
   }
-  content.appendChild(qtyBar);
+  topBar.appendChild(qtyBar);
+
+  const speedBar = el('div', 'crops-speed-bar');
+  const pauseIconBtn = el('button', `crops-speed-btn${engine.gamePaused ? ' active' : ''}`, engine.gamePaused ? '▶' : '⏸');
+  pauseIconBtn.title = engine.gamePaused ? 'Resume' : 'Pause';
+  pauseIconBtn.addEventListener('click', () => { engine.setPaused(!engine.gamePaused); renderAll(); });
+  speedBar.appendChild(pauseIconBtn);
+  for (const spd of [1, 3, 6, 12]) {
+    const sBtn = el('button', `crops-speed-btn${engine.gameSpeed === spd ? ' active' : ''}`, `${spd}×`);
+    sBtn.title = `${spd}× speed`;
+    sBtn.addEventListener('click', () => { engine.setGameSpeed(spd); renderAll(); });
+    speedBar.appendChild(sBtn);
+  }
+  topBar.appendChild(speedBar);
+
+  content.appendChild(topBar);
 
   // ── Farm Zones ──
   const farmHeader = el('h2', 'section-header', '🌾 Farm Zones');
@@ -2213,10 +2176,6 @@ function _buildNotifList() {
   const tabReadBtn   = document.getElementById('notif-tab-read');
   if (tabUnreadBtn) tabUnreadBtn.classList.toggle('active', _notifTab === 'unread');
   if (tabReadBtn)   tabReadBtn.classList.toggle('active',   _notifTab === 'read');
-  // Update dismiss-all label
-  const dismissAllBtn = document.getElementById('notif-dismiss-all');
-  if (dismissAllBtn) dismissAllBtn.textContent = _notifTab === 'unread' ? 'Mark all read' : 'Clear read';
-
   const filtered = _notifLog.filter(n => _notifTab === 'unread' ? !n.read : n.read);
   notifList.innerHTML = '';
   if (filtered.length === 0) {
@@ -2372,23 +2331,14 @@ function openNotifModal() {
   notifModal.hidden = false;
 }
 function closeNotifModal() {
+  _notifLog.forEach(n => { n.read = true; });
+  updateNotifBadge();
   notifModal.hidden = true;
 }
 
 document.getElementById('notif-btn').addEventListener('click', openNotifModal);
 document.getElementById('notif-close').addEventListener('click', closeNotifModal);
 document.getElementById('notif-backdrop').addEventListener('click', closeNotifModal);
-document.getElementById('notif-dismiss-all').addEventListener('click', () => {
-  if (_notifTab === 'unread') {
-    _notifLog.forEach(n => { if (!n.read) n.read = true; });
-  } else {
-    for (let i = _notifLog.length - 1; i >= 0; i--) {
-      if (_notifLog[i].read) _notifLog.splice(i, 1);
-    }
-  }
-  updateNotifBadge();
-  _buildNotifList();
-});
 document.getElementById('notif-tab-unread').addEventListener('click', () => { _notifTab = 'unread'; _buildNotifList(); });
 document.getElementById('notif-tab-read').addEventListener('click',   () => { _notifTab = 'read';   _buildNotifList(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !notifModal.hidden) closeNotifModal(); });
@@ -2607,6 +2557,13 @@ function updateZoneProgressBars() {
         _phaseEl.textContent = _grown2
           ? '\u2705 Ready to harvest'
           : instance.cropType.growthPhaseNames?.[_phase2] ?? `Growing \u2014 stage ${_phase2 + 1} of ${instance.cropType.totalPhases}`;
+      }
+      const _compactEl = card.querySelector('.phase-status-compact');
+      if (_compactEl) {
+        const _phaseName = instance.cropType.growthPhaseNames?.[_phase2] ?? `Stage ${_phase2 + 1}`;
+        _compactEl.textContent = _grown2
+          ? '\u2705 Ready to harvest'
+          : `\u25b6 ${_phaseName} (${_phase2 + 1} / ${instance.cropType.totalPhases})`;
       }
     } else if (activeTab === 'artisan') {
       const def = ARTISAN_ZONE_DEFS.filter(d => engine.artisanWS.unlockedSet.has(d.name))[i];

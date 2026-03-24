@@ -92,41 +92,6 @@ body {
 .time-display     { color: #888; font-size: 12px; }
 .next-season-hud  { color: #666; font-size: 12px; margin-left: auto; }
 
-/* Next crop unlock bar */
-.next-crop-bar {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding-top: 6px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  font-size: 12px;
-  color: #bbb;
-}
-.next-crop-bar.all-unlocked { color: #7dff7d; font-style: italic; }
-.next-label { color: var(--s-accent); font-weight: bold; margin-right: 4px; }
-.next-req   { display: flex; align-items: center; gap: 4px; }
-.next-sep   { color: #555; }
-.next-eta   { color: #666; font-style: italic; }
-.next-mini-bar {
-  display: inline-block;
-  width: 48px;
-  height: 5px;
-  background: rgba(255,255,255,0.12);
-  border-radius: 3px;
-  overflow: hidden;
-  vertical-align: middle;
-}
-.next-mini-fill {
-  display: block;
-  height: 100%;
-  background: var(--s-grow);
-  border-radius: 3px;
-  transition: width 0.4s ease;
-}
-.next-mini-fill.gold { background: #ffd700; }
-
 /* ── Tab bar ─────────────────────────────────────────────── */
 /* ── FAB Navigation ──────────────────────────────────────── */
 #tab-bar {
@@ -474,23 +439,51 @@ body {
 .section-header:first-child { margin-top: 4px; }
 
 /* ── Buy quantity toggle (Crops tab) ─────────────────────── */
+.crops-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.crops-speed-bar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.crops-speed-btn {
+  font-size: 0.68rem;
+  padding: 3px 7px;
+  border-radius: 10px;
+  border: 1px solid #444;
+  background: rgba(255,255,255,0.05);
+  color: #aaa;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.crops-speed-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: #ccc;
+  border-color: #666;
+}
+.crops-speed-btn.active {
+  background: rgba(100,181,246,0.18);
+  border-color: #64b5f688;
+  color: #90caf9;
+  font-weight: 600;
+}
 .buy-qty-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-.buy-qty-bar::before {
-  content: 'Buy:';
-  font-size: 12px;
-  color: #888;
-  margin-right: 2px;
+  gap: 3px;
+  flex-wrap: nowrap;
 }
 .buy-qty-btn {
-  font-size: 0.75rem;
-  padding: 4px 12px;
-  border-radius: 12px;
+  font-size: 0.68rem;
+  padding: 3px 8px;
+  border-radius: 10px;
   border: 1px solid #444;
   background: rgba(255,255,255,0.05);
   color: #aaa;
@@ -1963,8 +1956,6 @@ body {
   .gold-amount { font-size: 15px; }
   .gps, .day-counter, .activity-badge { font-size: 12px; }
   .bio-header { font-size: 12px; padding: 2px 6px; }
-  .next-crop-bar { font-size: 11px; }
-
   /* Tab bar: smaller tap targets are fine since it now scrolls */
   .tab-btn { padding: 9px 12px; font-size: 12px; }
 
