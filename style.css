@@ -867,14 +867,17 @@ body {
   border: 2px solid var(--s-accent);
   border-radius: 10px;
   padding: 14px 18px;
-  max-width: 280px;
+  max-width: 300px;
   font-size: 13px;
   z-index: 999;
   box-shadow: 0 4px 20px rgba(0,0,0,0.6);
   animation: slideIn 0.3s ease;
 }
 .offline-title  { font-weight: bold; color: var(--s-accent); margin-bottom: 6px; font-size: 14px; }
-.offline-close  { position: absolute; top: 6px; right: 10px; background: none; border: none; color: #888; font-size: 18px; cursor: pointer; }
+.offline-close  { background: #333; border: 1px solid #555; color: #ccc; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+.offline-resume { background: var(--s-accent); border: none; color: #000; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: bold; cursor: pointer; }
+.offline-toast-btns { display: flex; gap: 8px; margin-top: 10px; }
+.offline-season-eve { margin-top: 8px; color: #b8e0b8; font-size: 12px; line-height: 1.4; }
 
 @keyframes slideIn {
   from { transform: translateY(20px); opacity: 0; }

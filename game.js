@@ -220,6 +220,7 @@ export function createEngine() {
   const gold         = new Gold(5000);
   let   gameSpeed    = 1;
   let   autoPilot    = false;
+  let   autoPilotMode = 'economy'; // 'economy' | 'conservation'
   let   gamePaused   = false;
   let   calendarAccum  = 0;
   let   inGameDay      = SEASONS[0].startDoy; // start on first day of Spring (Mar 20)
@@ -469,10 +470,10 @@ export function createEngine() {
   }
 
   // ── Auto-pilot ──────────────────────────────────────────────────────────────
-  function runAutoPilot() {
-    if (!autoPilot) return;
+  // ── Auto-pilot sub-routines ─────────────────────────────────────────────────
 
-    // 1. SELL ROUTING — route crop to artisan when its workshop is unlocked
+  /** Route crops to artisan workshops when unlocked; otherwise auto-sell raw. */
+  function _apSellRouting() {
     for (const cropId of Object.keys(CROPS)) {
       const ap   = CROPS[cropId]?.artisanProduct;
       const aKey = ap ? `${cropId}_artisan` : null;
@@ -487,29 +488,182 @@ export function createEngine() {
         if (aKey) autoSellSet.delete(aKey);
       }
     }
+  }
 
-    // 2. AUTO-BUY — cheapest available worker upgrade (acres come from the land pool now)
+  /** Buy cheapest available worker upgrade across farm + artisan zones. */
+  function _apWorkerUpgrades() {
     const candidates = [];
     for (const def of FARM_ZONE_DEFS) {
       if (!unlockedFarmZones.has(def.name)) continue;
-      const curFW = zoneWorkers.get(def.name) ?? BASE_ZONE_WORKERS;
-      candidates.push({ type: 'farmWorker', name: def.name, cost: workerUpgradeCost(def, curFW) });
+      const cur = zoneWorkers.get(def.name) ?? BASE_ZONE_WORKERS;
+      candidates.push({ type: 'farmWorker', name: def.name, cost: workerUpgradeCost(def, cur) });
     }
     for (const def of ARTISAN_ZONE_DEFS) {
       if (!artisanWS.unlockedSet.has(def.name)) continue;
-      const curAW = artisanWorkers.get(def.name) ?? BASE_ZONE_WORKERS;
-      candidates.push({ type: 'artisanWorker', name: def.name, cost: workerUpgradeCost(def, curAW) });
+      const cur = artisanWorkers.get(def.name) ?? BASE_ZONE_WORKERS;
+      candidates.push({ type: 'artisanWorker', name: def.name, cost: workerUpgradeCost(def, cur) });
     }
-    if (candidates.length > 0) {
-      const cheapest = candidates.reduce((a, b) => a.cost < b.cost ? a : b);
-      if (gold.amount >= cheapest.cost) {
-        gold.add(-cheapest.cost);
-        if (cheapest.type === 'farmWorker') {
-          zoneWorkers.set(cheapest.name, (zoneWorkers.get(cheapest.name) ?? BASE_ZONE_WORKERS) + 1);
-        } else {
-          artisanWorkers.set(cheapest.name, (artisanWorkers.get(cheapest.name) ?? BASE_ZONE_WORKERS) + 1);
+    for (const animalId of unlockedRanchAnimals) {
+      const animal = RANCH_ANIMALS[animalId];
+      if (!animal) continue;
+      const cur = ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS;
+      candidates.push({ type: 'ranchWorker', animalId, cost: workerUpgradeCost({ cost: animal.baseCost }, cur) });
+    }
+    if (candidates.length === 0) return;
+    const cheapest = candidates.reduce((a, b) => a.cost < b.cost ? a : b);
+    if (gold.amount >= cheapest.cost) {
+      gold.add(-cheapest.cost);
+      if (cheapest.type === 'farmWorker') {
+        zoneWorkers.set(cheapest.name, (zoneWorkers.get(cheapest.name) ?? BASE_ZONE_WORKERS) + 1);
+      } else if (cheapest.type === 'artisanWorker') {
+        artisanWorkers.set(cheapest.name, (artisanWorkers.get(cheapest.name) ?? BASE_ZONE_WORKERS) + 1);
+      } else {
+        ranchWorkers.set(cheapest.animalId, (ranchWorkers.get(cheapest.animalId) ?? BASE_ZONE_WORKERS) + 1);
+      }
+    }
+  }
+
+  /**
+   * Allocate free acres to zones.
+   * Economy: fill farm zones round-robin first (one acre to the zone with fewest
+   *   allocated+queued), then ranch animals similarly.
+   * Conservation: ensure every unlocked farm zone has ≥1 acre (for CP income),
+   *   then prefer native plants with 0 established/queued acres, then fill farms.
+   */
+  function _apAcreAllocation() {
+    const free = getFreeAcres();
+    if (free <= 0) return;
+
+    if (autoPilotMode === 'conservation') {
+      // 1. First ensure every unlocked farm zone has ≥1 acre
+      for (const def of FARM_ZONE_DEFS) {
+        if (getFreeAcres() <= 0) return;
+        if (!unlockedFarmZones.has(def.name)) continue;
+        const allocated = (zoneAcres.get(def.name) ?? 0)
+          + cropEstablishQueue.filter(i => i.zoneName === def.name).length;
+        if (allocated === 0) {
+          cropEstablishQueue.push({ zoneName: def.name });
         }
       }
+      // 2. Native plants with 0 acres and prereqs met (sorted cheapest CP cost first)
+      const plantCandidates = [];
+      for (const eco of ECOREGIONS) {
+        for (const plant of eco.plants) {
+          if (getFreeAcres() <= 0) return;
+          const established = plantedSpeciesAcres.get(plant.id) ?? 0;
+          const queued = nativeEstablishQueue.filter(i => i.plantId === plant.id).length;
+          if (established > 0 || queued > 0) continue;
+          if (!(plant.requiresResearch ?? []).every(rid => completedResearch.has(rid))) continue;
+          if (researchPoints < plant.cost) continue;
+          plantCandidates.push(plant);
+        }
+      }
+      plantCandidates.sort((a, b) => a.cost - b.cost);
+      for (const plant of plantCandidates) {
+        if (getFreeAcres() <= 0) return;
+        // Deduct CP cost for the first acre
+        researchPoints -= plant.cost;
+        nativeEstablishQueue.push({ plantId: plant.id });
+      }
+      // 3. Fill any remaining free acres into farm zones (fewest-first)
+    }
+
+    // Economy: fill farm zones (fewest allocated+queued first), then ranch
+    // Conservation: also fill farms after native plants
+    if (getFreeAcres() > 0 && unlockedFarmZones.size > 0) {
+      const farmList = [...unlockedFarmZones].map(name => ({
+        name,
+        total: (zoneAcres.get(name) ?? 0) + cropEstablishQueue.filter(i => i.zoneName === name).length,
+      })).sort((a, b) => a.total - b.total);
+      for (const zone of farmList) {
+        if (getFreeAcres() <= 0) break;
+        cropEstablishQueue.push({ zoneName: zone.name });
+      }
+    }
+
+    if (autoPilotMode === 'economy' && getFreeAcres() > 0 && unlockedRanchAnimals.size > 0) {
+      const ranchList = [...unlockedRanchAnimals].map(id => ({
+        id,
+        total: (ranchAcres.get(id) ?? 0) + ranchEstablishQueue.filter(i => i.animalId === id).length,
+      })).sort((a, b) => a.total - b.total);
+      for (const animal of ranchList) {
+        if (getFreeAcres() <= 0) break;
+        ranchEstablishQueue.push({ animalId: animal.id });
+      }
+    }
+  }
+
+  /** Buy cheapest land parcel when gold is at least 3× the parcel cost (safety buffer). */
+  function _apLandMarket() {
+    if (landMarket.length === 0) return;
+    const cheapest = landMarket.reduce((a, b) => a.cost < b.cost ? a : b);
+    if (gold.amount >= cheapest.cost * 3) {
+      gold.add(-cheapest.cost);
+      totalLandAcres += cheapest.acres;
+      const idx = landMarket.indexOf(cheapest);
+      if (idx >= 0) landMarket.splice(idx, 1);
+    }
+  }
+
+  /** Auto-start the cheapest affordable research project with all prerequisites met. */
+  function _apResearch() {
+    if (activeResearchId) return;
+    const affordable = RESEARCH.filter(r =>
+      !completedResearch.has(r.id) &&
+      r.requires.every(req => completedResearch.has(req)) &&
+      researchPoints >= r.cost
+    );
+    if (affordable.length === 0) return;
+    const cheapest = affordable.reduce((a, b) => a.cost < b.cost ? a : b);
+    researchPoints     -= cheapest.cost;
+    activeResearchId    = cheapest.id;
+    activeResearchTimer = 0;
+  }
+
+  /**
+   * Queue first acres for native plants that are:
+   *  - Not yet established or queued
+   *  - Have all requiresResearch prerequisites met
+   *  - Have enough CP available
+   * Habitat-risk species are prioritised first.
+   */
+  function _apNativePlanting() {
+    if (getFreeAcres() <= 0) return;
+    // Collect all plants worth queueing
+    const candidates = [];
+    for (const eco of ECOREGIONS) {
+      for (const plant of eco.plants) {
+        const established = plantedSpeciesAcres.get(plant.id) ?? 0;
+        const queued = nativeEstablishQueue.filter(i => i.plantId === plant.id).length;
+        if (established > 0 || queued > 0) continue;
+        if (!(plant.requiresResearch ?? []).every(rid => completedResearch.has(rid))) continue;
+        if (researchPoints < plant.cost) continue;
+        // Priority: habitat-risk creatures hosted by this plant come first
+        const hosting = [...habitatRiskCreatures.keys()].some(ckey => {
+          const pids = creatureHostPlants.get(ckey) ?? [];
+          return pids.includes(plant.id);
+        });
+        candidates.push({ plant, priority: hosting ? 0 : 1 });
+      }
+    }
+    candidates.sort((a, b) => a.priority - b.priority || a.plant.cost - b.plant.cost);
+    for (const { plant } of candidates) {
+      if (getFreeAcres() <= 0) return;
+      if (researchPoints < plant.cost) continue;
+      researchPoints -= plant.cost;
+      nativeEstablishQueue.push({ plantId: plant.id });
+    }
+  }
+
+  function runAutoPilot() {
+    if (!autoPilot) return;
+    _apSellRouting();
+    _apWorkerUpgrades();
+    _apLandMarket();
+    _apAcreAllocation();
+    if (autoPilotMode === 'conservation') {
+      _apResearch();
+      _apNativePlanting();
     }
   }
 
@@ -747,7 +901,30 @@ export function createEngine() {
   // ── Offline simulation ──────────────────────────────────────────────────────
   function simulateOffline(realSecs) {
     const MAX_SECS  = 7200;
-    const simSecs   = Math.min(realSecs, MAX_SECS);
+    const daysBefore = inGameDay;
+
+    // ── Season-eve cap: stop the sim the day before a season change ─────────
+    const curCal = calendarDate(inGameDay);
+    const curDoy  = curCal.dayOfYear;
+    const curYear = curCal.year;
+    // Find the upcoming season (the one we want to stop before entering)
+    let nextSeasonObj  = SEASONS.find(s => s.startDoy > curDoy);
+    let nextSeasonYear = curYear;
+    if (!nextSeasonObj) {
+      // Past the last season start of this year — next is Spring of year+1
+      nextSeasonObj  = SEASONS[0];
+      nextSeasonYear = curYear + 1;
+    }
+    const eveDoy    = nextSeasonObj.startDoy - 1;
+    const eveAbsDay = (nextSeasonYear - 1) * 365 + eveDoy;
+    // Real seconds needed to reach and complete the eve day
+    const cutoffSecs = eveAbsDay > inGameDay
+      ? Math.max(0, Math.ceil(((eveAbsDay - inGameDay) * DAY_REAL_SECS - calendarAccum) / TICKS_PER_SEC))
+      : 0; // already at or past the eve
+    const simSecs = Math.min(realSecs, MAX_SECS, cutoffSecs > 0 ? cutoffSecs : 0);
+    // Pause-at-season-eve: sim was cut short by the eve cap or we opened right on the eve
+    const pausedAtSeasonEve = cutoffSecs === 0 || (cutoffSecs < realSecs && cutoffSecs <= MAX_SECS);
+
     const goldBefore = gold.amount;
     const simTimers = new Map(artisanTimers);
     const simRanchTimers = new Map(ranchTimers);
@@ -818,17 +995,29 @@ export function createEngine() {
         }
         simRanchTimers.set(animalId, acc);
       }
+      // Auto-pilot decisions during offline time (once per simulated second)
+      if (autoPilot) runAutoPilot();
     }
     lastSeasonName = offlineSeason;
     for (const [k, v] of simTimers)      artisanTimers.set(k, v);
     for (const [k, v] of simRanchTimers) ranchTimers.set(k, v);
-    return { goldEarned: gold.amount - goldBefore, simSecs, capped: realSecs > MAX_SECS };
+    // Always pause after offline sync — player reviews state then resumes manually
+    gamePaused = true;
+    return {
+      goldEarned: gold.amount - goldBefore,
+      simSecs,
+      capped: realSecs > MAX_SECS,
+      pausedAtSeasonEve,
+      nextSeason:      nextSeasonObj.name,
+      nextSeasonEmoji: nextSeasonObj.emoji,
+      daysAdvanced:    inGameDay - daysBefore,
+    };
   }
 
   // ── Save / Load ─────────────────────────────────────────────────────────────
   function getState() {
     return {
-      gold: gold.amount, autoPilot,
+      gold: gold.amount, autoPilot, autoPilotMode,
       calendarAccum, inGameDay, lastSeasonName,
       unlockedFarmZones: [...unlockedFarmZones],
       zoneAcres:   Object.fromEntries(zoneAcres),
@@ -895,6 +1084,7 @@ export function createEngine() {
     if (typeof s.gold         === 'number')  gold.amount   = s.gold;
     // gameSpeed is intentionally NOT restored — always resets to 1× on load
     if (typeof s.autoPilot    === 'boolean') autoPilot     = s.autoPilot;
+    if (typeof s.autoPilotMode === 'string' && (s.autoPilotMode === 'economy' || s.autoPilotMode === 'conservation')) autoPilotMode = s.autoPilotMode;
     if (typeof s.calendarAccum === 'number') calendarAccum = s.calendarAccum;
     if (typeof s.inGameDay    === 'number')  inGameDay     = s.inGameDay;
     lastSeasonName = (typeof s.lastSeasonName === 'string') ? s.lastSeasonName : calendarDate(inGameDay).season.name;
@@ -1038,6 +1228,7 @@ export function createEngine() {
     get gameSpeed()    { return gameSpeed;    },
     get gamePaused()   { return gamePaused;   },
     get autoPilot()    { return autoPilot;    },
+    get autoPilotMode(){ return autoPilotMode; },
     get calendarAccum()     { return calendarAccum;  },
     get inGameDay()         { return inGameDay;       },
     get currentSeasonName() { return lastSeasonName;  },
@@ -1161,6 +1352,7 @@ export function createEngine() {
     setGameSpeed(v)          { gameSpeed = v; },
     setPaused(v)             { gamePaused = v; },
     setAutoPilot(v)          { autoPilot = v; },
+    setAutoPilotMode(v)      { if (v === 'economy' || v === 'conservation') autoPilotMode = v; },
 
     // Research
     get researchPoints()      { return researchPoints; },

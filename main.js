@@ -46,6 +46,12 @@ if (saved) {
     if (offSecs > 5) {
       const result = engine.simulateOffline(offSecs);
       showOfflineToast(result, offSecs);
+      // Render before the first tick fires so the paused state is visible immediately
+      // (deferred to after DOMContentLoaded / module evaluation completes)
+      setTimeout(() => renderAll(), 0);
+    } else {
+      // Short absence — still pause so player sees fresh state
+      engine.setPaused(true);
     }
   }
 }
@@ -2022,12 +2028,36 @@ function renderSettings() {
   // Auto-pilot
   const apSection = el('div', 'settings-section');
   apSection.appendChild(el('div', 'settings-label', '🤖 Auto-pilot'));
-  apSection.appendChild(el('p', 'settings-desc',
-    'Automatically assigns best crops, routes artisan products, and buys the cheapest available upgrade.'));
+
+  const apModeDescs = {
+    economy:      'Maximizes income: routes crops to artisan workshops, allocates free acres, buys land, and hires the cheapest available worker.',
+    conservation: 'Balances income with nature: does everything Economy does, plus auto-starts research projects, establishes native plants, and re-plants habitat-risk species first.',
+  };
+  const apDesc = el('p', 'settings-desc',
+    engine.autoPilot ? apModeDescs[engine.autoPilotMode] : 'Enable Auto-pilot to let the game make decisions for you based on your chosen priority.');
+  apSection.appendChild(apDesc);
+
+  // ON / OFF toggle
   const apBtn = el('button', `ap-btn${engine.autoPilot ? ' ap-on' : ''}`,
     engine.autoPilot ? '🤖 ON' : '🤖 OFF');
   apBtn.addEventListener('click', () => { engine.setAutoPilot(!engine.autoPilot); renderAll(); });
   apSection.appendChild(apBtn);
+
+  // Mode buttons — only shown when AP is enabled
+  if (engine.autoPilot) {
+    const modeRow = el('div', 'btn-row');
+    const modes = [
+      { id: 'economy',      label: '💰 Economy' },
+      { id: 'conservation', label: '🌿 Conservation' },
+    ];
+    for (const m of modes) {
+      const mBtn = el('button', `speed-btn${engine.autoPilotMode === m.id ? ' active' : ''}`, m.label);
+      mBtn.addEventListener('click', () => { engine.setAutoPilotMode(m.id); renderAll(); });
+      modeRow.appendChild(mBtn);
+    }
+    apSection.appendChild(modeRow);
+  }
+
   content.appendChild(apSection);
 
   // Screen (fullscreen + wake lock)
@@ -2088,17 +2118,34 @@ function showOfflineToast(result, realSecs) {
                  : s >= 60   ? `${Math.floor(s/60)}m ${s%60}s`
                  : `${s}s`;
 
+  const cap       = result.capped ? ' (capped at 2h)' : '';
+  const daysLine  = result.daysAdvanced > 0
+    ? `<div style="color:#aaa;font-size:12px;margin-top:2px">⏩ ${result.daysAdvanced} in-game day${result.daysAdvanced !== 1 ? 's' : ''} simulated</div>`
+    : '';
+  const seasonLine = result.pausedAtSeasonEve
+    ? `<div class="offline-season-eve">⏸ Stopping at the eve of ${result.nextSeasonEmoji} ${result.nextSeason} — review your farm, then resume when ready.</div>`
+    : `<div class="offline-season-eve" style="color:#aaa">Game paused. Press Resume when ready to continue.</div>`;
+
   const toast = el('div', 'offline-toast');
-  const cap   = result.capped ? ` (capped at 2h)` : '';
   toast.innerHTML = `
     <div class="offline-title">Welcome back!</div>
     <div>Away for ${fmt(Math.floor(realSecs))}${cap}</div>
     <div style="color:#ffd700;margin-top:6px">🪙 +${shortNumber(result.goldEarned)} earned</div>
-    <button class="offline-close">×</button>
+    ${daysLine}
+    ${seasonLine}
+    <div class="offline-toast-btns">
+      <button class="offline-resume">▶ Resume</button>
+      <button class="offline-close">Stay paused</button>
+    </div>
   `;
+  toast.querySelector('.offline-resume').addEventListener('click', () => {
+    engine.setPaused(false);
+    renderAll();
+    toast.remove();
+  });
   toast.querySelector('.offline-close').addEventListener('click', () => toast.remove());
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 8000);
+  setTimeout(() => toast.remove(), 15000);
 }
 
 // ── Update loop ───────────────────────────────────────────────────────────────
