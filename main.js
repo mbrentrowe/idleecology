@@ -49,9 +49,6 @@ if (saved) {
       // Render before the first tick fires so the paused state is visible immediately
       // (deferred to after DOMContentLoaded / module evaluation completes)
       setTimeout(() => renderAll(), 0);
-    } else {
-      // Short absence — still pause so player sees fresh state
-      engine.setPaused(true);
     }
   }
 }
@@ -1664,12 +1661,12 @@ function renderCollection() {
   // ── Filter bar ──────────────────────────────────────────────────────────────
   const filterBar = el('div', 'collection-filter-bar');
   const filterDefs = [
-    { key: 'all',       label: 'All'                                                  },
-    { key: 'crops',     label: `🌾 Crops (${unlockedCrops.length})`                 },
-    { key: 'plants',    label: `🌿 Native Plants (${planted.size} / ${totalPlantCount})`                 },
-    { key: 'creatures', label: `🦋 Creatures (${discoveredCount})`                  },
-    { key: 'ranch',     label: `🐄 Ranch Animals (${unlockedRanchAnimals.size})`   },
-    { key: 'history',   label: `📊 History (${discoveredCount})` },
+    { key: 'all',       label: 'All'                                                                              },
+    { key: 'crops',     label: `🌾 Crops (${unlockedCrops.length} / ${Object.keys(CROPS).length})`              },
+    { key: 'plants',    label: `🌿 Native Plants (${planted.size} / ${totalPlantCount})`                         },
+    { key: 'creatures', label: `🦋 Creatures (${discoveredCount} / ${totalCreatures})`                           },
+    { key: 'ranch',     label: `🐄 Ranch Animals (${unlockedRanchAnimals.size} / ${RANCH_ANIMAL_LIST.length})`  },
+    { key: 'history',   label: `📊 History (${discoveredCount} / ${totalCreatures})` },
   ];
   for (const fd of filterDefs) {
     const btn = el('button', `collection-filter-btn${collectionFilter === fd.key ? ' active' : ''}`, fd.label);

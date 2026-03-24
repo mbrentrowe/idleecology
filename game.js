@@ -1483,6 +1483,13 @@ export function createEngine() {
 
     /** Immediately return 1 acre from a crop zone back to the pool. */
     deallocateCropAcre(zoneName) {
+      // Prefer cancelling a queued (establishing) acre before removing an established one
+      const queueIdx = cropEstablishQueue.findLastIndex(i => i.zoneName === zoneName);
+      if (queueIdx >= 0) {
+        cropEstablishQueue.splice(queueIdx, 1);
+        if (cropEstablishQueue.length === 0) cropEstablishTimer = 0;
+        return true;
+      }
       const current = zoneAcres.get(zoneName) ?? 0;
       if (current <= 0) return false;
       const newVal = current - 1;
@@ -1502,6 +1509,13 @@ export function createEngine() {
 
     /** Immediately return 1 acre from a ranch animal back to the pool. */
     deallocateRanchAcre(animalId) {
+      // Prefer cancelling a queued (establishing) acre before removing an established one
+      const queueIdx = ranchEstablishQueue.findLastIndex(i => i.animalId === animalId);
+      if (queueIdx >= 0) {
+        ranchEstablishQueue.splice(queueIdx, 1);
+        if (ranchEstablishQueue.length === 0) ranchEstablishTimer = 0;
+        return true;
+      }
       const current = ranchAcres.get(animalId) ?? 0;
       if (current <= 0) return false;
       const newVal = current - 1;
