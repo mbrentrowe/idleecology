@@ -353,6 +353,7 @@ body {
 .notif-entry-name { font-size: 14px; font-weight: 700; color: #e0e0e0; }
 .notif-entry-host { font-size: 12px; color: #777; }
 .notif-entry-host strong { color: #aaa; }
+.notif-entry-desc { font-size: 12px; color: #888; line-height: 1.55; margin-top: 4px; }
 .notif-entry-actions {
   display: flex;
   flex-direction: column;
@@ -520,6 +521,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-bottom: 8px;
 }
 .lock-icon  { font-size: 15px; }
 .zone-name  { color: #aaa; font-weight: bold; flex: 1; }
@@ -722,7 +724,7 @@ body {
   padding-top: 8px;
   border-top: 1px solid rgba(255,255,255,0.07);
 }
-.acre-label { font-size: 13px; color: #aaa; }
+.acre-label { font-size: 13px; color: #aaa; flex: 1; }
 .acre-label strong { color: #e8c94f; }
 .acre-btn { font-size: 12px; padding: 3px 10px; }
 .acre-max { font-size: 12px; color: #6dbd5a; }
@@ -1361,6 +1363,8 @@ body {
   line-height: 1.55;
   margin-bottom: 12px;
 }
+/* iNat-fetched desc: hide gap until text arrives */
+.inat-desc-lazy:empty { display: none; }
 
 /* ── Insect & wildlife section ───────────────────────────── */
 .garden-insect-section {

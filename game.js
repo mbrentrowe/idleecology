@@ -539,10 +539,10 @@ export function createEngine() {
       for (const def of FARM_ZONE_DEFS) {
         if (getFreeAcres() <= 0) return;
         if (!unlockedFarmZones.has(def.name)) continue;
-        const allocated = (zoneAcres.get(def.name) ?? 0)
-          + cropEstablishQueue.filter(i => i.zoneName === def.name).length;
+        const allocated = zoneAcres.get(def.name) ?? 0;
         if (allocated === 0) {
-          cropEstablishQueue.push({ zoneName: def.name });
+          zoneAcres.set(def.name, 1);
+          if (!zoneCrops.has(def.name)) zoneCrops.set(def.name, new CropInstance(CROPS[def.cropId]));
         }
       }
       // 2. Native plants with 0 acres and prereqs met (sorted cheapest CP cost first)
@@ -573,22 +573,23 @@ export function createEngine() {
     if (getFreeAcres() > 0 && unlockedFarmZones.size > 0) {
       const farmList = [...unlockedFarmZones].map(name => ({
         name,
-        total: (zoneAcres.get(name) ?? 0) + cropEstablishQueue.filter(i => i.zoneName === name).length,
+        total: zoneAcres.get(name) ?? 0,
       })).sort((a, b) => a.total - b.total);
       for (const zone of farmList) {
         if (getFreeAcres() <= 0) break;
-        cropEstablishQueue.push({ zoneName: zone.name });
+        zoneAcres.set(zone.name, (zoneAcres.get(zone.name) ?? 0) + 1);
+        if (!zoneCrops.has(zone.name)) zoneCrops.set(zone.name, new CropInstance(CROPS[FARM_ZONE_DEFS.find(d => d.name === zone.name)?.cropId]));
       }
     }
 
     if (autoPilotMode === 'economy' && getFreeAcres() > 0 && unlockedRanchAnimals.size > 0) {
       const ranchList = [...unlockedRanchAnimals].map(id => ({
         id,
-        total: (ranchAcres.get(id) ?? 0) + ranchEstablishQueue.filter(i => i.animalId === id).length,
+        total: ranchAcres.get(id) ?? 0,
       })).sort((a, b) => a.total - b.total);
       for (const animal of ranchList) {
         if (getFreeAcres() <= 0) break;
-        ranchEstablishQueue.push({ animalId: animal.id });
+        ranchAcres.set(animal.id, (ranchAcres.get(animal.id) ?? 0) + 1);
       }
     }
   }
@@ -693,6 +694,14 @@ export function createEngine() {
           }
         }
         instance.harvest(); // reset phase=0, timer=0 — zone is now dormant
+
+        // Free all acres allocated to this dormant zone back to the pool
+        zoneAcres.delete(zoneName);
+        // Cancel any queued (establishing) acres for this zone
+        for (let i = cropEstablishQueue.length - 1; i >= 0; i--) {
+          if (cropEstablishQueue[i].zoneName === zoneName) cropEstablishQueue.splice(i, 1);
+        }
+        if (cropEstablishQueue.length === 0) cropEstablishTimer = 0;
       }
     }
   }
@@ -794,27 +803,6 @@ export function createEngine() {
 
     // ── Establishing queues (per-type, one acre at a time) ─────────────────────
     const ESTABLISH_SECS = ESTABLISH_DAYS * DAY_REAL_SECS;
-    if (cropEstablishQueue.length > 0) {
-      cropEstablishTimer += gameSpeed;
-      while (cropEstablishTimer >= ESTABLISH_SECS && cropEstablishQueue.length > 0) {
-        cropEstablishTimer -= ESTABLISH_SECS;
-        const { zoneName } = cropEstablishQueue.shift();
-        if (unlockedFarmZones.has(zoneName)) {
-          zoneAcres.set(zoneName, (zoneAcres.get(zoneName) ?? 0) + 1);
-          if (!zoneCrops.has(zoneName)) zoneCrops.set(zoneName, new CropInstance(CROPS[FARM_ZONE_DEFS.find(d => d.name === zoneName)?.cropId]));
-        }
-      }
-    }
-    if (ranchEstablishQueue.length > 0) {
-      ranchEstablishTimer += gameSpeed;
-      while (ranchEstablishTimer >= ESTABLISH_SECS && ranchEstablishQueue.length > 0) {
-        ranchEstablishTimer -= ESTABLISH_SECS;
-        const { animalId } = ranchEstablishQueue.shift();
-        if (unlockedRanchAnimals.has(animalId)) {
-          ranchAcres.set(animalId, (ranchAcres.get(animalId) ?? 0) + 1);
-        }
-      }
-    }
     if (nativeEstablishQueue.length > 0) {
       nativeEstablishTimer += gameSpeed;
       while (nativeEstablishTimer >= ESTABLISH_SECS && nativeEstablishQueue.length > 0) {
@@ -1193,11 +1181,23 @@ export function createEngine() {
     cropEstablishQueue.length   = 0;
     ranchEstablishQueue.length  = 0;
     nativeEstablishQueue.length = 0;
-    if (Array.isArray(s.cropEstablishQueue))   s.cropEstablishQueue.forEach(i   => cropEstablishQueue.push({ ...i }));
-    if (Array.isArray(s.ranchEstablishQueue))  s.ranchEstablishQueue.forEach(i  => ranchEstablishQueue.push({ ...i }));
+    // Drain any previously-queued crop/ranch entries directly into the acre maps (backward compat)
+    if (Array.isArray(s.cropEstablishQueue)) {
+      s.cropEstablishQueue.forEach(({ zoneName }) => {
+        if (unlockedFarmZones.has(zoneName)) {
+          zoneAcres.set(zoneName, (zoneAcres.get(zoneName) ?? 0) + 1);
+          if (!zoneCrops.has(zoneName)) zoneCrops.set(zoneName, new CropInstance(CROPS[FARM_ZONE_DEFS.find(d => d.name === zoneName)?.cropId]));
+        }
+      });
+    }
+    if (Array.isArray(s.ranchEstablishQueue)) {
+      s.ranchEstablishQueue.forEach(({ animalId }) => {
+        if (unlockedRanchAnimals.has(animalId)) {
+          ranchAcres.set(animalId, (ranchAcres.get(animalId) ?? 0) + 1);
+        }
+      });
+    }
     if (Array.isArray(s.nativeEstablishQueue)) s.nativeEstablishQueue.forEach(i => nativeEstablishQueue.push({ ...i }));
-    if (typeof s.cropEstablishTimer   === 'number') cropEstablishTimer   = s.cropEstablishTimer;
-    if (typeof s.ranchEstablishTimer  === 'number') ranchEstablishTimer  = s.ranchEstablishTimer;
     if (typeof s.nativeEstablishTimer === 'number') nativeEstablishTimer = s.nativeEstablishTimer;
     habitatRiskCreatures.clear();
     if (s.habitatRiskCreatures) Object.entries(s.habitatRiskCreatures).forEach(([k, v]) => habitatRiskCreatures.set(_migrateKey(k), { ...v }));
@@ -1417,6 +1417,7 @@ export function createEngine() {
     // ── Land pool API ──────────────────────────────────────────────────────────
     get totalLandAcres()        { return totalLandAcres; },
     get landMarket()            { return landMarket; },
+    get nextMarketDripDay()     { return nextMarketDripDay; },
     get cropEstablishQueue()    { return cropEstablishQueue; },
     get ranchEstablishQueue()   { return ranchEstablishQueue; },
     get nativeEstablishQueue()  { return nativeEstablishQueue; },
@@ -1445,17 +1446,22 @@ export function createEngine() {
       const free = getFreeAcres();
       const n = Math.min(qty, free);
       if (n <= 0) return 0;
-      for (let i = 0; i < n; i++) cropEstablishQueue.push({ zoneName });
+      for (let i = 0; i < n; i++) {
+        zoneAcres.set(zoneName, (zoneAcres.get(zoneName) ?? 0) + 1);
+        if (!zoneCrops.has(zoneName)) zoneCrops.set(zoneName, new CropInstance(CROPS[FARM_ZONE_DEFS.find(d => d.name === zoneName)?.cropId]));
+      }
       return n;
     },
 
-    /** Queue N acres from the pool to a ranch animal. Returns actual queued count. */
+    /** Allocate N acres from the pool to a ranch animal immediately. Returns actual count. */
     queueRanchAcre(animalId, qty = 1) {
       if (!unlockedRanchAnimals.has(animalId)) return 0;
       const free = getFreeAcres();
       const n = Math.min(qty, free);
       if (n <= 0) return 0;
-      for (let i = 0; i < n; i++) ranchEstablishQueue.push({ animalId });
+      for (let i = 0; i < n; i++) {
+        ranchAcres.set(animalId, (ranchAcres.get(animalId) ?? 0) + 1);
+      }
       return n;
     },
 
