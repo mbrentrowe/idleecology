@@ -7,6 +7,9 @@ A text-only browser build of Idle Ecologist that shares the same gameplay loop a
 Open `index.html` via a local web server (ES modules require HTTP, not `file://`):
 
 ```bash
+# One-command launcher in this repo (uses Perl static server)
+sh ./start.sh
+
 # Python
 python -m http.server 8080
 
@@ -15,6 +18,8 @@ npx serve .
 ```
 
 Then visit `http://localhost:8080`.
+
+If you need another port, run `sh ./start.sh 9090`.
 
 ## Project structure
 

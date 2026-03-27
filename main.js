@@ -670,6 +670,11 @@ function renderCrops() {
       const qtyAcre = cropBuyQty === 'max' ? Math.max(0, freeAcres) : cropBuyQty;
       const canAllocate = freeAcres >= 1;
       const canRemove   = currentAcres > 0;
+      if (canRemove) {
+        const removeBtn = el('button', 'buy-btn acre-btn danger-btn', '−1 acre');
+        removeBtn.addEventListener('click', () => { engine.deallocateCropAcre(def.name); renderAll(); });
+        acreRow.appendChild(removeBtn);
+      }
       const allocBtn = el('button', `buy-btn acre-btn${canAllocate ? '' : ' disabled'}`,
         qtyAcre > 1 ? `+${Math.min(qtyAcre, freeAcres)} acre${Math.min(qtyAcre, freeAcres) !== 1 ? 's' : ''} (${freeAcres} free)` : canAllocate ? `+1 acre (${freeAcres} free)` : 'No free acres');
       allocBtn.disabled = !canAllocate;
@@ -680,11 +685,6 @@ function renderCrops() {
         });
       }
       acreRow.appendChild(allocBtn);
-      if (canRemove) {
-        const removeBtn = el('button', 'buy-btn acre-btn danger-btn', '−1 acre');
-        removeBtn.addEventListener('click', () => { engine.deallocateCropAcre(def.name); renderAll(); });
-        acreRow.appendChild(removeBtn);
-      }
       if (!canAllocate) {
         const goLandBtn = el('button', 'buy-btn', '🗺️ Buy land');
         goLandBtn.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
@@ -812,6 +812,11 @@ function renderRanch() {
     acreGroup.innerHTML = acreGroupHtml;
     const canAllocateRanch = freeAcresForRanch >= 1;
     const canRemoveRanch   = acres > 0;
+    if (canRemoveRanch) {
+      const ranchRemoveBtn = el('button', 'action-btn ranch-upgrade-btn danger-btn', '−1 acre');
+      ranchRemoveBtn.addEventListener('click', () => { engine.deallocateRanchAcre(animal.id); renderAll(); });
+      acreGroup.appendChild(ranchRemoveBtn);
+    }
     const ranchAllocBtn = el('button', `action-btn ranch-upgrade-btn${canAllocateRanch ? '' : ' disabled'}`,
       canAllocateRanch ? `+1 acre (${freeAcresForRanch} free)` : 'No free acres');
     if (canAllocateRanch) {
@@ -820,11 +825,6 @@ function renderRanch() {
       ranchAllocBtn.disabled = true;
     }
     acreGroup.appendChild(ranchAllocBtn);
-    if (canRemoveRanch) {
-      const ranchRemoveBtn = el('button', 'action-btn ranch-upgrade-btn danger-btn', '−1 acre');
-      ranchRemoveBtn.addEventListener('click', () => { engine.deallocateRanchAcre(animal.id); renderAll(); });
-      acreGroup.appendChild(ranchRemoveBtn);
-    }
     if (!canAllocateRanch) {
       const goLandBtnR = el('button', 'action-btn', '🗺️ Buy land');
       goLandBtnR.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
@@ -1396,6 +1396,11 @@ function renderGarden() {
           acreInfo.textContent = infoText;
           actionRow.appendChild(acreInfo);
           const canAddMore = freeAcresNative >= 1;
+          if (establishedAcres > 0) {
+            const removeAcreBtn = el('button', 'action-btn danger', '−1 acre');
+            removeAcreBtn.addEventListener('click', () => { engine.deallocateNativeAcre(plant.id, 1); renderAll(); });
+            actionRow.appendChild(removeAcreBtn);
+          }
           const addAcreBtn = el('button', `action-btn garden-plant-btn${canAddMore ? '' : ' disabled'}`,
             canAddMore ? `+1 acre (${freeAcresNative} free)` : 'No free acres');
           if (canAddMore) {
@@ -1407,11 +1412,6 @@ function renderGarden() {
             addAcreBtn.disabled = true;
           }
           actionRow.appendChild(addAcreBtn);
-          if (establishedAcres > 0) {
-            const removeAcreBtn = el('button', 'action-btn danger', '−1 acre');
-            removeAcreBtn.addEventListener('click', () => { engine.deallocateNativeAcre(plant.id, 1); renderAll(); });
-            actionRow.appendChild(removeAcreBtn);
-          }
         } else {
           // First planting — button deducts CP + queues 1 acre
           const canAfford  = pts >= plant.cost;
