@@ -1044,6 +1044,7 @@ function renderRanch() {
           ? `+${qtyRanchAcre} acres (${freeAcresForRanch} free)`
           : `+1 acre (${freeAcresForRanch} free)`
         : 'No free acres');
+    ranchAllocBtn.dataset.ranchAnimalId = animal.id;
     if (canAllocateRanch) {
       ranchAllocBtn.addEventListener('click', () => {
         engine.queueRanchAcre(animal.id, qtyRanchAcre);
@@ -1053,11 +1054,11 @@ function renderRanch() {
       ranchAllocBtn.disabled = true;
     }
     acreRow.appendChild(ranchAllocBtn);
-    if (!canAllocateRanch) {
-      const goLandBtnR = el('button', 'buy-btn', '🗺️ Buy land');
-      goLandBtnR.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
-      acreRow.appendChild(goLandBtnR);
-    }
+    const goLandBtnR = el('button', 'buy-btn', '🗺️ Buy land');
+    goLandBtnR.dataset.ranchBuyLand = animal.id;
+    goLandBtnR.hidden = canAllocateRanch;
+    goLandBtnR.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
+    acreRow.appendChild(goLandBtnR);
     card.appendChild(acreRow);
 
     // Worker upgrade row (matches crops layout)
@@ -1067,6 +1068,7 @@ function renderRanch() {
       qtyWorker > 0
         ? `+${qtyWorker} worker${qtyWorker !== 1 ? 's' : ''} — 🪙 ${shortNumber(workerTotalCost)}`
         : '+workers — can\'t afford');
+    workerBtn.dataset.ranchAnimalIdW = animal.id;
     if (canAffordWorker) {
       workerBtn.addEventListener('click', () => {
         for (let i = 0; i < qtyWorker; i++) engine.upgradeRanchWorkers(animal.id);
@@ -2079,69 +2081,70 @@ function renderCollection() {
     }
   }
 
+  // ── Attracted birds ─────────────────────────────────────────────────────────
+  if (showBirds) {
+    const attractedBirds = engine.discoveredBirds;
+    const birdMetrics    = engine.getBirdMetrics();
+    content.appendChild(el('h2', 'section-header', `🐦 Birds Attracted — ${attractedBirds.size} of ${BIRD_LIST.length}`));
+    if (attractedBirds.size === 0) {
+      content.appendChild(el('p', 'research-idle-note', '— Build insect diversity and establish fruiting native plants to attract native bird visitors. —'));
+    }
+    const birdGrid = el('div', 'collection-creature-grid');
+    for (const bird of BIRD_LIST) {
+      const isAttracted = attractedBirds.has(bird.id);
+      const card = el('div', `collection-creature-card${isAttracted ? '' : ' collection-bird-locked'}`);
+      if (isAttracted) {
+        card.innerHTML = `
+          ${inatThumbHtml(bird.sci, 'collection-creature-card-thumb', bird.name)}
+          <div class="collection-creature-card-body">
+            <div class="collection-creature-head">
+              <span class="collection-creature-name">${bird.name}</span>
+              <span class="collection-creature-type-badge type-bird">🐦</span>
+            </div>
+            <a class="garden-plant-sci inat-link" href="${inatUrl(bird.sci)}" target="_blank" rel="noopener noreferrer">${bird.sci} ↗</a>
+            <span class="collection-creature-role">${bird.role}</span>
+            <p class="collection-creature-note">${bird.note}</p>
+            <div class="collection-host-label">Attracted by: <strong>${bird.attractedBy}</strong></div>
+            <span class="collection-creature-bp">+1 🌍 BP</span>
+          </div>
+        `;
+        const thumbImg = card.querySelector('.collection-creature-card-thumb');
+        if (thumbImg && thumbImg.src === BLANK_GIF) {
+          fetchInatPhoto(bird.sci).then(url => {
+            if (!url) return;
+            inatPhotoCache[bird.sci] = url;
+            thumbImg.src = url;
+          });
+        }
+      } else {
+        const c = bird.unlockCriteria;
+        const parts = [];
+        if (c.insectsDiscovered) parts.push(`🦋 ${birdMetrics.insectsDiscovered} / ${c.insectsDiscovered} insects`);
+        if (c.fruitingPlants)    parts.push(`🍒 ${birdMetrics.fruitingPlants} / ${c.fruitingPlants} fruiting plants`);
+        if (c.plantsEstablished) parts.push(`🌿 ${birdMetrics.plantsEstablished} / ${c.plantsEstablished} plants`);
+        if (c.hasPlantType) {
+          const has = birdMetrics.plantTypeEstablished.has(c.hasPlantType);
+          parts.push(`${has ? '✓' : '✗'} ${c.hasPlantType} established`);
+        }
+        card.innerHTML = `
+          <span class="collection-creature-card-thumb-icon">🐦</span>
+          <div class="collection-creature-card-body">
+            <div class="collection-creature-head">
+              <span class="collection-creature-name undiscovered-name">${bird.name}</span>
+              <span class="collection-creature-type-badge type-bird">🐦</span>
+            </div>
+            <span class="collection-creature-role">${bird.attractedBy}</span>
+            <div class="collection-host-label">Progress: ${parts.join(' · ')}</div>
+          </div>
+        `;
+      }
+      birdGrid.appendChild(card);
+    }
+    content.appendChild(birdGrid);
+  }
+
   // ── Discovery history ──────────────────────────────────────────────
   if (showHistory) {
-      // ── Attracted birds ─────────────────────────────────────────────────────────
-      if (showBirds) {
-        const attractedBirds = engine.discoveredBirds;
-        const birdMetrics    = engine.getBirdMetrics();
-        content.appendChild(el('h2', 'section-header', `🐦 Birds Attracted — ${attractedBirds.size} of ${BIRD_LIST.length}`));
-        if (attractedBirds.size === 0) {
-          content.appendChild(el('p', 'research-idle-note', '— Build insect diversity and establish fruiting native plants to attract native bird visitors. —'));
-        }
-        const birdGrid = el('div', 'collection-creature-grid');
-        for (const bird of BIRD_LIST) {
-          const isAttracted = attractedBirds.has(bird.id);
-          const card = el('div', `collection-creature-card${isAttracted ? '' : ' collection-bird-locked'}`);
-          if (isAttracted) {
-            card.innerHTML = `
-              ${inatThumbHtml(bird.sci, 'collection-creature-card-thumb', bird.name)}
-              <div class="collection-creature-card-body">
-                <div class="collection-creature-head">
-                  <span class="collection-creature-name">${bird.name}</span>
-                  <span class="collection-creature-type-badge type-bird">🐦</span>
-                </div>
-                <a class="garden-plant-sci inat-link" href="${inatUrl(bird.sci)}" target="_blank" rel="noopener noreferrer">${bird.sci} ↗</a>
-                <span class="collection-creature-role">${bird.role}</span>
-                <p class="collection-creature-note">${bird.note}</p>
-                <div class="collection-host-label">Attracted by: <strong>${bird.attractedBy}</strong></div>
-                <span class="collection-creature-bp">+1 🌍 BP</span>
-              </div>
-            `;
-            const thumbImg = card.querySelector('.collection-creature-card-thumb');
-            if (thumbImg && thumbImg.src === BLANK_GIF) {
-              fetchInatPhoto(bird.sci).then(url => {
-                if (!url) return;
-                inatPhotoCache[bird.sci] = url;
-                thumbImg.src = url;
-              });
-            }
-          } else {
-            const c = bird.unlockCriteria;
-            const parts = [];
-            if (c.insectsDiscovered) parts.push(`🦋 ${birdMetrics.insectsDiscovered} / ${c.insectsDiscovered} insects`);
-            if (c.fruitingPlants)    parts.push(`🍒 ${birdMetrics.fruitingPlants} / ${c.fruitingPlants} fruiting plants`);
-            if (c.plantsEstablished) parts.push(`🌿 ${birdMetrics.plantsEstablished} / ${c.plantsEstablished} plants`);
-            if (c.hasPlantType) {
-              const has = birdMetrics.plantTypeEstablished.has(c.hasPlantType);
-              parts.push(`${has ? '✓' : '✗'} ${c.hasPlantType} established`);
-            }
-            card.innerHTML = `
-              <span class="collection-creature-card-thumb-icon">🐦</span>
-              <div class="collection-creature-card-body">
-                <div class="collection-creature-head">
-                  <span class="collection-creature-name undiscovered-name">${bird.name}</span>
-                  <span class="collection-creature-type-badge type-bird">🐦</span>
-                </div>
-                <span class="collection-creature-role">${bird.attractedBy}</span>
-                <div class="collection-host-label">Progress: ${parts.join(' · ')}</div>
-              </div>
-            `;
-          }
-          birdGrid.appendChild(card);
-        }
-        content.appendChild(birdGrid);
-      }
 
     content.appendChild(el('h2', 'section-header', `📊 Discovery Log — ${discoveredCount} creature${discoveredCount !== 1 ? 's' : ''} observed`));
 
@@ -2343,11 +2346,12 @@ function showOfflineToast(result, realSecs) {
 
 // ── Update loop ───────────────────────────────────────────────────────────────
 let lastZonesFingerprint    = '';
+let lastRanchFingerprint    = '';
 let lastResearchFingerprint   = '';
 let lastGardenFingerprint     = '';
 let lastCollectionFingerprint = '';
 let lastLandFingerprint       = '';
-let collectionFilter = 'all'; // 'all' | 'crops' | 'plants' | 'creatures' | 'history'
+let collectionFilter = 'all'; // 'all' | 'crops' | 'plants' | 'creatures' | 'birds' | 'history'
 let collectionCreaturesCollapsed = new Set(); // plant IDs whose creature list is collapsed
 let collectionAllCollapsed = false;
 
@@ -2624,39 +2628,38 @@ function _buildNotifList() {
         ${project.desc ? `<div class="notif-entry-desc">${project.desc}</div>` : ''}
       `;
       gotoHandler = () => { closeNotifModal(); activeTab = 'research'; setFabOpen(false); renderAll(); };
+    } else if (type === 'bird_attracted') {
+      const { bird } = notif;
+      const thumbSrc = STATIC_INAT_PHOTOS[bird.sci] || inatPhotoCache[bird.sci] || BLANK_GIF;
+      thumbHtml = `<img class="inat-thumb notif-thumb" data-sci="${bird.sci}" src="${thumbSrc}" alt="${bird.name}">`;
+      badgeClass = 'notif-badge-bird';
+      badgeLabel = '🐦 Bird Attracted';
+      nameHtml = `<div class="notif-entry-name">${bird.name}</div>`
+        + `<a class="garden-plant-sci inat-link" href="${inatUrl(bird.sci)}" target="_blank" rel="noopener noreferrer">${bird.sci} ↗</a>`;
+      subHtml = `
+        <div class="notif-entry-host">Attracted by: <strong>${bird.attractedBy}</strong></div>
+        <div class="notif-entry-host">Role: <strong>${bird.role}</strong></div>
+        ${bird.note ? `<div class="notif-entry-desc">${bird.note}</div>` : ''}
+        <div class="notif-entry-host">Biosphere: <strong>+1 BP</strong></div>
+      `;
+      if (thumbSrc === BLANK_GIF) {
+        fetchInatPhoto(bird.sci).then(url => {
+          if (!url) return;
+          inatPhotoCache[bird.sci] = url;
+          const img = entry.querySelector('.notif-thumb');
+          if (img) img.src = url;
+        });
+      }
+      gotoHandler = () => {
+        closeNotifModal();
+        _pendingScrollToCollection = { filter: 'birds' };
+        activeTab = 'collection';
+        setFabOpen(false);
+        renderAll();
+      };
     }
 
     entry.innerHTML = `
-          } else if (type === 'bird_attracted') {
-            const { bird } = notif;
-            const thumbSrc = STATIC_INAT_PHOTOS[bird.sci] || inatPhotoCache[bird.sci] || BLANK_GIF;
-            thumbHtml = `<img class="inat-thumb notif-thumb" data-sci="${bird.sci}" src="${thumbSrc}" alt="${bird.name}">`;
-            badgeClass = 'notif-badge-bird';
-            badgeLabel = '🐦 Bird Attracted';
-            nameHtml = `<div class="notif-entry-name">${bird.name}</div>`
-              + `<a class="garden-plant-sci inat-link" href="${inatUrl(bird.sci)}" target="_blank" rel="noopener noreferrer">${bird.sci} ↗</a>`;
-            subHtml = `
-              <div class="notif-entry-host">Attracted by: <strong>${bird.attractedBy}</strong></div>
-              <div class="notif-entry-host">Role: <strong>${bird.role}</strong></div>
-              ${bird.note ? `<div class="notif-entry-desc">${bird.note}</div>` : ''}
-              <div class="notif-entry-host">Biosphere: <strong>+1 BP</strong></div>
-            `;
-            if (thumbSrc === BLANK_GIF) {
-              fetchInatPhoto(bird.sci).then(url => {
-                if (!url) return;
-                inatPhotoCache[bird.sci] = url;
-                const img = entry.querySelector('.notif-thumb');
-                if (img) img.src = url;
-              });
-            }
-            gotoHandler = () => {
-              closeNotifModal();
-              _pendingScrollToCollection = { filter: 'birds' };
-              activeTab = 'collection';
-              setFabOpen(false);
-              renderAll();
-            };
-          }
       <div class="notif-entry-thumb">${thumbHtml}</div>
       <div class="notif-entry-body">
         <div class="notif-entry-top">
@@ -2724,6 +2727,53 @@ function zonesFingerprint() {
   // Sample sold/gold (bucketed) so locked-card criteria bars re-render as progress advances
   const totalSold = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
   return `f${engine.unlockedFarmZones.size}|${farmParts}|s${Math.floor(totalSold / 10)}|g${Math.floor(lifetimeGold / 10000)}|season:${engine.currentSeasonName}`;
+}
+
+function ranchFingerprint() {
+  const ranchParts = RANCH_ANIMAL_LIST
+    .filter(animal => engine.unlockedRanchAnimals.has(animal.id))
+    .map(animal => {
+      const stats = engine.ranchStats.get(animal.id) ?? { produced: 0, sold: 0, lifetimeSales: 0 };
+      return `${animal.id}:${engine.ranchAcres.get(animal.id) ?? 0}:${engine.ranchWorkers.get(animal.id) ?? 1}:${Math.floor(stats.produced / 10)}:${Math.floor(stats.lifetimeSales / 1000)}`;
+    }).join(',');
+  return `u${engine.unlockedRanchAnimals.size}|f${engine.getFreeAcres()}|${ranchParts}|q:${cropBuyQty}`;
+}
+
+function updateRanchButtonStates() {
+  content.querySelectorAll('.acre-btn[data-ranch-animal-id]').forEach(btn => {
+    const freeAcres = engine.getFreeAcres();
+    const qtyRanchAcre = cropBuyQty === 'max' ? freeAcres : Math.min(cropBuyQty, freeAcres);
+    const canAllocate = freeAcres >= 1;
+    btn.disabled = !canAllocate;
+    btn.classList.toggle('disabled', !canAllocate);
+    btn.textContent = canAllocate
+      ? qtyRanchAcre > 1
+        ? `+${qtyRanchAcre} acres (${freeAcres} free)`
+        : `+1 acre (${freeAcres} free)`
+      : 'No free acres';
+  });
+
+  content.querySelectorAll('.worker-btn[data-ranch-animal-id-w]').forEach(btn => {
+    const animalId = btn.dataset.ranchAnimalIdW;
+    const animal = RANCH_ANIMALS[animalId];
+    if (!animal) return;
+    const workers = engine.ranchWorkers.get(animalId) ?? 1;
+    const workerCostFn = n => workerUpgradeCost({ cost: animal.baseCost }, n);
+    const qtyWorker = cropBuyQty === 'max'
+      ? maxAffordableCount(workerCostFn, workers, engine.gold.amount)
+      : cropBuyQty;
+    const workerTotalCost = qtyWorker > 0 ? bulkCost(workerCostFn, workers, qtyWorker) : 0;
+    const canAfford = qtyWorker > 0 && engine.gold.amount >= workerTotalCost;
+    btn.disabled = !canAfford;
+    btn.classList.toggle('disabled', !canAfford);
+    btn.textContent = qtyWorker > 0
+      ? `+${qtyWorker} worker${qtyWorker !== 1 ? 's' : ''} — 🪙 ${shortNumber(workerTotalCost)}`
+      : '+workers — can\'t afford';
+  });
+
+  content.querySelectorAll('button[data-ranch-buy-land]').forEach(btn => {
+    btn.hidden = engine.getFreeAcres() >= 1;
+  });
 }
 
 function liveUpdate() {
@@ -2809,6 +2859,14 @@ function liveUpdate() {
         const cur = engine.zoneWorkers.get(def.name) ?? 1;
         btn.disabled = engine.gold.amount < workerUpgradeCost(def, cur);
       });
+    }
+  } else if (activeTab === 'ranch') {
+    const rfp = ranchFingerprint();
+    if (rfp !== lastRanchFingerprint) {
+      lastRanchFingerprint = rfp;
+      renderAll();
+    } else {
+      updateRanchButtonStates();
     }
   } else if (activeTab === 'research') {
     // Re-render fully when completions, pts, or active project change
