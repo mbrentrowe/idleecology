@@ -1,6 +1,18 @@
 # Idle Ecologist — Text UI
 
-A text-only browser build of Idle Ecologist that shares the same gameplay loop as the canvas prototype.
+A browser-based idle farming and conservation game with a modular engine + UI architecture.
+
+Current core loop:
+
+1. Grow crops for gold.
+2. Expand land and allocate acres across farm, ranch, and native plants.
+3. Earn conservation points and complete research.
+4. Establish native host plants and discover wildlife.
+5. Increase biosphere score to boost your global gold multiplier.
+
+## Tutorial
+
+For a guided walkthrough of the codebase and a hands-on feature exercise, see `TUTORIAL.md`.
 
 ## Running locally
 
@@ -21,24 +33,42 @@ Then visit `http://localhost:8080`.
 
 If you need another port, run `sh ./start.sh 9090`.
 
-## Project structure
+## In-Game Tutorial
+
+- A guided first-run tutorial opens automatically for new players.
+- Players can replay it from **Settings → Tutorial → Replay Tutorial**.
+
+## Architecture
 
 | File | Purpose |
 |---|---|
-| `crops.js` | Crop type definitions + growth instance (shared with canvas build) |
-| `activityRegistry.js` | Artisan activity descriptor (shared with canvas build) |
-| `game.js` | Pure game engine — no DOM. All state, tick loop, auto-pilot, save/load |
-| `main.js` | UI layer — builds and updates all tab panels |
-| `style.css` | Dark-theme stylesheet |
+| `game.js` | Pure simulation engine (no DOM): ticks, unlocks, economy, land, save/load |
+| `main.js` | UI layer: tab rendering, controls, notifications, tutorial overlay |
+| `crops.js` | Crop definitions and growth instance logic |
+| `ranch.js` | Ranch animal definitions and progression data |
+| `research.js` | Conservation research tree and bonuses |
+| `ecoregions.js` | Native plants, hosted creatures, and collection data |
+| `engine_sanity_test.html` | Lightweight browser sanity tests for engine behaviors |
+| `style.css` | Global styles and component styling |
 
 ## Tabs
 
-- **Zones** — live progress bars for every farm zone and artisan workshop, buy/unlock buttons, crop/product selectors
-- **Market** — auto-sell toggles for raw crops and artisan products
-- **Stats** — grown/sold/lifetime gold per crop, artisan history, time spent
-- **Schedule** — drag sliders to allocate 24h between Farming, Socializing, and Sleeping
-- **Settings** — game speed, auto-pilot toggle, save/reset
+- **Crops** — unlock and run farm zones, allocate acres, hire workers, monitor growth phases
+- **Ranch** — unlock animals via crop progress, allocate acreage, hire workers, track production
+- **Conservation** — spend conservation points on research and biosphere upgrades
+- **Native Garden** — establish native plants to support species discovery and biosphere growth
+- **Land** — buy market parcels, manage shared acreage, view allocation pressure
+- **Collection** — track discovered crops, plants, wildlife, and discovery history
+- **Settings** — speed, pause, auto-pilot mode, tutorial replay, fullscreen/wake lock, save/reset
 
-## Save data
+## Save Data
 
-Stored in `localStorage` under key `idle-ecologist-text-v1` (separate from the canvas build which uses a different key).
+- Main save key: `idle-ecologist-text-v1`
+- Data is stored in `localStorage`.
+- Saves include timestamp metadata used for offline progression simulation on return.
+
+## Dev Notes
+
+- Engine/UI boundary is intentional: keep game logic in `game.js`, UI behavior in `main.js`.
+- Use `engine_sanity_test.html` for quick regression checks when changing core simulation behavior.
+- See `TUTORIAL.md` for a contributor walkthrough.

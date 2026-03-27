@@ -2,7 +2,6 @@
 // No DOM access. Exports createEngine() and zone definition arrays.
 
 import { CROPS, CropInstance } from './crops.js';
-import { WORK_ACTIVITIES }     from './activityRegistry.js';
 import { RESEARCH }            from './research.js';
 import { ECOREGIONS, findPlant } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
@@ -123,21 +122,6 @@ export function acreUpgradeCost(def, currentAcres) {
   return Math.round(base * scale);
 }
 
-export const ARTISAN_ZONE_DEFS = [
-  { name: 'The Jam House',             cropId: 'strawberry',  cost:        75000 },
-  { name: 'The Brine Shed',            cropId: 'greenOnion',  cost:       225000 },
-  { name: 'The Sweet Potato Cellar',   cropId: 'potato',      cost:       675000 },
-  { name: 'The Pickle Barrel',         cropId: 'onion',       cost:      2025000 },
-  { name: 'The Peanut Mill',           cropId: 'carrot',      cost:      6075000 },
-  { name: 'The Berry Press',           cropId: 'blueberry',   cost:     18225000 },
-  { name: 'The Peach Smokehouse',      cropId: 'parsnip',     cost:     54675000 },
-  { name: 'The Leaf Works',            cropId: 'lettuce',     cost:    164025000 },
-  { name: 'The Greens Cannery',        cropId: 'cauliflower', cost:    492075000 },
-  { name: 'The Rice Mill',             cropId: 'rice',        cost:   1476225000 },
-  { name: 'The Brassica Works',        cropId: 'broccoli',    cost:   4428675000 },
-  { name: 'The Tomato Works',          cropId: 'asparagus',   cost:  13286025000 },
-];
-
 // ── Land system constants ─────────────────────────────────────────────────────
 export const STARTING_LAND_ACRES         = 50;  // acres owned at game start
 export const ESTABLISH_DAYS              = 2;   // in-game days to establish one acre
@@ -175,29 +159,6 @@ export const ZONE_NAME_MIGRATION = {
   'Rice Paddies':               'Carolina Gold Paddies',
   'Broccoli Stand':             'Broccoli Field',
   'Asparagus Spire':            'Tomato Hill',
-  // ── Artisan zones: original generic names → SE names ───────────────────────
-  'The Potting Shed':           'The Jam House',
-  'Oakwood Workshop':           'The Brine Shed',
-  'Hearthside Cellar':          'The Sweet Potato Cellar',
-  'Millstone Hall':             'The Pickle Barrel',
-  'The Smokehouse':             'The Peanut Mill',
-  'Coppergate Works':           'The Berry Press',
-  'Ironbell Distillery':        'The Peach Smokehouse',
-  'Harvestmoon Press':          'The Leaf Works',
-  'The Grand Cooperage':        'The Greens Cannery',
-  "Elder & Sons Manufactory":   'The Rice Mill',
-  'Stonebridge Fermentary':     'The Brassica Works',
-  'The Celestial Vault':        'The Tomato Works',
-  // ── Artisan zones: previous crop-specific names → SE names ─────────────────
-  'The Berry Press':            'The Jam House',      // was strawberry artisan
-  'The Pickle House':           'The Brine Shed',
-  'The Root Cellar':            'The Sweet Potato Cellar',
-  'The Brine Works':            'The Pickle Barrel',
-  'The Carrot Dryer':           'The Peanut Mill',
-  'The Berry Winery':           'The Berry Press',    // blueberry artisan
-  'The Parsnip Still':          'The Peach Smokehouse',
-  'The Floret House':           'The Greens Cannery',
-  'The Asparagus Cellar':       'The Tomato Works',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -293,20 +254,6 @@ export function createEngine() {
     return zoneAcres.get(zoneName) ?? 0;
   }
 
-  // ── Artisan workState ───────────────────────────────────────────────────────
-  const artisanAct = WORK_ACTIVITIES.find(a => a.key === 'artisan');
-  const artisanWS = {
-    act:              artisanAct,
-    zones:            ARTISAN_ZONE_DEFS.map(d => ({ name: d.name })),
-    unlockedSet:      new Set(),
-    costMap:          new Map(ARTISAN_ZONE_DEFS.map(d => [d.name, d.cost])),
-    zoneProductMap:   new Map(),
-    productStats:     artisanAct.initProductStats(CROPS),
-    productInventory: new Map(),
-  };
-  const artisanWorkers = new Map(); // zoneName → worker count
-  const artisanTimers  = new Map(); // zoneName → production timer
-
   // ── Ranch state ────────────────────────────────────────────────────────────
   const unlockedRanchAnimals = new Set(); // animal IDs
   const ranchAcres   = new Map(); // animalId → acres
@@ -352,20 +299,6 @@ export function createEngine() {
     return 1 + 4 * Math.pow(t, 1.5);
   }
 
-  // ── Artisan context builder ─────────────────────────────────────────────────
-  function buildArtisanCtx() {
-    return {
-      zoneProductMap:        artisanWS.zoneProductMap,
-      cropInventory, cropStats,
-      productStats:          artisanWS.productStats,
-      productInventory:      artisanWS.productInventory,
-      autoSellSet, gold, CROPS,
-      goldMultiplier: goldMultiplier(),
-      gameSpeed,
-      productionIntervalSecs: artisanAct.productionIntervalSecs,
-    };
-  }
-
   // ── Land pool helpers ─────────────────────────────────────────────────────────
   function getAllocatedAcres() {
     let n = 0;
@@ -402,35 +335,16 @@ export function createEngine() {
         if (!zoneCrops.has(def.name))   zoneCrops.set(def.name, new CropInstance(crop));
       }
     }
-    for (const def of ARTISAN_ZONE_DEFS) {
-      const crop = CROPS[def.cropId];
-      if (!crop?.artisanProduct) continue;
-      if (artisanWS.unlockedSet.has(def.name)) {
-        // Zone already unlocked — keep product map correct after load/migration
-        artisanWS.zoneProductMap.set(def.name, def.cropId);
-      } else if ((cropStats.get(def.cropId)?.sold ?? 0) >= crop.artisanProduct.unlockCropSold) {
-        artisanWS.unlockedSet.add(def.name);
-        artisanWS.zoneProductMap.set(def.name, def.cropId);
-        if (!artisanWorkers.has(def.name)) artisanWorkers.set(def.name, BASE_ZONE_WORKERS);
-      }
-    }
   }
   checkAutoUnlocks(); // unlock starter zone (strawberry has no criteria)
 
   // ── GPS helpers ─────────────────────────────────────────────────────────────
-  /** Current GPS for one crop (respects artisan routing). */
+  /** Current GPS for one crop. */
   function cropEffectiveGPS(cropId) {
     const ct = CROPS[cropId];
     if (!ct) return 0;
     const cycleTime = (ct.growthPhaseGIDs.length - 1) * ct.growthTimePerPhase;
     if (cycleTime <= 0) return 0;
-    const ap = ct.artisanProduct;
-    if (ap) {
-      const hasWorkshop = [...artisanWS.unlockedSet].some(zn => artisanWS.zoneProductMap.get(zn) === cropId);
-      if (hasWorkshop && (cropStats.get(cropId)?.sold ?? 0) >= ap.unlockCropSold) {
-        return (ap.goldValue / ap.cropInputCount) / cycleTime;
-      }
-    }
     return ct.yieldGold / cycleTime;
   }
 
@@ -441,22 +355,11 @@ export function createEngine() {
       if (!unlockedFarmZones.has(zoneName)) continue;
       const ct  = instance.cropType;
       if (!ct.isInSeason(lastSeasonName)) continue; // dormant — no earnings
-      const ap  = ct.artisanProduct;
       const cyc = (ct.growthPhaseGIDs.length - 1) * ct.growthTimePerPhase;
       if (cyc <= 0) continue;
       const tc = farmTileCount(zoneName);
       const wm  = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
-      const holdRaw = ap
-        && (cropStats.get(ct.id)?.sold ?? 0) >= ap.unlockCropSold
-        && [...artisanWS.unlockedSet].some(zn => artisanWS.zoneProductMap.get(zn) === ct.id);
-      if (!holdRaw && autoSellSet.has(ct.id)) gps += (ct.yieldGold * tc * wm * TICKS_PER_SEC) / cyc;
-    }
-    for (const zn of artisanWS.unlockedSet) {
-      gps += artisanAct.getGPS(
-        { name: zn },
-        { zoneProductMap: artisanWS.zoneProductMap, cropStats, autoSellSet, gameSpeed, CROPS,
-          productionIntervalSecs: artisanAct.productionIntervalSecs }
-      );
+      if (autoSellSet.has(ct.id)) gps += (ct.yieldGold * tc * wm * TICKS_PER_SEC) / cyc;
     }
     for (const animalId of unlockedRanchAnimals) {
       const animal = RANCH_ANIMALS[animalId];
@@ -472,36 +375,13 @@ export function createEngine() {
   // ── Auto-pilot ──────────────────────────────────────────────────────────────
   // ── Auto-pilot sub-routines ─────────────────────────────────────────────────
 
-  /** Route crops to artisan workshops when unlocked; otherwise auto-sell raw. */
-  function _apSellRouting() {
-    for (const cropId of Object.keys(CROPS)) {
-      const ap   = CROPS[cropId]?.artisanProduct;
-      const aKey = ap ? `${cropId}_artisan` : null;
-      const hasUnlockedWorkshop = ARTISAN_ZONE_DEFS.some(
-        d => d.cropId === cropId && artisanWS.unlockedSet.has(d.name));
-      const apUnlocked = ap && (cropStats.get(cropId)?.sold ?? 0) >= ap.unlockCropSold;
-      if (hasUnlockedWorkshop && apUnlocked) {
-        autoSellSet.delete(cropId);
-        if (aKey) autoSellSet.add(aKey);
-      } else {
-        autoSellSet.add(cropId);
-        if (aKey) autoSellSet.delete(aKey);
-      }
-    }
-  }
-
-  /** Buy cheapest available worker upgrade across farm + artisan zones. */
+  /** Buy cheapest available worker upgrade across farm + ranch zones. */
   function _apWorkerUpgrades() {
     const candidates = [];
     for (const def of FARM_ZONE_DEFS) {
       if (!unlockedFarmZones.has(def.name)) continue;
       const cur = zoneWorkers.get(def.name) ?? BASE_ZONE_WORKERS;
       candidates.push({ type: 'farmWorker', name: def.name, cost: workerUpgradeCost(def, cur) });
-    }
-    for (const def of ARTISAN_ZONE_DEFS) {
-      if (!artisanWS.unlockedSet.has(def.name)) continue;
-      const cur = artisanWorkers.get(def.name) ?? BASE_ZONE_WORKERS;
-      candidates.push({ type: 'artisanWorker', name: def.name, cost: workerUpgradeCost(def, cur) });
     }
     for (const animalId of unlockedRanchAnimals) {
       const animal = RANCH_ANIMALS[animalId];
@@ -515,8 +395,6 @@ export function createEngine() {
       gold.add(-cheapest.cost);
       if (cheapest.type === 'farmWorker') {
         zoneWorkers.set(cheapest.name, (zoneWorkers.get(cheapest.name) ?? BASE_ZONE_WORKERS) + 1);
-      } else if (cheapest.type === 'artisanWorker') {
-        artisanWorkers.set(cheapest.name, (artisanWorkers.get(cheapest.name) ?? BASE_ZONE_WORKERS) + 1);
       } else {
         ranchWorkers.set(cheapest.animalId, (ranchWorkers.get(cheapest.animalId) ?? BASE_ZONE_WORKERS) + 1);
       }
@@ -658,7 +536,6 @@ export function createEngine() {
 
   function runAutoPilot() {
     if (!autoPilot) return;
-    _apSellRouting();
     _apWorkerUpgrades();
     _apLandMarket();
     _apAcreAllocation();
@@ -745,20 +622,6 @@ export function createEngine() {
           }
           instance.harvest();
         }
-      }
-    }
-
-    // Artisan production (per-zone timers + worker multiplier)
-    {
-      const ctx = buildArtisanCtx();
-      for (const zn of artisanWS.unlockedSet) {
-        const wm = workerMultiplier(artisanWorkers.get(zn) ?? BASE_ZONE_WORKERS);
-        let t = (artisanTimers.get(zn) ?? 0) + gameSpeed * wm;
-        while (t >= artisanAct.productionIntervalSecs) {
-          t -= artisanAct.productionIntervalSecs;
-          artisanAct.produce({ name: zn }, ctx);
-        }
-        artisanTimers.set(zn, t);
       }
     }
 
@@ -907,14 +770,13 @@ export function createEngine() {
     const eveAbsDay = (nextSeasonYear - 1) * 365 + eveDoy;
     // Real seconds needed to reach and complete the eve day
     const cutoffSecs = eveAbsDay > inGameDay
-      ? Math.max(0, Math.ceil(((eveAbsDay - inGameDay) * DAY_REAL_SECS - calendarAccum) / TICKS_PER_SEC))
+      ? Math.max(0, Math.ceil((eveAbsDay - inGameDay) * DAY_REAL_SECS - calendarAccum))
       : 0; // already at or past the eve
     const simSecs = Math.min(realSecs, MAX_SECS, cutoffSecs > 0 ? cutoffSecs : 0);
     // Pause-at-season-eve: sim was cut short by the eve cap or we opened right on the eve
     const pausedAtSeasonEve = cutoffSecs === 0 || (cutoffSecs < realSecs && cutoffSecs <= MAX_SECS);
 
     const goldBefore = gold.amount;
-    const simTimers = new Map(artisanTimers);
     const simRanchTimers = new Map(ranchTimers);
     let offlineSeason = lastSeasonName;
     // Each loop iteration = 1 real second. Live tick fires every 250ms (4/sec),
@@ -957,16 +819,6 @@ export function createEngine() {
           }
         }
       }
-      const ctx = buildArtisanCtx();
-      for (const zn of artisanWS.unlockedSet) {
-        const wm = workerMultiplier(artisanWorkers.get(zn) ?? BASE_ZONE_WORKERS);
-        let acc = (simTimers.get(zn) ?? 0) + wm * TICKS_PER_SEC_LOCAL;
-        while (acc >= artisanAct.productionIntervalSecs) {
-          acc -= artisanAct.productionIntervalSecs;
-          artisanAct.produce({ name: zn }, ctx);
-        }
-        simTimers.set(zn, acc);
-      }
       // Ranch animal production (offline)
       for (const animalId of unlockedRanchAnimals) {
         const animal = RANCH_ANIMALS[animalId];
@@ -987,7 +839,6 @@ export function createEngine() {
       if (autoPilot) runAutoPilot();
     }
     lastSeasonName = offlineSeason;
-    for (const [k, v] of simTimers)      artisanTimers.set(k, v);
     for (const [k, v] of simRanchTimers) ranchTimers.set(k, v);
     // Always pause after offline sync — player reviews state then resumes manually
     gamePaused = true;
@@ -1010,16 +861,10 @@ export function createEngine() {
       unlockedFarmZones: [...unlockedFarmZones],
       zoneAcres:   Object.fromEntries(zoneAcres),
       zoneWorkers: Object.fromEntries(zoneWorkers),
-      unlockedArtisanZones: [...artisanWS.unlockedSet],
-      artisanWorkers: Object.fromEntries(artisanWorkers),
-      artisanTimers:  Object.fromEntries(artisanTimers),
       zoneCrops: Object.fromEntries([...zoneCrops].map(([k, v]) => [k, { cropId: v.cropType.id, phase: v.phase, timer: v.timer }])),
       cropInventory: Object.fromEntries(cropInventory),
       autoSellSet: [...autoSellSet],
       cropStats: Object.fromEntries([...cropStats].map(([k, v]) => [k, { ...v }])),
-      artisanProductMap: Object.fromEntries(artisanWS.zoneProductMap),
-      artisanProductStats: Object.fromEntries(artisanWS.productStats),
-      artisanInventory: Object.fromEntries(artisanWS.productInventory),
       researchPoints, researchAccum,
       activeResearchId, activeResearchTimer,
       completedResearch:    [...completedResearch],
@@ -1056,6 +901,12 @@ export function createEngine() {
   }
 
   function applyState(s) {
+    const validFarmZoneNames = new Set(FARM_ZONE_DEFS.map(d => d.name));
+    const validRanchAnimalIds = new Set(RANCH_ANIMAL_LIST.map(a => a.id));
+    const validPlantIds = new Set(ECOREGIONS.flatMap(e => e.plants).map(p => p.id));
+    const safeInt = v => Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+    const safeNumber = v => Number.isFinite(v) ? v : 0;
+
     // ── Zone-name migration: remap saves made before zones were renamed to match crops ──
     const _rA = a => Array.isArray(a) ? a.map(n => ZONE_NAME_MIGRATION[n] ?? n) : a;
     const _rO = o => !o ? o : Object.fromEntries(Object.entries(o).map(([k,v]) => [ZONE_NAME_MIGRATION[k] ?? k, v]));
@@ -1064,10 +915,6 @@ export function createEngine() {
       zoneAcres:            _rO(s.zoneAcres),
       zoneWorkers:          _rO(s.zoneWorkers),
       zoneCrops:            _rO(s.zoneCrops),
-      unlockedArtisanZones: _rA(s.unlockedArtisanZones),
-      artisanWorkers:       _rO(s.artisanWorkers),
-      artisanTimers:        _rO(s.artisanTimers),
-      artisanProductMap:    _rO(s.artisanProductMap),
     };
     if (typeof s.gold         === 'number')  gold.amount   = s.gold;
     // gameSpeed is intentionally NOT restored — always resets to 1× on load
@@ -1083,7 +930,11 @@ export function createEngine() {
     }
     if (s.zoneAcres) {
       zoneAcres.clear();
-      Object.entries(s.zoneAcres).forEach(([k, v]) => zoneAcres.set(k, v));
+      Object.entries(s.zoneAcres).forEach(([k, v]) => {
+        if (!validFarmZoneNames.has(k)) return;
+        const acres = safeInt(v);
+        if (acres > 0) zoneAcres.set(k, acres);
+      });
       // Only fill in missing STARTER zone — others start at 0 until allocated
       for (const n of unlockedFarmZones) {
         const def = FARM_ZONE_DEFS.find(d => d.name === n);
@@ -1092,25 +943,14 @@ export function createEngine() {
     }
     if (s.zoneWorkers) {
       zoneWorkers.clear();
-      Object.entries(s.zoneWorkers).forEach(([k, v]) => zoneWorkers.set(k, v));
+      Object.entries(s.zoneWorkers).forEach(([k, v]) => {
+        if (!validFarmZoneNames.has(k)) return;
+        const workers = Math.max(BASE_ZONE_WORKERS, safeInt(v));
+        zoneWorkers.set(k, workers);
+      });
       for (const n of unlockedFarmZones) {
         if (!zoneWorkers.has(n)) zoneWorkers.set(n, BASE_ZONE_WORKERS);
       }
-    }
-    if (Array.isArray(s.unlockedArtisanZones)) {
-      artisanWS.unlockedSet.clear();
-      s.unlockedArtisanZones.forEach(n => artisanWS.unlockedSet.add(n));
-    }
-    if (s.artisanWorkers) {
-      artisanWorkers.clear();
-      Object.entries(s.artisanWorkers).forEach(([k, v]) => artisanWorkers.set(k, v));
-      for (const n of artisanWS.unlockedSet) {
-        if (!artisanWorkers.has(n)) artisanWorkers.set(n, BASE_ZONE_WORKERS);
-      }
-    }
-    if (s.artisanTimers) {
-      artisanTimers.clear();
-      Object.entries(s.artisanTimers).forEach(([k, v]) => artisanTimers.set(k, v));
     }
     if (s.zoneCrops) {
       zoneCrops.clear();
@@ -1119,16 +959,14 @@ export function createEngine() {
         const ct  = CROPS[def?.cropId ?? zc.cropId]; // always use zone's bound crop
         if (!ct) return;
         const inst = new CropInstance(ct);
-        inst.phase = zc.phase ?? 0;
-        inst.timer = zc.timer ?? 0;
+        inst.phase = safeInt(zc.phase ?? 0);
+        inst.timer = safeNumber(zc.timer ?? 0);
         zoneCrops.set(name, inst);
       });
     }
     if (s.cropInventory)    { cropInventory.clear();    Object.entries(s.cropInventory).forEach(([k, v])    => cropInventory.set(k, v)); }
     if (Array.isArray(s.autoSellSet)) { autoSellSet.clear(); s.autoSellSet.forEach(k => autoSellSet.add(k)); }
     if (s.cropStats)         Object.entries(s.cropStats).forEach(([id, cs])   => { if (cropStats.has(id))               Object.assign(cropStats.get(id), cs); });
-    if (s.artisanProductStats) Object.entries(s.artisanProductStats).forEach(([k, v]) => { if (artisanWS.productStats.has(k)) Object.assign(artisanWS.productStats.get(k), v); });
-    if (s.artisanInventory)  { artisanWS.productInventory.clear(); Object.entries(s.artisanInventory).forEach(([k, v])  => artisanWS.productInventory.set(k, v)); }
     if (typeof s.researchPoints      === 'number')  researchPoints      = s.researchPoints;
     if (typeof s.researchAccum       === 'number')  researchAccum       = s.researchAccum;
     if ('activeResearchId' in s)                    activeResearchId    = s.activeResearchId;
@@ -1145,7 +983,10 @@ export function createEngine() {
     plantedSpeciesAcres.clear();
     if (s.plantedSpeciesAcres) {
       Object.entries(s.plantedSpeciesAcres).forEach(([k, v]) => {
-        plantedSpeciesAcres.set(k, v);
+        if (!validPlantIds.has(k)) return;
+        const acres = safeInt(v);
+        if (acres <= 0) return;
+        plantedSpeciesAcres.set(k, acres);
         plantedSpecies.add(k); // keep Set in sync
       });
     } else if (Array.isArray(s.plantedSpecies)) {
@@ -1170,11 +1011,30 @@ export function createEngine() {
     }
     if (Array.isArray(s.ranchAnimals)) {
       unlockedRanchAnimals.clear();
-      s.ranchAnimals.forEach(id => unlockedRanchAnimals.add(id));
+      s.ranchAnimals.forEach(id => { if (validRanchAnimalIds.has(id)) unlockedRanchAnimals.add(id); });
     }
-    if (s.ranchAcres)   { ranchAcres.clear();   Object.entries(s.ranchAcres).forEach(([k, v])   => ranchAcres.set(k, v)); }
-    if (s.ranchWorkers) { ranchWorkers.clear(); Object.entries(s.ranchWorkers).forEach(([k, v]) => ranchWorkers.set(k, v)); }
-    if (s.ranchTimers)  { ranchTimers.clear();  Object.entries(s.ranchTimers).forEach(([k, v])  => ranchTimers.set(k, v)); }
+    if (s.ranchAcres) {
+      ranchAcres.clear();
+      Object.entries(s.ranchAcres).forEach(([k, v]) => {
+        if (!validRanchAnimalIds.has(k)) return;
+        const acres = safeInt(v);
+        if (acres > 0) ranchAcres.set(k, acres);
+      });
+    }
+    if (s.ranchWorkers) {
+      ranchWorkers.clear();
+      Object.entries(s.ranchWorkers).forEach(([k, v]) => {
+        if (!validRanchAnimalIds.has(k)) return;
+        ranchWorkers.set(k, Math.max(BASE_ZONE_WORKERS, safeInt(v)));
+      });
+    }
+    if (s.ranchTimers) {
+      ranchTimers.clear();
+      Object.entries(s.ranchTimers).forEach(([k, v]) => {
+        if (!validRanchAnimalIds.has(k)) return;
+        ranchTimers.set(k, safeNumber(v));
+      });
+    }
     if (s.ranchStats)   Object.entries(s.ranchStats).forEach(([id, rs]) => { if (ranchStats.has(id)) Object.assign(ranchStats.get(id), rs); });
 
     // ── Land pool restore / migration ──────────────────────────────────────
@@ -1197,8 +1057,12 @@ export function createEngine() {
         }
       });
     }
-    if (Array.isArray(s.nativeEstablishQueue)) s.nativeEstablishQueue.forEach(i => nativeEstablishQueue.push({ ...i }));
-    if (typeof s.nativeEstablishTimer === 'number') nativeEstablishTimer = s.nativeEstablishTimer;
+    if (Array.isArray(s.nativeEstablishQueue)) {
+      s.nativeEstablishQueue.forEach(i => {
+        if (i?.plantId && validPlantIds.has(i.plantId)) nativeEstablishQueue.push({ plantId: i.plantId });
+      });
+    }
+    if (typeof s.nativeEstablishTimer === 'number' && Number.isFinite(s.nativeEstablishTimer)) nativeEstablishTimer = s.nativeEstablishTimer;
     habitatRiskCreatures.clear();
     if (s.habitatRiskCreatures) Object.entries(s.habitatRiskCreatures).forEach(([k, v]) => habitatRiskCreatures.set(_migrateKey(k), { ...v }));
     landMarket.length = 0;
@@ -1214,6 +1078,9 @@ export function createEngine() {
       const existingNative = Array.isArray(s.plantedSpecies) ? s.plantedSpecies.length : 0;
       totalLandAcres = existingCrop + existingRanch + existingNative + STARTING_LAND_ACRES;
     }
+
+    // Keep land totals internally consistent even for malformed legacy saves.
+    totalLandAcres = Math.max(STARTING_LAND_ACRES, safeInt(totalLandAcres), getAllocatedAcres());
 
     checkAutoUnlocks(); // re-derive zoneProductMap and catch any new unlocks
     checkRanchUnlocks();
@@ -1234,7 +1101,6 @@ export function createEngine() {
     get currentSeasonName() { return lastSeasonName;  },
     CROPS,
     FARM_ZONE_DEFS,
-    ARTISAN_ZONE_DEFS,
     unlockedFarmZones,
     zoneAcres,
     zoneWorkers,
@@ -1243,9 +1109,6 @@ export function createEngine() {
     acreUpgradeCost,
     workerUpgradeCost,
     workerMultiplier,
-    artisanWS,
-    artisanWorkers,
-    artisanTimers,
     zoneCrops,
     cropInventory,
     autoSellSet,
@@ -1273,16 +1136,6 @@ export function createEngine() {
       if (gold.amount < cost) return false;
       gold.add(-cost);
       zoneWorkers.set(name, current + 1);
-      return true;
-    },
-    upgradeArtisanWorkers(name) {
-      const def     = ARTISAN_ZONE_DEFS.find(d => d.name === name);
-      const current = artisanWorkers.get(name) ?? BASE_ZONE_WORKERS;
-      if (!def || !artisanWS.unlockedSet.has(name)) return false;
-      const cost = workerUpgradeCost(def, current);
-      if (gold.amount < cost) return false;
-      gold.add(-cost);
-      artisanWorkers.set(name, current + 1);
       return true;
     },
     // Ranch API
@@ -1314,39 +1167,23 @@ export function createEngine() {
 
     /**
      * Manually sell items from inventory.
-     * key    — a cropId (e.g. 'strawberry') or artisan key (e.g. 'strawberry_artisan')
+     * key    — a cropId (e.g. 'strawberry')
      * amount — units to sell; omit or pass undefined to sell everything
      * Returns the gold earned.
      */
     sellInventory(key, amount) {
-      if (key.endsWith('_artisan')) {
-        const inv = artisanWS.productInventory.get(key) || 0;
-        if (inv <= 0) return 0;
-        const cropId = key.slice(0, -'_artisan'.length);
-        const ct = CROPS[cropId];
-        if (!ct?.artisanProduct) return 0;
-        const qty = (amount == null) ? inv : Math.min(Math.floor(amount), inv);
-        if (qty <= 0) return 0;
-        const earned = ct.artisanProduct.goldValue * qty;
-        gold.add(earned);
-        artisanWS.productInventory.set(key, inv - qty);
-        const stat = artisanWS.productStats.get(key);
-        if (stat) { stat.sold += qty; stat.lifetimeSales += earned; }
-        return earned;
-      } else {
-        const ct = CROPS[key];
-        if (!ct) return 0;
-        const inv = cropInventory.get(key) || 0;
-        if (inv <= 0) return 0;
-        const qty = (amount == null) ? inv : Math.min(Math.floor(amount), inv);
-        if (qty <= 0) return 0;
-        const earned = ct.yieldGold * qty;
-        gold.add(earned);
-        cropInventory.set(key, inv - qty);
-        const s = cropStats.get(key);
-        if (s) { s.sold += qty; s.lifetimeSales += earned; }
-        return earned;
-      }
+      const ct = CROPS[key];
+      if (!ct) return 0;
+      const inv = cropInventory.get(key) || 0;
+      if (inv <= 0) return 0;
+      const qty = (amount == null) ? inv : Math.min(Math.floor(amount), inv);
+      if (qty <= 0) return 0;
+      const earned = ct.yieldGold * qty;
+      gold.add(earned);
+      cropInventory.set(key, inv - qty);
+      const s = cropStats.get(key);
+      if (s) { s.sold += qty; s.lifetimeSales += earned; }
+      return earned;
     },
 
     setGameSpeed(v)          { gameSpeed = v; },

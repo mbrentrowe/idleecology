@@ -1,5 +1,5 @@
 ﻿// main.js — UI layer and entry point for Idle Ecologist Text UI
-import { createEngine, shortNumber, FARM_ZONE_DEFS, ARTISAN_ZONE_DEFS, DAY_REAL_SECS, YEAR_REAL_SECS, CALENDAR_MONTHS, SEASONS, calendarDate, acreUpgradeCost, workerUpgradeCost, workerMultiplier, STARTING_LAND_ACRES, ESTABLISH_DAYS, LAND_MARKET_INTERVAL_DAYS } from './game.js';
+import { createEngine, shortNumber, FARM_ZONE_DEFS, DAY_REAL_SECS, YEAR_REAL_SECS, CALENDAR_MONTHS, SEASONS, calendarDate, acreUpgradeCost, workerUpgradeCost, workerMultiplier, STARTING_LAND_ACRES, ESTABLISH_DAYS, LAND_MARKET_INTERVAL_DAYS } from './game.js';
 import { CROPS } from './crops.js';
 import { RESEARCH, RESEARCH_CATEGORIES } from './research.js';
 import { ECOREGIONS, WILDLIFE_TYPE_ICONS } from './ecoregions.js';
@@ -66,6 +66,7 @@ const INAT_DESC_CACHE_KEY = 'inat-desc-cache-v1';
 const inatDescCache = (() => {
   try { return JSON.parse(localStorage.getItem(INAT_DESC_CACHE_KEY) || '{}'); } catch { return {}; }
 })();
+const inatTaxonInFlight = new Map();
 
 // Hard-coded photo URLs for crops and ranch animals — bypass API for these
 // entirely so they always load instantly and never risk a wrong/null result.
@@ -124,18 +125,26 @@ async function _fetchInatTaxon(sciName) {
   }
 }
 
+function _fetchInatTaxonOnce(sciName) {
+  if (!sciName) return Promise.resolve({ photoUrl: null, desc: null });
+  if (inatTaxonInFlight.has(sciName)) return inatTaxonInFlight.get(sciName);
+  const req = _fetchInatTaxon(sciName).finally(() => inatTaxonInFlight.delete(sciName));
+  inatTaxonInFlight.set(sciName, req);
+  return req;
+}
+
 async function fetchInatPhoto(sciName) {
   if (!sciName) return null;
   if (STATIC_INAT_PHOTOS[sciName]) return STATIC_INAT_PHOTOS[sciName];
   if (sciName in inatPhotoCache) return inatPhotoCache[sciName];
-  const { photoUrl } = await _fetchInatTaxon(sciName);
+  const { photoUrl } = await _fetchInatTaxonOnce(sciName);
   return photoUrl;
 }
 
 async function fetchInatDesc(sciName) {
   if (!sciName) return null;
   if (sciName in inatDescCache) return inatDescCache[sciName];
-  const { desc } = await _fetchInatTaxon(sciName);
+  const { desc } = await _fetchInatTaxonOnce(sciName);
   return desc;
 }
 
@@ -193,6 +202,65 @@ acquireWakeLock();
 const TABS = ['crops', 'ranch', 'research', 'garden', 'land', 'collection', 'settings'];
 let activeTab = 'crops';
 let cropBuyQty = 1; // 1 | 5 | 10 | 25 | 'max'
+
+// ── In-game tutorial state ───────────────────────────────────────────────────
+const TUTORIAL_SEEN_KEY = 'idle-ecologist-tutorial-seen-v1';
+const TUTORIAL_STEPS = [
+  {
+    title: 'Welcome to Idle Ecologist',
+    body: 'This tutorial walks you through the core loop: grow crops, sell for gold, expand your farm, and build biodiversity.',
+    focusSelector: '#header',
+  },
+  {
+    title: 'Step 1: Grow and Harvest Crops',
+    body: 'In Crops, each unlocked zone grows over time. Harvested yields sell for gold, and gold funds more acres and workers for faster output.',
+    tab: 'crops',
+    focusSelector: '#content',
+  },
+  {
+    title: 'Step 2: Expand Land Capacity',
+    body: 'In Land, buy more parcels and establish acres. Land is your shared capacity for crops, ranch animals, and native plants.',
+    tab: 'land',
+    focusSelector: '#content',
+  },
+  {
+    title: 'Step 3: Grow with Ranch',
+    body: 'Ranch unlocks as you progress and adds passive animal production. Add acres and workers to increase your output.',
+    tab: 'ranch',
+    focusSelector: '#content',
+  },
+  {
+    title: 'Step 4: Conservation Matters',
+    body: 'In Conservation and Native Garden, spend research points and establish native host plants. Biodiversity increases your gold multiplier over time.',
+    tab: 'research',
+    focusSelector: '#content',
+  },
+  {
+    title: 'Step 5: Track Discoveries',
+    body: 'Collection shows discovered species and progression. Notifications highlight new unlocks and discoveries so you can jump to them quickly.',
+    tab: 'collection',
+    focusSelector: '#notif-wrap',
+  },
+  {
+    title: 'You Are Ready',
+    body: 'Use Settings to control speed, auto-pilot, and save data. You can replay this tutorial any time with the replay button in Settings.',
+    tab: 'settings',
+    focusSelector: '#tutorial-replay-btn',
+  },
+];
+
+const tutorialState = {
+  open: false,
+  index: 0,
+};
+
+let tutorialModal = null;
+let tutorialTitleEl = null;
+let tutorialBodyEl = null;
+let tutorialStepEl = null;
+let tutorialBackBtn = null;
+let tutorialNextBtn = null;
+let tutorialSkipBtn = null;
 
 // ── Tab toggle state ──────────────────────────────────────────────────────────
 let hideCompletedResearch = localStorage.getItem('hideCompletedResearch') === 'true';
@@ -264,6 +332,110 @@ fabBackdrop.addEventListener('click', () => setFabOpen(false));
 
 const content = document.getElementById('content');
 
+function clearTutorialFocus() {
+  document.querySelectorAll('.tutorial-focus').forEach(el => el.classList.remove('tutorial-focus'));
+}
+
+function syncTutorialFocus() {
+  clearTutorialFocus();
+  if (!tutorialState.open) return;
+  const step = TUTORIAL_STEPS[tutorialState.index];
+  if (!step?.focusSelector) return;
+  const target = document.querySelector(step.focusSelector);
+  if (target) target.classList.add('tutorial-focus');
+}
+
+function updateTutorialModal() {
+  if (!tutorialModal) return;
+  const step = TUTORIAL_STEPS[tutorialState.index];
+  if (!step) return;
+  tutorialTitleEl.textContent = step.title;
+  tutorialBodyEl.textContent = step.body;
+  tutorialStepEl.textContent = `Step ${tutorialState.index + 1} / ${TUTORIAL_STEPS.length}`;
+  tutorialBackBtn.disabled = tutorialState.index === 0;
+  tutorialNextBtn.textContent = tutorialState.index === TUTORIAL_STEPS.length - 1 ? 'Finish' : 'Next';
+}
+
+function setTutorialOpen(open) {
+  tutorialState.open = open;
+  if (tutorialModal) tutorialModal.hidden = !open;
+  document.body.classList.toggle('tutorial-open', open);
+  if (!open) clearTutorialFocus();
+}
+
+function goToTutorialStep(index) {
+  tutorialState.index = Math.max(0, Math.min(index, TUTORIAL_STEPS.length - 1));
+  const step = TUTORIAL_STEPS[tutorialState.index];
+  updateTutorialModal();
+  if (step?.tab && activeTab !== step.tab) {
+    activeTab = step.tab;
+    setFabOpen(false);
+    renderAll();
+    return;
+  }
+  syncTutorialFocus();
+}
+
+function finishTutorial(markSeen = true) {
+  if (markSeen) localStorage.setItem(TUTORIAL_SEEN_KEY, 'true');
+  setTutorialOpen(false);
+}
+
+function startTutorial({ fromSettings = false } = {}) {
+  if (!tutorialModal) return;
+  if (!fromSettings && localStorage.getItem(TUTORIAL_SEEN_KEY) === 'true') return;
+  setFabOpen(false);
+  closeNotifModal();
+  setTutorialOpen(true);
+  goToTutorialStep(0);
+}
+
+function buildTutorialModal() {
+  tutorialModal = document.createElement('div');
+  tutorialModal.id = 'tutorial-modal';
+  tutorialModal.hidden = true;
+  tutorialModal.innerHTML = `
+    <div id="tutorial-backdrop"></div>
+    <div id="tutorial-panel" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+      <div id="tutorial-step"></div>
+      <h3 id="tutorial-title"></h3>
+      <p id="tutorial-body"></p>
+      <div id="tutorial-actions">
+        <button id="tutorial-skip" class="action-btn">Skip</button>
+        <button id="tutorial-back" class="action-btn">Back</button>
+        <button id="tutorial-next" class="action-btn">Next</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(tutorialModal);
+
+  tutorialTitleEl = tutorialModal.querySelector('#tutorial-title');
+  tutorialBodyEl = tutorialModal.querySelector('#tutorial-body');
+  tutorialStepEl = tutorialModal.querySelector('#tutorial-step');
+  tutorialBackBtn = tutorialModal.querySelector('#tutorial-back');
+  tutorialNextBtn = tutorialModal.querySelector('#tutorial-next');
+  tutorialSkipBtn = tutorialModal.querySelector('#tutorial-skip');
+
+  tutorialBackBtn.addEventListener('click', () => goToTutorialStep(tutorialState.index - 1));
+  tutorialNextBtn.addEventListener('click', () => {
+    if (tutorialState.index >= TUTORIAL_STEPS.length - 1) finishTutorial(true);
+    else goToTutorialStep(tutorialState.index + 1);
+  });
+  tutorialSkipBtn.addEventListener('click', () => finishTutorial(true));
+  tutorialModal.querySelector('#tutorial-backdrop').addEventListener('click', () => finishTutorial(true));
+  document.addEventListener('keydown', e => {
+    if (!tutorialState.open) return;
+    if (e.key === 'Escape') finishTutorial(true);
+    if (e.key === 'ArrowRight' || e.key === 'Enter') {
+      if (tutorialState.index >= TUTORIAL_STEPS.length - 1) finishTutorial(true);
+      else goToTutorialStep(tutorialState.index + 1);
+    }
+    if (e.key === 'ArrowLeft' && tutorialState.index > 0) goToTutorialStep(tutorialState.index - 1);
+  });
+}
+
+buildTutorialModal();
+
 // ── Render dispatcher ─────────────────────────────────────────────────────────
 function renderAll() {
   // FAB item active state + FAB button icon
@@ -273,7 +445,6 @@ function renderAll() {
   switch (activeTab) {
     case 'crops':    lastZonesFingerprint = zonesFingerprint(); renderCrops();    break;
     case 'ranch':    renderRanch();    break;
-    case 'artisan':  lastZonesFingerprint = zonesFingerprint(); renderArtisan();  break;
     case 'research':   renderResearch();   break;
     case 'garden':     renderGarden();     break;
     case 'land':       renderLand();       break;
@@ -310,6 +481,10 @@ function renderAll() {
   }
   loadInatThumbs();
   loadInatDescs();
+  if (tutorialState.open) {
+    updateTutorialModal();
+    syncTutorialFocus();
+  }
 }
 
 // ── Header update ─────────────────────────────────────────────────────────────
@@ -579,9 +754,9 @@ function renderCrops() {
         ${ct?.sciName ? inatThumbHtml(ct.sciName, 'zone-thumb', ct.name) : ''}
         <div class="zone-name-meta">
           <span class="zone-name">${ct?.name ?? '—'}</span>
-          <span class="zone-meta">${ct?.sciName ? `<em>${ct.sciName}</em> · ` : ''}${engine.zoneAcres.get(def.name) ?? 4} acres${ct ? ` · ⏱ ${fmtDur(_cyc)}` : ''}${ct ? ` · 🪙 ${shortNumber(ct.yieldGold)}/acre` : ''}</span>
+          <span class="zone-meta">${ct?.sciName ? `<em>${ct.sciName}</em> · ` : ''}${engine.zoneAcres.get(def.name) ?? 0} acres${ct ? ` · ⏱ ${fmtDur(_cyc)}` : ''}${ct ? ` · 🪙 ${shortNumber(ct.yieldGold)}/acre` : ''}</span>
         </div>
-        <span class="zone-gps">🪙 ${shortNumber((ct?.yieldGold ?? 0) * (engine.zoneAcres.get(def.name) ?? 4))} / harvest</span>
+        <span class="zone-gps">🪙 ${shortNumber((ct?.yieldGold ?? 0) * (engine.zoneAcres.get(def.name) ?? 0))} / harvest</span>
       `;
       card.appendChild(topRow);
       if (ct) {
@@ -859,92 +1034,6 @@ function renderRanch() {
 
     content.appendChild(card);
   }
-}
-
-// ── ARTISAN TAB ─────────────────────────────────────────────────────
-function renderArtisan() {
-  const lifetimeGold = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.lifetimeSales, 0);
-
-  // ── Artisan Workshops ──
-  const artHeader = el('h2', 'section-header', '🏺 Artisan Workshops');
-  content.appendChild(artHeader);
-
-  ARTISAN_ZONE_DEFS.forEach(def => {
-    const unlocked  = engine.artisanWS.unlockedSet.has(def.name);
-    const card = el('div', `zone-card${unlocked ? '' : ' locked'}`);
-
-    if (!unlocked) {
-      const crop = CROPS[def.cropId];
-      const ap   = crop?.artisanProduct;
-      const lockRow = el('div', 'lock-row');
-      lockRow.innerHTML = `
-        <span class="lock-icon">🔒</span>
-        <span class="zone-name">${def.name}</span>
-        <span class="lock-crop">${cropIconHtml(CROP_ICON_GID[def.cropId], 16)} ${ap?.name ?? def.cropId}</span>
-      `;
-      card.appendChild(lockRow);
-      if (ap) {
-        const soldNow = engine.cropStats.get(def.cropId)?.sold ?? 0;
-        const pct     = Math.min(100, Math.round(soldNow / ap.unlockCropSold * 100));
-        const srcIcon = cropIconHtml(CROP_ICON_GID[def.cropId], 14);
-        const reqsEl  = el('div', 'unlock-reqs');
-        reqsEl.innerHTML = `
-          <span class="unlock-req">${srcIcon} ${shortNumber(soldNow)}<span class="next-sep">/</span>${shortNumber(ap.unlockCropSold)} ${crop.name} sold
-            <span class="next-mini-bar"><span class="next-mini-fill" style="width:${pct}%"></span></span>
-          </span>
-        `;
-        card.appendChild(reqsEl);
-      }
-    } else {
-      const cropId      = engine.artisanWS.zoneProductMap.get(def.name);
-      const ct          = cropId ? CROPS[cropId] : null;
-      const ap          = ct?.artisanProduct ?? null;
-      const apUnlocked  = ap && (engine.cropStats.get(cropId)?.sold ?? 0) >= ap.unlockCropSold;
-      const artProgress = (engine.artisanTimers.get(def.name) ?? 0) / engine.artisanWS.act.productionIntervalSecs;
-      const artWorkers  = engine.artisanWorkers.get(def.name) ?? 1;
-      const artMult     = workerMultiplier(artWorkers);
-
-      const _batchSecs = engine.artisanWS.act.productionIntervalSecs / (engine.gameSpeed * artMult * 4);
-      const topRow = el('div', 'zone-top-row');
-      topRow.innerHTML = `
-        ${cropId && apUnlocked ? cropIconHtml(CROP_ICON_GID[cropId]) : '<span class="zone-emoji">🏺</span>'}
-        <span class="zone-name">${def.name}</span>
-        <span class="zone-meta">${apUnlocked ? `${ap.name} · ⏱ ${fmtDur(_batchSecs)}` : (ap ? '⏳ Unlocking…' : '— unassigned —')}</span>
-        ${apUnlocked ? `<span class="zone-gps">🪙 ${shortNumber(ap.goldValue)} / batch</span>` : ''}
-      `;
-      card.appendChild(topRow);
-
-      const barWrap = el('div', 'progress-wrap');
-      const bar     = el('div', 'progress-bar amber');
-      bar.style.width = apUnlocked ? `${Math.round(artProgress * 100)}%` : '0%';
-      barWrap.appendChild(bar);
-      if (!apUnlocked && ap) {
-        const sold     = engine.cropStats.get(cropId)?.sold ?? 0;
-        const pctLabel = el('span', 'progress-pct', `${shortNumber(sold)} / ${shortNumber(ap.unlockCropSold)} sold`);
-        barWrap.appendChild(pctLabel);
-      } else if (apUnlocked) {
-        const inv = engine.artisanWS.productInventory.get(`${cropId}_artisan`) || 0;
-        const pctLabel = el('span', 'progress-pct', `${Math.round(artProgress * 100)}% · Inv: ${inv}`);
-        barWrap.appendChild(pctLabel);
-      }
-      card.appendChild(barWrap);
-
-      // Worker upgrade row
-      const artWorkerCost  = workerUpgradeCost(def, artWorkers);
-      const artWorkerRow   = el('div', 'acre-upgrade-row');
-      artWorkerRow.innerHTML = `<span class="acre-label">Workers: <strong>${artWorkers}</strong> <span style="color:#aaa;font-size:11px">(${artMult.toFixed(2)}× speed)</span></span>`;
-      const wBtn = el('button', 'buy-btn acre-btn worker-btn', `+1 worker — 🪙 ${shortNumber(artWorkerCost)}`);
-      wBtn.disabled = engine.gold.amount < artWorkerCost;
-      wBtn.dataset.artZoneNameW = def.name;
-      wBtn.addEventListener('click', () => { engine.upgradeArtisanWorkers(def.name); renderAll(); });
-      artWorkerRow.appendChild(wBtn);
-      const artWorkerTta = timeToUnlock(artWorkerCost);
-      if (artWorkerTta) artWorkerRow.appendChild(el('span', 'tta-label', artWorkerTta));
-      card.appendChild(artWorkerRow);
-    }
-
-    content.appendChild(card);
-  });
 }
 
 // ── RESEARCH TAB ─────────────────────────────────────────────────────────────
@@ -1999,7 +2088,7 @@ function renderSettings() {
   apSection.appendChild(el('div', 'settings-label', '🤖 Auto-pilot'));
 
   const apModeDescs = {
-    economy:      'Maximizes income: routes crops to artisan workshops, allocates free acres, buys land, and hires the cheapest available worker.',
+    economy:      'Maximizes income: prioritizes farm and ranch growth, allocates free acres, buys land, and hires the cheapest available worker.',
     conservation: 'Balances income with nature: does everything Economy does, plus auto-starts research projects, establishes native plants, and re-plants habitat-risk species first.',
   };
   const apDesc = el('p', 'settings-desc',
@@ -2060,6 +2149,16 @@ function renderSettings() {
   }
   screenSection.appendChild(screenBtnRow);
   content.appendChild(screenSection);
+
+  // Tutorial
+  const tutorialSection = el('div', 'settings-section');
+  tutorialSection.appendChild(el('div', 'settings-label', '🎓 Tutorial'));
+  tutorialSection.appendChild(el('p', 'settings-desc', 'Run an in-game walkthrough of the main gameplay loop and core systems.'));
+  const tutorialBtn = el('button', 'action-btn', '🎓 Replay Tutorial');
+  tutorialBtn.id = 'tutorial-replay-btn';
+  tutorialBtn.addEventListener('click', () => startTutorial({ fromSettings: true }));
+  tutorialSection.appendChild(tutorialBtn);
+  content.appendChild(tutorialSection);
 
   // Save / Reset
   const saveSection = el('div', 'settings-section');
@@ -2137,6 +2236,7 @@ let _pendingScrollToCreature = null;    // ckey to scroll-to after switching to 
 let _pendingScrollToCollection = null;  // { filter, id } to navigate to a specific collection card
 const _notifLog = [];   // generic notification entries
 let _notifIdCounter = 0;
+const MAX_NOTIFICATIONS = 200;
 
 const notifWrap  = document.getElementById('notif-wrap');
 const notifModal = document.getElementById('notif-modal');
@@ -2156,6 +2256,7 @@ function _resolveCreature(ckey) {
 
 function _pushNotif(entry) {
   _notifLog.unshift({ id: ++_notifIdCounter, day: engine.inGameDay, read: false, ...entry });
+  if (_notifLog.length > MAX_NOTIFICATIONS) _notifLog.length = MAX_NOTIFICATIONS;
   updateNotifBadge();
 }
 
@@ -2365,12 +2466,9 @@ function zonesFingerprint() {
   const farmParts = FARM_ZONE_DEFS
     .filter(d => engine.unlockedFarmZones.has(d.name))
     .map(d => `${d.name}:${engine.zoneAcres.get(d.name) ?? 1}:${engine.zoneWorkers.get(d.name) ?? 1}`).join(',');
-  const artParts = ARTISAN_ZONE_DEFS
-    .filter(d => engine.artisanWS.unlockedSet.has(d.name))
-    .map(d => `${d.name}:${engine.artisanWorkers.get(d.name) ?? 1}`).join(',');
   // Sample sold/gold (bucketed) so locked-card criteria bars re-render as progress advances
   const totalSold = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
-  return `f${engine.unlockedFarmZones.size}|a${engine.artisanWS.unlockedSet.size}|${farmParts}|${artParts}|s${Math.floor(totalSold / 10)}|g${Math.floor(lifetimeGold / 10000)}|season:${engine.currentSeasonName}`;
+  return `f${engine.unlockedFarmZones.size}|${farmParts}|s${Math.floor(totalSold / 10)}|g${Math.floor(lifetimeGold / 10000)}|season:${engine.currentSeasonName}`;
 }
 
 function liveUpdate() {
@@ -2436,7 +2534,7 @@ function liveUpdate() {
   }
 
   updateHeader();
-  if (activeTab === 'crops' || activeTab === 'artisan') {
+  if (activeTab === 'crops') {
     const fp = zonesFingerprint();
     if (fp !== lastZonesFingerprint) {
       lastZonesFingerprint = fp;
@@ -2454,12 +2552,6 @@ function liveUpdate() {
         const def = FARM_ZONE_DEFS.find(d => d.name === btn.dataset.zoneNameW);
         if (!def) return;
         const cur = engine.zoneWorkers.get(def.name) ?? 1;
-        btn.disabled = engine.gold.amount < workerUpgradeCost(def, cur);
-      });
-      content.querySelectorAll('.worker-btn[data-art-zone-name-w]').forEach(btn => {
-        const def = ARTISAN_ZONE_DEFS.find(d => d.name === btn.dataset.artZoneNameW);
-        if (!def) return;
-        const cur = engine.artisanWorkers.get(def.name) ?? 1;
         btn.disabled = engine.gold.amount < workerUpgradeCost(def, cur);
       });
     }
@@ -2506,21 +2598,6 @@ function liveUpdate() {
         const pctEl   = content.querySelector('.research-active-pct');
         if (pctEl) pctEl.textContent = `${pct}% established`;
       }
-    }
-  } else if (activeTab === 'land') {
-    // Re-render when acres, queues, or market change
-    const landFp = `${engine.totalLandAcres}|${engine.getFreeAcres()}|${engine.nativeEstablishQueue.length}|${engine.landMarket.length}`;
-    if (landFp !== lastLandFingerprint) {
-      lastLandFingerprint = landFp;
-      renderAll();
-    }
-  } else if (activeTab === 'collection') {
-    const unlockedCropCount = Object.values(CROPS).filter(ct => ct.isUnlocked(engine.cropStats)).length;
-    const totalSoldForCrops = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
-    const cfp = `${engine.discoveredCreatures.size}|${engine.plantedSpecies.size}|${unlockedCropCount}|${Math.floor(totalSoldForCrops / 5)}`;
-    if (cfp !== lastCollectionFingerprint) {
-      lastCollectionFingerprint = cfp;
-      renderAll();
     }
   }
 }
@@ -2573,21 +2650,6 @@ function updateZoneProgressBars() {
           ? '\u2705 Ready to harvest'
           : `\u25b6 ${_phaseName} (${_phase2 + 1} / ${instance.cropType.totalPhases})`;
       }
-    } else if (activeTab === 'artisan') {
-      const def = ARTISAN_ZONE_DEFS.filter(d => engine.artisanWS.unlockedSet.has(d.name))[i];
-      if (!def) return;
-      const cropId  = engine.artisanWS.zoneProductMap.get(def.name);
-      const ap      = cropId ? CROPS[cropId]?.artisanProduct : null;
-      const apUnlocked = ap && (engine.cropStats.get(cropId)?.sold ?? 0) >= ap.unlockCropSold;
-      const artProgress = (engine.artisanTimers.get(def.name) ?? 0) / engine.artisanWS.act.productionIntervalSecs;
-      bar.style.width = apUnlocked ? `${Math.round(artProgress * 100)}%` : '0%';
-      if (apUnlocked) {
-        const inv = engine.artisanWS.productInventory.get(`${cropId}_artisan`) || 0;
-        pctEl.textContent = `${Math.round(artProgress * 100)}% \u00b7 Inv: ${inv}`;
-      } else if (ap) {
-        const sold = engine.cropStats.get(cropId)?.sold ?? 0;
-        pctEl.textContent = `${shortNumber(sold)} / ${shortNumber(ap.unlockCropSold)} sold`;
-      }
     }
   });
 }
@@ -2595,4 +2657,8 @@ function updateZoneProgressBars() {
 // Initial render + live update every 250ms (matches tick rate)
 renderAll();
 setInterval(liveUpdate, 250);
+
+if (localStorage.getItem(TUTORIAL_SEEN_KEY) !== 'true') {
+  setTimeout(() => startTutorial(), 350);
+}
 

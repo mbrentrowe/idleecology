@@ -293,6 +293,71 @@ body {
   flex: 1;
   padding: 4px 0;
 }
+.tutorial-focus {
+  position: relative;
+  z-index: 260;
+  border-radius: 10px;
+  box-shadow: 0 0 0 3px rgba(224, 144, 48, 0.8), 0 0 0 8px rgba(224, 144, 48, 0.18);
+}
+
+#tutorial-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+#tutorial-modal[hidden] { display: none; }
+#tutorial-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.68);
+}
+#tutorial-panel {
+  position: relative;
+  z-index: 1;
+  width: min(520px, calc(100vw - 20px));
+  margin-bottom: calc(12px + env(safe-area-inset-bottom));
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 14px;
+  box-shadow: 0 12px 38px rgba(0,0,0,0.65);
+  padding: 14px;
+  animation: slideUpPanel 0.22s ease;
+}
+#tutorial-step {
+  color: #e09030;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+#tutorial-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: #efefef;
+}
+#tutorial-body {
+  margin: 0;
+  color: #bdbdbd;
+  line-height: 1.5;
+  font-size: 14px;
+}
+#tutorial-actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+#tutorial-skip {
+  margin-right: auto;
+}
+#tutorial-back:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .notif-empty {
   text-align: center;
   color: #555;

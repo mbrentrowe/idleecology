@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Idle Ecologist Engine Sanity Test</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background: #101414; color: #e8eeee; }
+    h1 { margin: 0 0 12px; font-size: 20px; }
+    .ok { color: #7dff7d; }
+    .fail { color: #ff7d7d; }
+    li { margin: 8px 0; }
+    code { color: #b4e5ff; }
+  </style>
+</head>
+<body>
+  <h1>Engine Sanity Tests</h1>
+  <ul id="results"></ul>
+
+  <script type="module">
+    import { createEngine, FARM_ZONE_DEFS } from './game.js';
+
+    const resultsEl = document.getElementById('results');
+
+    function addResult(name, pass, details = '') {
+      const li = document.createElement('li');
+      li.className = pass ? 'ok' : 'fail';
+      li.textContent = `${pass ? 'PASS' : 'FAIL'} - ${name}${details ? ` (${details})` : ''}`;
+      resultsEl.appendChild(li);
+    }
+
+    function run(name, fn) {
+      try {
+        fn();
+        addResult(name, true);
+      } catch (err) {
+        addResult(name, false, err?.message || String(err));
+      }
+    }
+
+    run('applyState ignores invalid zone acreage keys/values', () => {
+      const engine = createEngine();
+      const state = engine.getState();
+      const starter = FARM_ZONE_DEFS[0].name;
+
+      state.unlockedFarmZones = [starter];
+      state.zoneAcres = {
+        [starter]: -4,
+        '__invalid_zone__': 999,
+      };
+      state.totalLandAcres = 0;
+
+      engine.applyState(state);
+
+      if (engine.zoneAcres.has('__invalid_zone__')) {
+        throw new Error('invalid zone key survived sanitize');
+      }
+      if ((engine.zoneAcres.get(starter) ?? 0) < 1) {
+        throw new Error('starter acreage fallback not enforced');
+      }
+      if (engine.totalLandAcres < engine.getAllocatedAcres()) {
+        throw new Error('total land dropped below allocated acres');
+      }
+    });
+
+    run('save/apply round-trip keeps land allocation non-negative', () => {
+      const engine = createEngine();
+      const state = engine.getState();
+      state.totalLandAcres = 1;
+      engine.applyState(state);
+      if (engine.getFreeAcres() < 0) throw new Error('free acres became negative');
+    });
+  </script>
+</body>
+</html>

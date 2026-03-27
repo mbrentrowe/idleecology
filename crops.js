@@ -2,7 +2,7 @@
 
 // ── CropType ────────────────────────────────────────────────────────────────
 export class CropType {
-  constructor({ id, name, sciName, growthPhaseGIDs, growthPhaseNames, growthTimePerPhase, yieldGold, marketIconGID, unlockCriteria, artisanProduct, seasons }) {
+  constructor({ id, name, sciName, growthPhaseGIDs, growthPhaseNames, growthTimePerPhase, yieldGold, marketIconGID, unlockCriteria, seasons }) {
     this.id = id;
     this.name = name;
     this.sciName = sciName || null;
@@ -12,7 +12,6 @@ export class CropType {
     this.yieldGold = yieldGold;
     this.marketIconGID = marketIconGID;
     this.unlockCriteria = unlockCriteria || null;
-    this.artisanProduct = artisanProduct || null;
     this.seasons = seasons || ['Spring', 'Summer', 'Fall', 'Winter'];
   }
 
@@ -73,7 +72,6 @@ export const CROPS = {
     growthPhaseNames: ['Seeded', 'Sprouting', 'Leafing out', 'Flowering', 'Fruiting'],
     growthTimePerPhase: 10, yieldGold: 25, marketIconGID: 4486,
     seasons: ['Spring'],
-    artisanProduct: { name: 'Strawberry Preserves', cropInputCount: 5, goldValue:    375, iconGID: 4486, unlockCropSold:  500 },
   }),
   greenOnion: new CropType({
     id: 'greenOnion', name: 'Scallion', sciName: 'Allium fistulosum',
@@ -82,7 +80,6 @@ export const CROPS = {
     growthTimePerPhase: 14, yieldGold: 45, marketIconGID: 4736,
     unlockCriteria: { totalSold: 500 },
     seasons: ['Spring', 'Fall'],
-    artisanProduct: { name: 'Pickled Scallions',    cropInputCount: 5, goldValue:    675, iconGID: 4736, unlockCropSold:  500 },
   }),
   potato: new CropType({
     // Note: sprite is a round root; represents sweet potato (Ipomoea batatas)
@@ -92,7 +89,6 @@ export const CROPS = {
     growthTimePerPhase: 18, yieldGold: 85, marketIconGID: 4986,
     unlockCriteria: { totalSold: 2000 },
     seasons: ['Summer', 'Fall'],
-    artisanProduct: { name: 'Sweet Potato Pie',     cropInputCount: 5, goldValue:   1275, iconGID: 4986, unlockCropSold:  500 },
   }),
   onion: new CropType({
     // Note: sprite is a bulb vegetable; represents okra pods
@@ -102,7 +98,6 @@ export const CROPS = {
     growthTimePerPhase: 22, yieldGold: 160, marketIconGID: 5236,
     unlockCriteria: { totalSold: 6000 },
     seasons: ['Summer'],
-    artisanProduct: { name: 'Pickled Okra',         cropInputCount: 5, goldValue:   2800, iconGID: 5236, unlockCropSold:  500 },
   }),
   carrot: new CropType({
     // Note: sprite is an orange root; represents peanut plants
@@ -112,7 +107,6 @@ export const CROPS = {
     growthTimePerPhase: 28, yieldGold: 300, marketIconGID: 5486,
     unlockCriteria: { totalSold: 15000 },
     seasons: ['Summer', 'Fall'],
-    artisanProduct: { name: 'Peanut Butter',        cropInputCount: 5, goldValue:   6000, iconGID: 5486, unlockCropSold:  500 },
   }),
   blueberry: new CropType({
     id: 'blueberry', name: 'Blueberry', sciName: 'Vaccinium virgatum',
@@ -121,7 +115,6 @@ export const CROPS = {
     growthTimePerPhase: 35, yieldGold: 600, marketIconGID: 5736,
     unlockCriteria: { totalSold: 30000 },
     seasons: ['Summer'],
-    artisanProduct: { name: 'Blueberry Jam',        cropInputCount: 5, goldValue:  12000, iconGID: 5736, unlockCropSold:  500 },
   }),
   parsnip: new CropType({
     // Note: sprite is a pale root; represents peach fruit
@@ -131,7 +124,6 @@ export const CROPS = {
     growthTimePerPhase: 45, yieldGold: 1200, marketIconGID: 5986,
     unlockCriteria: { totalSold: 55000 },
     seasons: ['Summer'],
-    artisanProduct: { name: 'Peach Brandy',         cropInputCount: 5, goldValue:  27000, iconGID: 5986, unlockCropSold:  500 },
   }),
   lettuce: new CropType({
     id: 'lettuce', name: 'Lettuce', sciName: 'Lactuca sativa',
@@ -140,7 +132,6 @@ export const CROPS = {
     growthTimePerPhase: 55, yieldGold: 2500, marketIconGID: 6236,
     unlockCriteria: { totalSold: 8000 },
     seasons: ['Spring', 'Fall', 'Winter'],
-    artisanProduct: { name: 'Pickled Lettuce',      cropInputCount: 5, goldValue:  62500, iconGID: 6236, unlockCropSold:  500 },
   }),
   cauliflower: new CropType({
     // Note: sprite is a white brassica head; represents collard greens
@@ -150,7 +141,6 @@ export const CROPS = {
     growthTimePerPhase: 70, yieldGold: 5500, marketIconGID: 6486,
     unlockCriteria: { totalSold: 140000 },
     seasons: ['Fall', 'Winter', 'Spring'],
-    artisanProduct: { name: 'Canned Collard Greens',cropInputCount: 5, goldValue: 137500, iconGID: 6486, unlockCropSold:  500 },
   }),
   rice: new CropType({
     id: 'rice', name: 'Carolina Gold Rice', sciName: 'Oryza sativa',
@@ -159,7 +149,6 @@ export const CROPS = {
     growthTimePerPhase: 90, yieldGold: 12000, marketIconGID: 6736,
     unlockCriteria: { totalSold: 210000 },
     seasons: ['Summer'],
-    artisanProduct: { name: "Hoppin' John",          cropInputCount: 5, goldValue: 360000, iconGID: 6736, unlockCropSold:  500 },
   }),
   broccoli: new CropType({
     id: 'broccoli', name: 'Broccoli', sciName: 'Brassica oleracea var. italica',
@@ -168,7 +157,6 @@ export const CROPS = {
     growthTimePerPhase: 110, yieldGold: 28000, marketIconGID: 6986,
     unlockCriteria: { totalSold: 310000 },
     seasons: ['Spring', 'Fall'],
-    artisanProduct: { name: 'Pickled Broccoli',     cropInputCount: 5, goldValue: 840000, iconGID: 6986, unlockCropSold:  500 },
   }),
   asparagus: new CropType({
     // Note: sprite is tall stalks; represents tomato plants
@@ -178,6 +166,5 @@ export const CROPS = {
     growthTimePerPhase: 130, yieldGold: 65000, marketIconGID: 7236,
     unlockCriteria: { totalSold: 450000 },
     seasons: ['Spring', 'Summer'],
-    artisanProduct: { name: 'Tomato Sauce',         cropInputCount: 5, goldValue: 2275000, iconGID: 7236, unlockCropSold:  500 },
   }),
 };
