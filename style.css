@@ -95,61 +95,131 @@ body {
 .next-season-hud  { color: #666; font-size: 12px; margin-left: auto; }
 
 /* ── Tab bar ─────────────────────────────────────────────── */
-/* ── FAB Navigation ──────────────────────────────────────── */
+/* ── Bottom Tab Navigation ───────────────────────────────── */
 #tab-bar {
   position: fixed;
-  bottom: 0;
+  left: 0;
   right: 0;
+  bottom: 0;
   z-index: 100;
-  /* no background — FAB floats freely */
+  height: calc(56px + env(safe-area-inset-bottom));
+  background: rgba(12, 18, 12, 0.96);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(6px);
 }
 
-/* Backdrop that closes the menu on tap-outside */
-#fab-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 98;
-}
-#fab-backdrop.open { display: block; }
-
-/* The floating action button */
-#fab-btn {
-  position: fixed;
-  bottom: calc(20px + env(safe-area-inset-bottom));
-  right: calc(18px + env(safe-area-inset-right));
-  z-index: 101;
-  width: 56px;
+#tab-buttons {
   height: 56px;
-  border-radius: 50%;
-  border: none;
-  background: var(--s-accent, #6abf69);
-  color: #111;
-  font-size: 22px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px calc(76px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#tab-buttons.compact { overflow-x: hidden; }
+#tab-buttons.compact .tab-btn-main {
+  min-width: 38px;
+  padding: 0;
+  justify-content: center;
+}
+#tab-buttons.compact .tab-btn-label { display: none; }
+#tab-buttons.compact .tab-btn-alert {
+  position: relative;
+  top: -6px;
+  left: -4px;
+}
+#tab-buttons::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  min-width: 44px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(30, 45, 30, 0.88);
+  color: #c8d0c8;
+  font-size: 18px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.55);
-  transition: transform 0.18s, background 0.18s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
 }
-#fab-btn:hover  { background: #7ed47d; }
-#fab-btn.open   { transform: rotate(45deg); }
-#fab-btn.has-alert {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.55), 0 0 0 3px #f0e060, 0 0 12px 4px rgba(240,224,80,0.55);
-  animation: fab-glow 1.8s ease-in-out infinite;
+.tab-btn-icon { font-size: 17px; line-height: 1; }
+.tab-btn-label {
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
 }
-@keyframes fab-glow {
-  0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.55), 0 0 0 3px #f0e060, 0 0 12px 4px rgba(240,224,80,0.45); }
-  50%       { box-shadow: 0 4px 16px rgba(0,0,0,0.55), 0 0 0 3px #ffe066, 0 0 22px 8px rgba(255,220,60,0.70); }
+.tab-btn-alert {
+  font-size: 11px;
+  line-height: 1;
+  color: #ff8a65;
+}
+.tab-btn.active .tab-btn-alert { color: #633300; }
+
+.tab-btn-main {
+  padding: 0 10px;
+  justify-content: flex-start;
+}
+.tab-btn:hover {
+  color: #ffffff;
+  background: rgba(42, 60, 42, 0.96);
+}
+.tab-btn.active {
+  color: #101810;
+  background: var(--s-accent, #6abf69);
+  border-color: var(--s-accent, #6abf69);
+  font-weight: 700;
+}
+
+.tab-more-btn {
+  min-width: 38px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.tab-overflow-menu {
+  position: fixed;
+  right: calc(12px + env(safe-area-inset-right));
+  bottom: calc(62px + env(safe-area-inset-bottom));
+  z-index: 120;
+  min-width: 176px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  background: rgba(15, 22, 15, 0.98);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.55);
+}
+.tab-overflow-menu[hidden] { display: none; }
+.tab-overflow-item {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 10px;
+  background: rgba(30, 45, 30, 0.9);
+  color: #c8d0c8;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tab-overflow-item:hover {
+  color: #ffffff;
+  background: rgba(42, 60, 42, 0.98);
 }
 
 /* ── Notification FAB ──────────────────────────────────────────── */
 #notif-wrap {
   position: fixed;
-  bottom: calc(22px + env(safe-area-inset-bottom));
-  right: calc(86px + env(safe-area-inset-right));
+  bottom: calc(66px + env(safe-area-inset-bottom));
+  right: calc(14px + env(safe-area-inset-right));
   z-index: 101;
   width: 52px;
   height: 52px;
@@ -486,7 +556,7 @@ body {
 /* ── Main content ────────────────────────────────────────── */
 #content {
   padding: 12px 14px 24px;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  padding-bottom: calc(92px + env(safe-area-inset-bottom));
   padding-left: calc(14px + env(safe-area-inset-left));
   padding-right: calc(14px + env(safe-area-inset-right));
   max-width: 700px;
@@ -2029,12 +2099,12 @@ body {
   .gps, .day-counter, .activity-badge { font-size: 12px; }
   .bio-header { font-size: 12px; padding: 2px 6px; }
   /* Tab bar: smaller tap targets are fine since it now scrolls */
-  .tab-btn { padding: 9px 12px; font-size: 12px; }
+  .tab-btn { min-width: 38px; height: 34px; font-size: 16px; }
 
   /* Content: tighter side padding */
   #content {
     padding: 10px 10px 20px;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+    padding-bottom: calc(98px + env(safe-area-inset-bottom));
     padding-left: calc(10px + env(safe-area-inset-left));
     padding-right: calc(10px + env(safe-area-inset-right));
   }

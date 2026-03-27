@@ -10,6 +10,7 @@ import { BIRD_LIST } from './birds.js';
 // ── Constants ─────────────────────────────────────────────────────────────────
 export const YEAR_REAL_SECS = 8 * 3600;             // 8 real hours = 1 in-game year
 export const DAY_REAL_SECS  = YEAR_REAL_SECS / 365; // ≈78.9 real seconds = 1 in-game day
+export const ENABLE_RANCH   = false;                // feature flag: keep ranch code, disable systems
 const SAVE_KEY              = 'idle-ecologist-text-v1';
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
@@ -305,6 +306,7 @@ export function createEngine() {
   RANCH_ANIMAL_LIST.forEach(a => ranchStats.set(a.id, { produced: 0, sold: 0, lifetimeSales: 0 }));
 
   function checkRanchUnlocks() {
+    if (!ENABLE_RANCH) return;
     const totalSold = Array.from(cropStats.values()).reduce((s, v) => s + v.sold, 0);
     for (const animal of RANCH_ANIMAL_LIST) {
       if (unlockedRanchAnimals.has(animal.id)) continue;
@@ -346,10 +348,10 @@ export function createEngine() {
   function getAllocatedAcres() {
     let n = 0;
     for (const v of zoneAcres.values())          n += v;
-    for (const v of ranchAcres.values())         n += v;
+    if (ENABLE_RANCH) for (const v of ranchAcres.values()) n += v;
     for (const v of plantedSpeciesAcres.values()) n += v;
     n += cropEstablishQueue.length;
-    n += ranchEstablishQueue.length;
+    if (ENABLE_RANCH) n += ranchEstablishQueue.length;
     n += nativeEstablishQueue.length;
     return n;
   }
@@ -404,13 +406,15 @@ export function createEngine() {
       const wm  = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
       if (autoSellSet.has(ct.id)) gps += (ct.yieldGold * tc * wm * TICKS_PER_SEC) / cyc;
     }
-    for (const animalId of unlockedRanchAnimals) {
-      const animal = RANCH_ANIMALS[animalId];
-      if (!animal) continue;
-      const acres = ranchAcres.get(animalId) ?? 0;
-      if (acres <= 0) continue;
-      const wm    = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
-      gps += (animal.goldPerCycle * acres * wm * goldMultiplier() * TICKS_PER_SEC) / animal.productionIntervalSecs;
+    if (ENABLE_RANCH) {
+      for (const animalId of unlockedRanchAnimals) {
+        const animal = RANCH_ANIMALS[animalId];
+        if (!animal) continue;
+        const acres = ranchAcres.get(animalId) ?? 0;
+        if (acres <= 0) continue;
+        const wm    = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
+        gps += (animal.goldPerCycle * acres * wm * goldMultiplier() * TICKS_PER_SEC) / animal.productionIntervalSecs;
+      }
     }
     return gps;
   }
@@ -426,11 +430,13 @@ export function createEngine() {
       const cur = zoneWorkers.get(def.name) ?? BASE_ZONE_WORKERS;
       candidates.push({ type: 'farmWorker', name: def.name, cost: workerUpgradeCost(def, cur) });
     }
-    for (const animalId of unlockedRanchAnimals) {
-      const animal = RANCH_ANIMALS[animalId];
-      if (!animal) continue;
-      const cur = ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS;
-      candidates.push({ type: 'ranchWorker', animalId, cost: workerUpgradeCost({ cost: animal.baseCost }, cur) });
+    if (ENABLE_RANCH) {
+      for (const animalId of unlockedRanchAnimals) {
+        const animal = RANCH_ANIMALS[animalId];
+        if (!animal) continue;
+        const cur = ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS;
+        candidates.push({ type: 'ranchWorker', animalId, cost: workerUpgradeCost({ cost: animal.baseCost }, cur) });
+      }
     }
     if (candidates.length === 0) return;
     const cheapest = candidates.reduce((a, b) => a.cost < b.cost ? a : b);
@@ -503,7 +509,7 @@ export function createEngine() {
       }
     }
 
-    if (autoPilotMode === 'economy' && getFreeAcres() > 0 && unlockedRanchAnimals.size > 0) {
+    if (ENABLE_RANCH && autoPilotMode === 'economy' && getFreeAcres() > 0 && unlockedRanchAnimals.size > 0) {
       const ranchList = [...unlockedRanchAnimals].map(id => ({
         id,
         total: ranchAcres.get(id) ?? 0,
@@ -669,21 +675,23 @@ export function createEngine() {
     }
 
     // Ranch animal production
-    for (const animalId of unlockedRanchAnimals) {
-      const animal = RANCH_ANIMALS[animalId];
-      if (!animal) continue;
-      const wm = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
-      let t = (ranchTimers.get(animalId) ?? 0) + gameSpeed * wm;
-      const acres = ranchAcres.get(animalId) ?? 0;
-      if (acres <= 0) { ranchTimers.set(animalId, 0); continue; }
-      while (t >= animal.productionIntervalSecs) {
-        t -= animal.productionIntervalSecs;
-        const earned = animal.goldPerCycle * acres * _gMult;
-        gold.add(earned);
-        const st = ranchStats.get(animalId);
-        if (st) { st.produced += acres; st.sold += acres; st.lifetimeSales += earned; }
+    if (ENABLE_RANCH) {
+      for (const animalId of unlockedRanchAnimals) {
+        const animal = RANCH_ANIMALS[animalId];
+        if (!animal) continue;
+        const wm = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
+        let t = (ranchTimers.get(animalId) ?? 0) + gameSpeed * wm;
+        const acres = ranchAcres.get(animalId) ?? 0;
+        if (acres <= 0) { ranchTimers.set(animalId, 0); continue; }
+        while (t >= animal.productionIntervalSecs) {
+          t -= animal.productionIntervalSecs;
+          const earned = animal.goldPerCycle * acres * _gMult;
+          gold.add(earned);
+          const st = ranchStats.get(animalId);
+          if (st) { st.produced += acres; st.sold += acres; st.lifetimeSales += earned; }
+        }
+        ranchTimers.set(animalId, t);
       }
-      ranchTimers.set(animalId, t);
     }
 
     // Research point generation (1 pt per unlocked farm zone per in-game day)
@@ -864,26 +872,28 @@ export function createEngine() {
         }
       }
       // Ranch animal production (offline)
-      for (const animalId of unlockedRanchAnimals) {
-        const animal = RANCH_ANIMALS[animalId];
-        if (!animal) continue;
-        const wm = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
-        const acres = ranchAcres.get(animalId) ?? 0;
-        let acc = (simRanchTimers.get(animalId) ?? 0) + (acres > 0 ? wm * TICKS_PER_SEC_LOCAL : 0);
-        while (acc >= animal.productionIntervalSecs) {
-          acc -= animal.productionIntervalSecs;
-          const earned = animal.goldPerCycle * acres * _offMult;
-          gold.add(earned);
-          const st = ranchStats.get(animalId);
-          if (st) { st.produced += acres; st.sold += acres; st.lifetimeSales += earned; }
+      if (ENABLE_RANCH) {
+        for (const animalId of unlockedRanchAnimals) {
+          const animal = RANCH_ANIMALS[animalId];
+          if (!animal) continue;
+          const wm = workerMultiplier(ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS);
+          const acres = ranchAcres.get(animalId) ?? 0;
+          let acc = (simRanchTimers.get(animalId) ?? 0) + (acres > 0 ? wm * TICKS_PER_SEC_LOCAL : 0);
+          while (acc >= animal.productionIntervalSecs) {
+            acc -= animal.productionIntervalSecs;
+            const earned = animal.goldPerCycle * acres * _offMult;
+            gold.add(earned);
+            const st = ranchStats.get(animalId);
+            if (st) { st.produced += acres; st.sold += acres; st.lifetimeSales += earned; }
+          }
+          simRanchTimers.set(animalId, acc);
         }
-        simRanchTimers.set(animalId, acc);
       }
       // Auto-pilot decisions during offline time (once per simulated second)
       if (autoPilot) runAutoPilot();
     }
     lastSeasonName = offlineSeason;
-    for (const [k, v] of simRanchTimers) ranchTimers.set(k, v);
+    if (ENABLE_RANCH) for (const [k, v] of simRanchTimers) ranchTimers.set(k, v);
     // Always pause after offline sync — player reviews state then resumes manually
     gamePaused = true;
     return {
@@ -1119,7 +1129,7 @@ export function createEngine() {
     } else {
       // Migration: derive totalLandAcres from existing allocations + starting buffer
       const existingCrop   = s.zoneAcres    ? Object.values(s.zoneAcres).reduce((a, b) => a + b, 0) : 0;
-      const existingRanch  = s.ranchAcres   ? Object.values(s.ranchAcres).reduce((a, b) => a + b, 0) : 0;
+      const existingRanch  = ENABLE_RANCH && s.ranchAcres ? Object.values(s.ranchAcres).reduce((a, b) => a + b, 0) : 0;
       const existingNative = Array.isArray(s.plantedSpecies) ? s.plantedSpecies.length : 0;
       totalLandAcres = existingCrop + existingRanch + existingNative + STARTING_LAND_ACRES;
     }
@@ -1194,6 +1204,7 @@ export function createEngine() {
     ranchWorkers,
     ranchStats,
     upgradeRanchAcres(animalId) {
+      if (!ENABLE_RANCH) return false;
       const animal  = RANCH_ANIMALS[animalId];
       const current = ranchAcres.get(animalId) ?? 1;
       if (!animal || !unlockedRanchAnimals.has(animalId)) return false;
@@ -1204,6 +1215,7 @@ export function createEngine() {
       return true;
     },
     upgradeRanchWorkers(animalId) {
+      if (!ENABLE_RANCH) return false;
       const animal  = RANCH_ANIMALS[animalId];
       const current = ranchWorkers.get(animalId) ?? BASE_ZONE_WORKERS;
       if (!animal || !unlockedRanchAnimals.has(animalId)) return false;
@@ -1345,6 +1357,7 @@ export function createEngine() {
 
     /** Allocate N acres from the pool to a ranch animal immediately. Returns actual count. */
     queueRanchAcre(animalId, qty = 1) {
+      if (!ENABLE_RANCH) return 0;
       if (!unlockedRanchAnimals.has(animalId)) return 0;
       const free = getFreeAcres();
       const n = Math.min(qty, free);
@@ -1405,6 +1418,7 @@ export function createEngine() {
 
     /** Immediately return 1 acre from a ranch animal back to the pool. */
     deallocateRanchAcre(animalId) {
+      if (!ENABLE_RANCH) return false;
       // Prefer cancelling a queued (establishing) acre before removing an established one
       const queueIdx = ranchEstablishQueue.findLastIndex(i => i.animalId === animalId);
       if (queueIdx >= 0) {
@@ -1422,6 +1436,7 @@ export function createEngine() {
 
     /** Cancel the next queued ranch-acre for an animal. */
     cancelRanchQueueItem(animalId) {
+      if (!ENABLE_RANCH) return false;
       const idx = ranchEstablishQueue.findIndex(i => i.animalId === animalId);
       if (idx < 0) return false;
       ranchEstablishQueue.splice(idx, 1);

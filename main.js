@@ -1,5 +1,5 @@
 ﻿// main.js — UI layer and entry point for Idle Ecologist Text UI
-import { createEngine, shortNumber, FARM_ZONE_DEFS, DAY_REAL_SECS, YEAR_REAL_SECS, CALENDAR_MONTHS, SEASONS, calendarDate, acreUpgradeCost, workerUpgradeCost, workerMultiplier, STARTING_LAND_ACRES, ESTABLISH_DAYS, LAND_MARKET_INTERVAL_DAYS } from './game.js';
+import { createEngine, shortNumber, FARM_ZONE_DEFS, DAY_REAL_SECS, YEAR_REAL_SECS, CALENDAR_MONTHS, SEASONS, calendarDate, acreUpgradeCost, workerUpgradeCost, workerMultiplier, STARTING_LAND_ACRES, ESTABLISH_DAYS, LAND_MARKET_INTERVAL_DAYS, ENABLE_RANCH } from './game.js';
 import { CROPS } from './crops.js';
 import { RESEARCH, RESEARCH_CATEGORIES } from './research.js';
 import { ECOREGIONS, WILDLIFE_TYPE_ICONS } from './ecoregions.js';
@@ -200,7 +200,9 @@ document.addEventListener('visibilitychange', () => {
 acquireWakeLock();
 
 // ── Tab state ─────────────────────────────────────────────────────────────────
-const TABS = ['crops', 'ranch', 'research', 'garden', 'land', 'collection', 'settings'];
+const TABS = ENABLE_RANCH
+  ? ['crops', 'ranch', 'research', 'garden', 'land', 'collection', 'settings']
+  : ['crops', 'research', 'garden', 'land', 'collection', 'settings'];
 let activeTab = 'crops';
 let cropBuyQty = 1; // 1 | 5 | 10 | 25 | 'max'
 
@@ -220,16 +222,18 @@ const TUTORIAL_STEPS = [
   },
   {
     title: 'Step 2: Expand Land Capacity',
-    body: 'In Land, buy more parcels and establish acres. Land is your shared capacity for crops, ranch animals, and native plants.',
+    body: ENABLE_RANCH
+      ? 'In Land, buy more parcels and establish acres. Land is your shared capacity for crops, ranch animals, and native plants.'
+      : 'In Land, buy more parcels and establish acres. Land is your shared capacity for crops and native plants.',
     tab: 'land',
     focusSelector: '#content',
   },
-  {
+  ...(ENABLE_RANCH ? [{
     title: 'Step 3: Grow with Ranch',
-    body: 'Ranch unlocks as you progress and adds passive animal production. Add acres and workers to increase your output.',
+    body: 'Ranch unlocks as you progress and adds passive animal production. Add acres and workers to increase output.',
     tab: 'ranch',
     focusSelector: '#content',
-  },
+  }] : []),
   {
     title: 'Step 4: Conservation Matters',
     body: 'In Conservation and Native Garden, spend research points and establish native host plants. Biodiversity increases your gold multiplier over time.',
@@ -296,40 +300,145 @@ const nextSeasonEl = el('span', 'next-season-hud');
 [acresEl, seasonEl, dayEl, timeEl, nextSeasonEl].forEach(e => hudRow2.appendChild(e));
 [hudRow1, hudRow2].forEach(e => header.appendChild(e));
 
-// ── FAB Navigation ────────────────────────────────────────────────────────────
-const TAB_LABELS = { crops: '🌾 Crops', ranch: '🐄 Ranch', research: '🌱 Conservation', garden: '🌿 Native Garden', land: '🗺️ Land', collection: '📚 Collection', settings: '⚙️ Settings' };
-const TAB_ICONS  = { crops: '🌾', ranch: '🐄', research: '🌱', garden: '🌿', land: '🗺️', collection: '📚', settings: '⚙️' };
+// ── Bottom Tab Navigation ─────────────────────────────────────────────────────
+const TAB_LABELS = {
+  crops: '🌾 Crops',
+  ...(ENABLE_RANCH ? { ranch: '🐄 Ranch' } : {}),
+  research: '🌱 Conservation',
+  garden: '🌿 Native Garden',
+  land: '🗺️ Land',
+  collection: '📚 Collection',
+  settings: '⚙️ Settings',
+};
+const TAB_ICONS  = {
+  crops: '🌾',
+  ...(ENABLE_RANCH ? { ranch: '🐄' } : {}),
+  research: '🌱',
+  garden: '🌿',
+  land: '🗺️',
+  collection: '📚',
+  settings: '⚙️',
+};
 
-const fabBtn      = document.getElementById('fab-btn');
-const fabMenu     = document.getElementById('fab-menu');
-const fabBackdrop = document.getElementById('fab-backdrop');
+const tabButtonsEl = document.getElementById('tab-buttons');
+const tabBarEl = document.getElementById('tab-bar');
 let fabOpen = false;
 
 const tabBtns = {};
+const COMPACT_TAB_MAX_WIDTH = 390;
+const COMPACT_TAB_PRIORITY = ['crops', 'research', 'garden', 'land'];
+
+const tabOverflowBtn = el('button', 'tab-btn tab-more-btn', '⋯');
+tabOverflowBtn.type = 'button';
+tabOverflowBtn.setAttribute('aria-label', 'More tabs');
+tabOverflowBtn.setAttribute('aria-expanded', 'false');
+tabOverflowBtn.hidden = true;
+
+const tabOverflowMenu = el('div', 'tab-overflow-menu');
+tabOverflowMenu.hidden = true;
+tabBarEl.appendChild(tabOverflowMenu);
 
 function setFabOpen(open) {
+  // Navigation no longer uses a menu FAB; keep this as a compatibility no-op
+  // because several existing handlers call setFabOpen(false) before tab switches.
   fabOpen = open;
-  fabBtn.classList.toggle('open', open);
-  fabMenu.classList.toggle('open', open);
-  fabBackdrop.classList.toggle('open', open);
-  fabBtn.setAttribute('aria-expanded', open);
-  if (open) fabBtn.classList.remove('has-alert'); // ❗ visible on items — no need for glow while open
+  tabOverflowMenu.hidden = !open;
+  tabOverflowMenu.classList.toggle('open', open);
+  tabOverflowBtn.classList.toggle('open', open);
+  tabOverflowBtn.setAttribute('aria-expanded', String(open));
+}
+
+function _setTabBtnText(tab, hasAlert = false) {
+  const btn = tabBtns[tab];
+  if (!btn) return;
+  const labelText = TAB_LABELS[tab].split(' ').slice(1).join(' ') || TAB_LABELS[tab];
+  const iconEl  = btn.querySelector('.tab-btn-icon');
+  const labelEl = btn.querySelector('.tab-btn-label');
+  const alertEl = btn.querySelector('.tab-btn-alert');
+  if (iconEl) iconEl.textContent = TAB_ICONS[tab] ?? '•';
+  if (labelEl) labelEl.textContent = labelText;
+  if (alertEl) {
+    alertEl.textContent = hasAlert ? '❗' : '';
+    alertEl.hidden = !hasAlert;
+  }
+}
+
+function _renderOverflowTabs(tabs) {
+  tabOverflowMenu.innerHTML = '';
+  for (const tab of tabs) {
+    const item = el('button', 'tab-overflow-item', `${TAB_ICONS[tab]} ${TAB_LABELS[tab]}`);
+    item.type = 'button';
+    item.dataset.tab = tab;
+    item.addEventListener('click', () => {
+      activeTab = tab;
+      setFabOpen(false);
+      renderAll();
+    });
+    tabOverflowMenu.appendChild(item);
+  }
+}
+
+function _syncTabLayout() {
+  const isCompact = window.matchMedia(`(max-width: ${COMPACT_TAB_MAX_WIDTH}px)`).matches;
+  tabButtonsEl.classList.toggle('compact', isCompact);
+
+  const orderedTabs = [...TABS];
+  let visibleTabs = orderedTabs;
+  if (isCompact) {
+    visibleTabs = COMPACT_TAB_PRIORITY.filter(t => orderedTabs.includes(t)).slice(0, 4);
+    if (!visibleTabs.includes(activeTab) && orderedTabs.includes(activeTab)) {
+      if (visibleTabs.length === 0) visibleTabs.push(activeTab);
+      else visibleTabs[visibleTabs.length - 1] = activeTab;
+    }
+    visibleTabs = [...new Set(visibleTabs)];
+  }
+
+  const overflowTabs = orderedTabs.filter(t => !visibleTabs.includes(t));
+  for (const tab of orderedTabs) tabBtns[tab].hidden = !visibleTabs.includes(tab);
+
+  const showOverflow = isCompact && overflowTabs.length > 0;
+  tabOverflowBtn.hidden = !showOverflow;
+  if (showOverflow) {
+    _renderOverflowTabs(overflowTabs);
+    tabOverflowBtn.classList.toggle('active', overflowTabs.includes(activeTab));
+  } else {
+    setFabOpen(false);
+  }
 }
 
 TABS.forEach(tab => {
-  const btn = el('button', 'fab-item', TAB_LABELS[tab]);
+  const btn = el('button', 'tab-btn tab-btn-main');
+  btn.innerHTML = '<span class="tab-btn-icon"></span><span class="tab-btn-label"></span><span class="tab-btn-alert" hidden></span>';
   btn.dataset.tab = tab;
+  btn.title = TAB_LABELS[tab];
+  btn.setAttribute('aria-label', TAB_LABELS[tab]);
   tabBtns[tab] = btn;
+  _setTabBtnText(tab, false);
   btn.addEventListener('click', () => {
     activeTab = tab;
     setFabOpen(false);
     renderAll();
   });
-  fabMenu.appendChild(btn);
+  tabButtonsEl.appendChild(btn);
 });
 
-fabBtn.addEventListener('click', () => setFabOpen(!fabOpen));
-fabBackdrop.addEventListener('click', () => setFabOpen(false));
+tabButtonsEl.appendChild(tabOverflowBtn);
+
+tabOverflowBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setFabOpen(!fabOpen);
+});
+
+document.addEventListener('click', (e) => {
+  if (!fabOpen) return;
+  if (tabOverflowBtn.contains(e.target) || tabOverflowMenu.contains(e.target)) return;
+  setFabOpen(false);
+});
+
+window.addEventListener('resize', () => {
+  _syncTabLayout();
+  tabButtonsEl.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+});
 
 const content = document.getElementById('content');
 
@@ -439,9 +548,10 @@ buildTutorialModal();
 
 // ── Render dispatcher ─────────────────────────────────────────────────────────
 function renderAll() {
-  // FAB item active state + FAB button icon
-  fabMenu.querySelectorAll('.fab-item').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
-  fabBtn.textContent = TAB_ICONS[activeTab] ?? '☰';
+  if (!ENABLE_RANCH && activeTab === 'ranch') activeTab = 'crops';
+  _syncTabLayout();
+  // Tab button active state
+  tabButtonsEl.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
   content.innerHTML = '';
   switch (activeTab) {
     case 'crops':    lastZonesFingerprint = zonesFingerprint(); renderCrops();    break;
@@ -556,12 +666,11 @@ function updateHeader() {
   const rpAlert = (hasAffordableResearch && !engine.activeResearchId) || (hasAffordableGarden && !engine.activePlantingId && engine.nativeEstablishQueue.length === 0);
   const _rpPerDay = engine.unlockedFarmZones.size;
   rpHeaderEl.textContent = `🌱 ${shortNumber(pts)} CP (+${_rpPerDay}/day)${rpAlert ? ' ❗' : ''}`;
-  fabBtn.classList.toggle('has-alert', rpAlert && !fabOpen);
 
   // Update tab button labels with ❗ when relevant tab has affordable items
   const _gardenBusy = !!engine.activePlantingId || engine.nativeEstablishQueue.length > 0;
-  if (tabBtns.research) tabBtns.research.textContent = `🌱 Conservation${hasAffordableResearch && !engine.activeResearchId ? ' ❗' : ''}`;
-  if (tabBtns.garden)   tabBtns.garden.textContent   = `🌿 Native Garden${hasAffordableGarden && !_gardenBusy ? ' ❗' : ''}`;
+  _setTabBtnText('research', hasAffordableResearch && !engine.activeResearchId);
+  _setTabBtnText('garden', hasAffordableGarden && !_gardenBusy);
 }
 
 // ── Duration formatter (real seconds) ────────────────────────────────────────
@@ -1715,13 +1824,15 @@ function renderLand() {
     }
   }
   // Ranch animal tiles
-  for (const [animalId, acres] of engine.ranchAcres) {
-    const animal = RANCH_ANIMALS[animalId];
-    for (let i = 0; i < acres; i++) {
-      const tile = el('div', 'land-tile land-tile-ranch');
-      tile.title = animal?.name ?? animalId;
-      tile.innerHTML = inatThumbHtml(animal?.sci, 'land-tile-thumb', animal?.name ?? animalId);
-      grid.appendChild(tile);
+  if (ENABLE_RANCH) {
+    for (const [animalId, acres] of engine.ranchAcres) {
+      const animal = RANCH_ANIMALS[animalId];
+      for (let i = 0; i < acres; i++) {
+        const tile = el('div', 'land-tile land-tile-ranch');
+        tile.title = animal?.name ?? animalId;
+        tile.innerHTML = inatThumbHtml(animal?.sci, 'land-tile-thumb', animal?.name ?? animalId);
+        grid.appendChild(tile);
+      }
     }
   }
   // Native plant tiles
@@ -1814,7 +1925,7 @@ function renderCollection() {
   const showCrops     = collectionFilter === 'all' || collectionFilter === 'crops';
   const showPlants    = collectionFilter === 'all' || collectionFilter === 'plants';
   const showCreatures = collectionFilter === 'all' || collectionFilter === 'creatures';
-  const showRanch     = collectionFilter === 'all' || collectionFilter === 'ranch';
+  const showRanch     = ENABLE_RANCH && (collectionFilter === 'all' || collectionFilter === 'ranch');
   const showHistory   = collectionFilter === 'history';
   const showBirds     = collectionFilter === 'all' || collectionFilter === 'birds';
 
@@ -1826,7 +1937,7 @@ function renderCollection() {
     { key: 'plants',    label: `🌿 Native Plants (${planted.size} / ${totalPlantCount})`                         },
     { key: 'creatures', label: `🦋 Creatures (${discoveredCount} / ${totalCreatures})`                           },
     { key: 'birds',     label: `🐦 Birds (${engine.discoveredBirds.size} / ${BIRD_LIST.length})`                 },
-    { key: 'ranch',     label: `🐄 Ranch Animals (${unlockedRanchAnimals.size} / ${RANCH_ANIMAL_LIST.length})`  },
+    ...(ENABLE_RANCH ? [{ key: 'ranch', label: `🐄 Ranch Animals (${unlockedRanchAnimals.size} / ${RANCH_ANIMAL_LIST.length})` }] : []),
     { key: 'history',   label: `📊 History (${discoveredCount} / ${totalCreatures})` },
   ];
   for (const fd of filterDefs) {
@@ -2216,7 +2327,9 @@ function renderSettings() {
   apSection.appendChild(el('div', 'settings-label', '🤖 Auto-pilot'));
 
   const apModeDescs = {
-    economy:      'Maximizes income: prioritizes farm and ranch growth, allocates free acres, buys land, and hires the cheapest available worker.',
+    economy:      ENABLE_RANCH
+      ? 'Maximizes income: prioritizes farm and ranch growth, allocates free acres, buys land, and hires the cheapest available worker.'
+      : 'Maximizes income: prioritizes farm growth, allocates free acres, buys land, and hires the cheapest available worker.',
     conservation: 'Balances income with nature: does everything Economy does, plus auto-starts research projects, establishes native plants, and re-plants habitat-risk species first.',
   };
   const apDesc = el('p', 'settings-desc',
@@ -2582,7 +2695,12 @@ function _buildNotifList() {
           if (img) img.src = url;
         });
       }
-      gotoHandler = () => { closeNotifModal(); activeTab = 'ranch'; setFabOpen(false); renderAll(); };
+      gotoHandler = () => {
+        closeNotifModal();
+        activeTab = ENABLE_RANCH ? 'ranch' : 'collection';
+        setFabOpen(false);
+        renderAll();
+      };
     } else if (type === 'plant') {
       const { plant } = notif;
       const discoveredHere = (plant.insectsHosted ?? []).filter(c => engine.discoveredCreatures.has(engine.creatureKey(c.name))).length;
@@ -2801,13 +2919,15 @@ function liveUpdate() {
   }
 
   // ── Detect newly unlocked ranch animals ───────────────────────────────────
-  if (_knownUnlockedRanch === null) {
-    _knownUnlockedRanch = new Set(engine.unlockedRanchAnimals);
-  } else {
-    for (const animal of RANCH_ANIMAL_LIST) {
-      if (!_knownUnlockedRanch.has(animal.id) && engine.unlockedRanchAnimals.has(animal.id)) {
-        _knownUnlockedRanch.add(animal.id);
-        _pushNotif({ type: 'ranch', animalId: animal.id, animal });
+  if (ENABLE_RANCH) {
+    if (_knownUnlockedRanch === null) {
+      _knownUnlockedRanch = new Set(engine.unlockedRanchAnimals);
+    } else {
+      for (const animal of RANCH_ANIMAL_LIST) {
+        if (!_knownUnlockedRanch.has(animal.id) && engine.unlockedRanchAnimals.has(animal.id)) {
+          _knownUnlockedRanch.add(animal.id);
+          _pushNotif({ type: 'ranch', animalId: animal.id, animal });
+        }
       }
     }
   }
@@ -2860,7 +2980,7 @@ function liveUpdate() {
         btn.disabled = engine.gold.amount < workerUpgradeCost(def, cur);
       });
     }
-  } else if (activeTab === 'ranch') {
+  } else if (ENABLE_RANCH && activeTab === 'ranch') {
     const rfp = ranchFingerprint();
     if (rfp !== lastRanchFingerprint) {
       lastRanchFingerprint = rfp;

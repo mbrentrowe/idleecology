@@ -71,4 +71,5 @@ If you need another port, run `sh ./start.sh 9090`.
 
 - Engine/UI boundary is intentional: keep game logic in `game.js`, UI behavior in `main.js`.
 - Use `engine_sanity_test.html` for quick regression checks when changing core simulation behavior.
+- Ranch is feature-gated (disabled by default): set `ENABLE_RANCH = true` in `game.js` to re-enable Ranch UI + simulation systems.
 - See `TUTORIAL.md` for a contributor walkthrough.
