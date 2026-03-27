@@ -4,6 +4,7 @@ import { CROPS } from './crops.js';
 import { RESEARCH, RESEARCH_CATEGORIES } from './research.js';
 import { ECOREGIONS, WILDLIFE_TYPE_ICONS } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
+import { BIRDS, BIRD_LIST } from './birds.js';
 
 // Module-level cache for the full plant list (avoid repeated flatMap across renders)
 const ALL_PLANTS = ECOREGIONS.flatMap(e => e.plants);
@@ -693,8 +694,13 @@ function renderCrops() {
         const dormAcreRow  = el('div', 'acre-upgrade-row');
         dormAcreRow.innerHTML = `<span class="acre-label">Acres: <strong>${currentAcres}</strong></span>`;
         if (currentAcres > 0) {
-          const removeBtn = el('button', 'buy-btn acre-btn danger-btn', '−1 acre');
-          removeBtn.addEventListener('click', () => { engine.deallocateCropAcre(def.name); renderAll(); });
+          const removeQty = cropBuyQty === 'max' ? currentAcres : Math.min(cropBuyQty, currentAcres);
+          const removeBtn = el('button', 'buy-btn acre-btn danger-btn',
+            removeQty > 1 ? `−${removeQty} acres` : '−1 acre');
+          removeBtn.addEventListener('click', () => {
+            for (let i = 0; i < removeQty; i++) engine.deallocateCropAcre(def.name);
+            renderAll();
+          });
           dormAcreRow.appendChild(removeBtn);
         }
         if (freeAcres >= 1) {
@@ -703,6 +709,16 @@ function renderCrops() {
           dormAcreRow.appendChild(allocBtn);
         }
         dormCard.appendChild(dormAcreRow);
+
+        const dormStats = engine.cropStats.get(_ct.id) ?? { grown: 0, sold: 0, lifetimeSales: 0 };
+        const dormStatsRow = el('div', 'ranch-stats-row');
+        dormStatsRow.innerHTML = `
+          <span>🌾 Grown: <strong>${shortNumber(dormStats.grown)}</strong></span>
+          <span>💰 Sold: <strong>${shortNumber(dormStats.sold)}</strong></span>
+          <span>🪙 Earned: <strong>${shortNumber(dormStats.lifetimeSales)}g</strong></span>
+        `;
+        dormCard.appendChild(dormStatsRow);
+
         dormCard.dataset.zone = def.name;
         content.appendChild(dormCard);
         return;
@@ -843,11 +859,16 @@ function renderCrops() {
       const acreRow = el('div', 'acre-upgrade-row');
       acreRow.innerHTML = `<span class="acre-label">Acres: <strong>${currentAcres}</strong></span>`;
       const qtyAcre = cropBuyQty === 'max' ? Math.max(0, freeAcres) : cropBuyQty;
+      const qtyRemoveAcre = cropBuyQty === 'max' ? currentAcres : Math.min(cropBuyQty, currentAcres);
       const canAllocate = freeAcres >= 1;
       const canRemove   = currentAcres > 0;
       if (canRemove) {
-        const removeBtn = el('button', 'buy-btn acre-btn danger-btn', '−1 acre');
-        removeBtn.addEventListener('click', () => { engine.deallocateCropAcre(def.name); renderAll(); });
+        const removeBtn = el('button', 'buy-btn acre-btn danger-btn',
+          qtyRemoveAcre > 1 ? `−${qtyRemoveAcre} acres` : '−1 acre');
+        removeBtn.addEventListener('click', () => {
+          for (let i = 0; i < qtyRemoveAcre; i++) engine.deallocateCropAcre(def.name);
+          renderAll();
+        });
         acreRow.appendChild(removeBtn);
       }
       const allocBtn = el('button', `buy-btn acre-btn${canAllocate ? '' : ' disabled'}`,
@@ -896,6 +917,15 @@ function renderCrops() {
         if (workerTta) workerRow.appendChild(el('span', 'tta-label', workerTta));
       }
       card.appendChild(workerRow);
+
+      const cropStatsRow = engine.cropStats.get(ct?.id) ?? { grown: 0, sold: 0, lifetimeSales: 0 };
+      const statsEl = el('div', 'ranch-stats-row');
+      statsEl.innerHTML = `
+        <span>🌾 Grown: <strong>${shortNumber(cropStatsRow.grown)}</strong></span>
+        <span>💰 Sold: <strong>${shortNumber(cropStatsRow.sold)}</strong></span>
+        <span>🪙 Earned: <strong>${shortNumber(cropStatsRow.lifetimeSales)}g</strong></span>
+      `;
+      card.appendChild(statsEl);
     }
 
     content.appendChild(card);
@@ -911,6 +941,17 @@ function renderRanch() {
   const ranchWorkers = engine.ranchWorkers;
   const ranchStats = engine.ranchStats;
   const totalSoldAllCrops = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
+
+  const topBar = el('div', 'crops-top-bar');
+  const qtyBar = el('div', 'buy-qty-bar');
+  for (const qty of [1, 5, 10, 25, 'max']) {
+    const btn = el('button', `buy-qty-btn${cropBuyQty === qty ? ' active' : ''}`, qty === 'max' ? 'Max' : `×${qty}`);
+    btn.title = qty === 'max' ? 'Use max quantity when possible' : `Use ${qty} at a time`;
+    btn.addEventListener('click', () => { cropBuyQty = qty; renderAll(); });
+    qtyBar.appendChild(btn);
+  }
+  topBar.appendChild(qtyBar);
+  content.appendChild(topBar);
 
   const header = el('div', 'ranch-header');
   header.innerHTML = `
@@ -954,9 +995,12 @@ function renderRanch() {
     const stats   = ranchStats.get(animal.id) ?? { produced: 0, sold: 0, lifetimeSales: 0 };
     const gps     = acres > 0 ? (animal.goldPerCycle * acres * wm * engine.getGoldMultiplier() * 4 * engine.gameSpeed) / animal.productionIntervalSecs : 0;
 
-    const acreCost   = acreUpgradeCost({ cost: animal.baseCost }, acres);
-    const workerCost = workerUpgradeCost({ cost: animal.baseCost }, workers);
-    const canAffordWorker = engine.gold.amount >= workerCost;
+    const workerCostFn = n => workerUpgradeCost({ cost: animal.baseCost }, n);
+    const qtyWorker = cropBuyQty === 'max'
+      ? maxAffordableCount(workerCostFn, workers, engine.gold.amount)
+      : cropBuyQty;
+    const workerTotalCost = qtyWorker > 0 ? bulkCost(workerCostFn, workers, qtyWorker) : 0;
+    const canAffordWorker = qtyWorker > 0 && engine.gold.amount >= workerTotalCost;
 
     const card = el('div', 'ranch-card ranch-card-unlocked');
 
@@ -977,51 +1021,66 @@ function renderRanch() {
     ranchInfoBtn.addEventListener('click', () => _goToCollection('ranch', animal.id));
     cardHead.appendChild(ranchInfoBtn);
 
-    // Upgrades row
-    const upgradeRow = el('div', 'ranch-upgrade-row');
-
-    const acreGroup = el('div', 'ranch-upgrade-group');
+    // Acre allocation row (matches crops layout)
     const freeAcresForRanch = engine.getFreeAcres();
-    const acreGroupHtml = `<span class="ranch-upgrade-label">🌿 Acreage: <strong>${acres}</strong></span>`;
-
-    acreGroup.innerHTML = acreGroupHtml;
+    const qtyRanchAcre = cropBuyQty === 'max' ? freeAcresForRanch : Math.min(cropBuyQty, freeAcresForRanch);
+    const qtyRemoveRanchAcre = cropBuyQty === 'max' ? acres : Math.min(cropBuyQty, acres);
+    const acreRow = el('div', 'acre-upgrade-row');
+    acreRow.innerHTML = `<span class="acre-label">Acres: <strong>${acres}</strong></span>`;
     const canAllocateRanch = freeAcresForRanch >= 1;
     const canRemoveRanch   = acres > 0;
     if (canRemoveRanch) {
-      const ranchRemoveBtn = el('button', 'action-btn ranch-upgrade-btn danger-btn', '−1 acre');
-      ranchRemoveBtn.addEventListener('click', () => { engine.deallocateRanchAcre(animal.id); renderAll(); });
-      acreGroup.appendChild(ranchRemoveBtn);
+      const ranchRemoveBtn = el('button', 'buy-btn acre-btn danger-btn',
+        qtyRemoveRanchAcre > 1 ? `−${qtyRemoveRanchAcre} acres` : '−1 acre');
+      ranchRemoveBtn.addEventListener('click', () => {
+        for (let i = 0; i < qtyRemoveRanchAcre; i++) engine.deallocateRanchAcre(animal.id);
+        renderAll();
+      });
+      acreRow.appendChild(ranchRemoveBtn);
     }
-    const ranchAllocBtn = el('button', `action-btn ranch-upgrade-btn${canAllocateRanch ? '' : ' disabled'}`,
-      canAllocateRanch ? `+1 acre (${freeAcresForRanch} free)` : 'No free acres');
+    const ranchAllocBtn = el('button', `buy-btn acre-btn${canAllocateRanch ? '' : ' disabled'}`,
+      canAllocateRanch
+        ? qtyRanchAcre > 1
+          ? `+${qtyRanchAcre} acres (${freeAcresForRanch} free)`
+          : `+1 acre (${freeAcresForRanch} free)`
+        : 'No free acres');
     if (canAllocateRanch) {
-      ranchAllocBtn.addEventListener('click', () => { engine.queueRanchAcre(animal.id, 1); renderAll(); });
+      ranchAllocBtn.addEventListener('click', () => {
+        engine.queueRanchAcre(animal.id, qtyRanchAcre);
+        renderAll();
+      });
     } else {
       ranchAllocBtn.disabled = true;
     }
-    acreGroup.appendChild(ranchAllocBtn);
+    acreRow.appendChild(ranchAllocBtn);
     if (!canAllocateRanch) {
-      const goLandBtnR = el('button', 'action-btn', '🗺️ Buy land');
+      const goLandBtnR = el('button', 'buy-btn', '🗺️ Buy land');
       goLandBtnR.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
-      acreGroup.appendChild(goLandBtnR);
+      acreRow.appendChild(goLandBtnR);
     }
-    upgradeRow.appendChild(acreGroup);
+    card.appendChild(acreRow);
 
-    const workerGroup = el('div', 'ranch-upgrade-group');
-    workerGroup.innerHTML = `<span class="ranch-upgrade-label">👷 Workers: <strong>${workers}</strong> <span class="worker-mult">(${wm.toFixed(2)}× speed)</span></span>`;
-    const workerBtn = el('button', `action-btn ranch-upgrade-btn${canAffordWorker ? '' : ' disabled'}`,
-      `+1 worker — 🪙 ${shortNumber(workerCost)}`);
+    // Worker upgrade row (matches crops layout)
+    const workerRow = el('div', 'acre-upgrade-row');
+    workerRow.innerHTML = `<span class="acre-label">Workers: <strong>${workers}</strong> <span style="color:#aaa;font-size:11px">(${wm.toFixed(2)}× speed)</span></span>`;
+    const workerBtn = el('button', `buy-btn acre-btn worker-btn${canAffordWorker ? '' : ' disabled'}`,
+      qtyWorker > 0
+        ? `+${qtyWorker} worker${qtyWorker !== 1 ? 's' : ''} — 🪙 ${shortNumber(workerTotalCost)}`
+        : '+workers — can\'t afford');
     if (canAffordWorker) {
-      workerBtn.addEventListener('click', () => { engine.upgradeRanchWorkers(animal.id); renderAll(); });
+      workerBtn.addEventListener('click', () => {
+        for (let i = 0; i < qtyWorker; i++) engine.upgradeRanchWorkers(animal.id);
+        renderAll();
+      });
     } else {
       workerBtn.disabled = true;
-      const workerTtaLabel = timeToUnlock(workerCost);
-      if (workerTtaLabel) workerGroup.appendChild(el('span', 'upgrade-tta', `TTA: ${workerTtaLabel}`));
+      if (qtyWorker > 0) {
+        const workerTtaLabel = timeToUnlock(workerTotalCost);
+        if (workerTtaLabel) workerRow.appendChild(el('span', 'tta-label', workerTtaLabel));
+      }
     }
-    workerGroup.appendChild(workerBtn);
-    upgradeRow.appendChild(workerGroup);
-
-    card.appendChild(upgradeRow);
+    workerRow.appendChild(workerBtn);
+    card.appendChild(workerRow);
 
     // Stats row
     const statsEl = el('div', 'ranch-stats-row');
@@ -1721,10 +1780,11 @@ function renderCollection() {
   const researchBio      = engine.getBiosphereScore();
   const gardenBio        = engine.getGardenBiosphereScore();
   const creatureBio      = engine.getCreatureBiosphereScore();
-  const totalBio         = researchBio + gardenBio + creatureBio;
   const maxResearchBio   = RESEARCH.reduce((s, r) => s + (r.effect?.biosphereBonus ?? 0), 0);
   const maxGardenBio     = ALL_PLANTS.reduce((s, p) => s + (p.biosphereBonus ?? 0), 0);
-  const maxTotal         = maxResearchBio + maxGardenBio + totalCreatures;
+  const birdBio          = engine.discoveredBirds.size;
+  const totalBio         = researchBio + gardenBio + creatureBio + birdBio;
+  const maxTotal         = maxResearchBio + maxGardenBio + totalCreatures + BIRD_LIST.length;
   const goldMult         = engine.getGoldMultiplier();
   const bioPct           = maxTotal > 0 ? Math.round(totalBio / maxTotal * 100) : 0;
   const completedResearchCount = engine.completedResearch.size;
@@ -1743,6 +1803,7 @@ function renderCollection() {
       <span>🌱 Conservation: <strong>${completedResearchCount}</strong> / ${totalResearchCount}</span>
       <span>🌿 Plants: <strong>${plantedCount}</strong> / ${totalPlantCount}</span>
       <span>🦋 Creatures: <strong>${discoveredCount}</strong> / ${totalCreatures}</span>
+      <span>🐦 Birds: <strong>${engine.discoveredBirds.size}</strong> / ${BIRD_LIST.length}</span>
       <span>💰 Gold Bonus: <strong>${goldMult.toFixed(2)}×</strong></span>
     </div>
   `;
@@ -1753,6 +1814,7 @@ function renderCollection() {
   const showCreatures = collectionFilter === 'all' || collectionFilter === 'creatures';
   const showRanch     = collectionFilter === 'all' || collectionFilter === 'ranch';
   const showHistory   = collectionFilter === 'history';
+  const showBirds     = collectionFilter === 'all' || collectionFilter === 'birds';
 
   // ── Filter bar ──────────────────────────────────────────────────────────────
   const filterBar = el('div', 'collection-filter-bar');
@@ -1761,6 +1823,7 @@ function renderCollection() {
     { key: 'crops',     label: `🌾 Crops (${unlockedCrops.length} / ${Object.keys(CROPS).length})`              },
     { key: 'plants',    label: `🌿 Native Plants (${planted.size} / ${totalPlantCount})`                         },
     { key: 'creatures', label: `🦋 Creatures (${discoveredCount} / ${totalCreatures})`                           },
+    { key: 'birds',     label: `🐦 Birds (${engine.discoveredBirds.size} / ${BIRD_LIST.length})`                 },
     { key: 'ranch',     label: `🐄 Ranch Animals (${unlockedRanchAnimals.size} / ${RANCH_ANIMAL_LIST.length})`  },
     { key: 'history',   label: `📊 History (${discoveredCount} / ${totalCreatures})` },
   ];
@@ -2018,6 +2081,68 @@ function renderCollection() {
 
   // ── Discovery history ──────────────────────────────────────────────
   if (showHistory) {
+      // ── Attracted birds ─────────────────────────────────────────────────────────
+      if (showBirds) {
+        const attractedBirds = engine.discoveredBirds;
+        const birdMetrics    = engine.getBirdMetrics();
+        content.appendChild(el('h2', 'section-header', `🐦 Birds Attracted — ${attractedBirds.size} of ${BIRD_LIST.length}`));
+        if (attractedBirds.size === 0) {
+          content.appendChild(el('p', 'research-idle-note', '— Build insect diversity and establish fruiting native plants to attract native bird visitors. —'));
+        }
+        const birdGrid = el('div', 'collection-creature-grid');
+        for (const bird of BIRD_LIST) {
+          const isAttracted = attractedBirds.has(bird.id);
+          const card = el('div', `collection-creature-card${isAttracted ? '' : ' collection-bird-locked'}`);
+          if (isAttracted) {
+            card.innerHTML = `
+              ${inatThumbHtml(bird.sci, 'collection-creature-card-thumb', bird.name)}
+              <div class="collection-creature-card-body">
+                <div class="collection-creature-head">
+                  <span class="collection-creature-name">${bird.name}</span>
+                  <span class="collection-creature-type-badge type-bird">🐦</span>
+                </div>
+                <a class="garden-plant-sci inat-link" href="${inatUrl(bird.sci)}" target="_blank" rel="noopener noreferrer">${bird.sci} ↗</a>
+                <span class="collection-creature-role">${bird.role}</span>
+                <p class="collection-creature-note">${bird.note}</p>
+                <div class="collection-host-label">Attracted by: <strong>${bird.attractedBy}</strong></div>
+                <span class="collection-creature-bp">+1 🌍 BP</span>
+              </div>
+            `;
+            const thumbImg = card.querySelector('.collection-creature-card-thumb');
+            if (thumbImg && thumbImg.src === BLANK_GIF) {
+              fetchInatPhoto(bird.sci).then(url => {
+                if (!url) return;
+                inatPhotoCache[bird.sci] = url;
+                thumbImg.src = url;
+              });
+            }
+          } else {
+            const c = bird.unlockCriteria;
+            const parts = [];
+            if (c.insectsDiscovered) parts.push(`🦋 ${birdMetrics.insectsDiscovered} / ${c.insectsDiscovered} insects`);
+            if (c.fruitingPlants)    parts.push(`🍒 ${birdMetrics.fruitingPlants} / ${c.fruitingPlants} fruiting plants`);
+            if (c.plantsEstablished) parts.push(`🌿 ${birdMetrics.plantsEstablished} / ${c.plantsEstablished} plants`);
+            if (c.hasPlantType) {
+              const has = birdMetrics.plantTypeEstablished.has(c.hasPlantType);
+              parts.push(`${has ? '✓' : '✗'} ${c.hasPlantType} established`);
+            }
+            card.innerHTML = `
+              <span class="collection-creature-card-thumb-icon">🐦</span>
+              <div class="collection-creature-card-body">
+                <div class="collection-creature-head">
+                  <span class="collection-creature-name undiscovered-name">${bird.name}</span>
+                  <span class="collection-creature-type-badge type-bird">🐦</span>
+                </div>
+                <span class="collection-creature-role">${bird.attractedBy}</span>
+                <div class="collection-host-label">Progress: ${parts.join(' · ')}</div>
+              </div>
+            `;
+          }
+          birdGrid.appendChild(card);
+        }
+        content.appendChild(birdGrid);
+      }
+
     content.appendChild(el('h2', 'section-header', `📊 Discovery Log — ${discoveredCount} creature${discoveredCount !== 1 ? 's' : ''} observed`));
 
     if (discoveredCount === 0) {
@@ -2237,6 +2362,57 @@ let _pendingScrollToCollection = null;  // { filter, id } to navigate to a speci
 const _notifLog = [];   // generic notification entries
 let _notifIdCounter = 0;
 const MAX_NOTIFICATIONS = 200;
+const NOTIF_SAVE_KEY = 'idle-ecologist-notifs-v1';
+
+function _serializeNotifs() {
+  return _notifLog.map(n => {
+    const base = { id: n.id, day: n.day, read: n.read, type: n.type };
+    if (n.type === 'discovery' || n.type === 'extirpated') return { ...base, ckey: n.ckey };
+    if (n.type === 'crop')     return { ...base, cropId: n.cropId };
+    if (n.type === 'ranch')    return { ...base, animalId: n.animalId };
+    if (n.type === 'plant')    return { ...base, plantId: n.plantId };
+    if (n.type === 'research')      return { ...base, researchId: n.researchId };
+    if (n.type === 'bird_attracted') return { ...base, birdId: n.birdId };
+    return base;
+  });
+}
+
+function _saveNotifs() {
+  try { localStorage.setItem(NOTIF_SAVE_KEY, JSON.stringify(_serializeNotifs())); } catch {}
+}
+
+function _loadNotifs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NOTIF_SAVE_KEY) || '[]');
+    if (!Array.isArray(raw)) return;
+    for (const n of raw) {
+      let extra = null;
+      if (n.type === 'discovery' || n.type === 'extirpated') {
+        const { creature, hostPlants } = _resolveCreature(n.ckey);
+        if (creature) extra = { ckey: n.ckey, creature, hostPlants };
+      } else if (n.type === 'crop') {
+        const cropType = CROPS[n.cropId];
+        if (cropType) extra = { cropId: n.cropId, cropType };
+      } else if (n.type === 'ranch') {
+        const animal = RANCH_ANIMAL_LIST.find(a => a.id === n.animalId);
+        if (animal) extra = { animalId: n.animalId, animal };
+      } else if (n.type === 'plant') {
+        const plant = ALL_PLANTS.find(p => p.id === n.plantId);
+        if (plant) extra = { plantId: n.plantId, plant };
+      } else if (n.type === 'research') {
+        const project = RESEARCH.find(r => r.id === n.researchId);
+        if (project) extra = { researchId: n.researchId, project };
+      } else if (n.type === 'bird_attracted') {
+        const bird = BIRDS[n.birdId];
+        if (bird) extra = { birdId: n.birdId, bird };
+      }
+      if (extra) {
+        _notifLog.push({ id: n.id, day: n.day, read: n.read, type: n.type, ...extra });
+        if (n.id > _notifIdCounter) _notifIdCounter = n.id;
+      }
+    }
+  } catch {}
+}
 
 const notifWrap  = document.getElementById('notif-wrap');
 const notifModal = document.getElementById('notif-modal');
@@ -2258,6 +2434,7 @@ function _pushNotif(entry) {
   _notifLog.unshift({ id: ++_notifIdCounter, day: engine.inGameDay, read: false, ...entry });
   if (_notifLog.length > MAX_NOTIFICATIONS) _notifLog.length = MAX_NOTIFICATIONS;
   updateNotifBadge();
+  _saveNotifs();
 }
 
 function _pushCreatureNotif(type, ckey) {
@@ -2267,6 +2444,17 @@ function _pushCreatureNotif(type, ckey) {
 }
 
 engine.onCreatureExtirpated = ckey => _pushCreatureNotif('extirpated', ckey);
+
+function _pushBirdNotif(birdId) {
+  const bird = BIRDS[birdId];
+  if (!bird) return;
+  _pushNotif({ type: 'bird_attracted', birdId, bird });
+}
+
+engine.onBirdAttracted = birdId => _pushBirdNotif(birdId);
+
+_loadNotifs();
+updateNotifBadge();
 
 let _notifTab = 'unread'; // 'unread' | 'read'
 
@@ -2310,7 +2498,13 @@ function _buildNotifList() {
       badgeLabel = type === 'discovery' ? '🔍 New Discovery' : '⚠️ Extirpated';
       nameHtml = `<div class="notif-entry-name">${creature.name}</div>`
         + (creature.sci ? `<a class="garden-plant-sci inat-link" href="${inatUrl(creature.sci)}" target="_blank" rel="noopener noreferrer">${creature.sci} ↗</a>` : '');
-      subHtml = `<div class="notif-entry-host">${type === 'discovery' ? 'Host' : 'Host removed'}: <strong>${hostNames}</strong></div>`;
+      subHtml = `
+        <div class="notif-entry-host">${type === 'discovery' ? 'Host' : 'Host removed'}: <strong>${hostNames}</strong></div>
+        <div class="notif-entry-host">Type: <strong>${typeInfo.label}</strong></div>
+        ${creature.role ? `<div class="notif-entry-desc">${creature.role}</div>` : ''}
+        ${creature.note ? `<div class="notif-entry-desc">${creature.note}</div>` : ''}
+        <div class="notif-entry-host">Biosphere: <strong>+1 BP</strong></div>
+      `;
       if (creature.sci && thumbSrc === BLANK_GIF) {
         fetchInatPhoto(creature.sci).then(url => {
           if (!url) return;
@@ -2330,6 +2524,11 @@ function _buildNotifList() {
       }
     } else if (type === 'crop') {
       const { cropType } = notif;
+      const cropStatsRow = engine.cropStats.get(cropType.id) ?? { grown: 0, sold: 0, lifetimeSales: 0 };
+      const seasonText = (cropType.seasons ?? []).map(s => {
+        const sObj = SEASONS.find(x => x.name === s);
+        return `${sObj?.emoji ?? ''} ${s}`.trim();
+      }).join(' · ');
       const thumbSrc = STATIC_INAT_PHOTOS[cropType.sciName] || inatPhotoCache[cropType.sciName] || BLANK_GIF;
       thumbHtml = cropType.sciName
         ? `<img class="inat-thumb notif-thumb" data-sci="${cropType.sciName}" src="${thumbSrc}" alt="${cropType.name}">`
@@ -2339,7 +2538,12 @@ function _buildNotifList() {
       nameHtml = `<div class="notif-entry-name">${cropType.name}</div>`
         + (cropType.sciName ? `<a class="garden-plant-sci inat-link" href="${inatUrl(cropType.sciName)}" target="_blank" rel="noopener noreferrer">${cropType.sciName} ↗</a>` : '');
       const _cropDescCached = cropType.sciName ? (inatDescCache[cropType.sciName] ?? null) : null;
-      subHtml = `<div class="notif-entry-host">Now available in 🌾 Crops</div>${cropType.sciName ? `<div class="notif-entry-desc" data-inat-desc="${cropType.sciName}">${_cropDescCached ?? ''}</div>` : ''}`;
+      subHtml = `
+        <div class="notif-entry-host">Now available in 🌾 Crops</div>
+        ${seasonText ? `<div class="notif-entry-host">Seasons: <strong>${seasonText}</strong></div>` : ''}
+        <div class="notif-entry-host">🌾 Harvested: <strong>${shortNumber(cropStatsRow.grown)}</strong> · 💰 Sold: <strong>${shortNumber(cropStatsRow.sold)}</strong> · 🪙 Earned: <strong>${shortNumber(cropStatsRow.lifetimeSales)}g</strong></div>
+        ${cropType.sciName ? `<div class="notif-entry-desc" data-inat-desc="${cropType.sciName}">${_cropDescCached ?? ''}</div>` : ''}
+      `;
       if (cropType.sciName && thumbSrc === BLANK_GIF) {
         fetchInatPhoto(cropType.sciName).then(url => {
           if (!url) return;
@@ -2351,6 +2555,7 @@ function _buildNotifList() {
       gotoHandler = () => { closeNotifModal(); activeTab = 'crops'; setFabOpen(false); renderAll(); };
     } else if (type === 'ranch') {
       const { animal } = notif;
+      const ranchStatsRow = engine.ranchStats.get(animal.id) ?? { produced: 0, sold: 0, lifetimeSales: 0 };
       const thumbSrc = STATIC_INAT_PHOTOS[animal.sci] || inatPhotoCache[animal.sci] || BLANK_GIF;
       thumbHtml = animal.sci
         ? `<img class="inat-thumb notif-thumb" data-sci="${animal.sci}" src="${thumbSrc}" alt="${animal.name}">`
@@ -2359,7 +2564,12 @@ function _buildNotifList() {
       badgeLabel = '🐄 Animal Unlocked';
       nameHtml = `<div class="notif-entry-name">${animal.name}</div>`
         + (animal.sci ? `<a class="garden-plant-sci inat-link" href="${inatUrl(animal.sci)}" target="_blank" rel="noopener noreferrer">${animal.sci} ↗</a>` : '');
-      subHtml = `<div class="notif-entry-host">Product: <strong>${animal.product}</strong></div>${animal.desc ? `<div class="notif-entry-desc">${animal.desc}</div>` : ''}`;
+      subHtml = `
+        <div class="notif-entry-host">Product: <strong>${animal.product}</strong></div>
+        <div class="notif-entry-host">🐄 Cycles: <strong>${shortNumber(ranchStatsRow.produced)}</strong> · 💰 Sold: <strong>${shortNumber(ranchStatsRow.sold)}</strong> · 🪙 Earned: <strong>${shortNumber(ranchStatsRow.lifetimeSales)}g</strong></div>
+        ${animal.care ? `<div class="notif-entry-desc">${animal.care}</div>` : ''}
+        ${animal.desc ? `<div class="notif-entry-desc">${animal.desc}</div>` : ''}
+      `;
       if (animal.sci && thumbSrc === BLANK_GIF) {
         fetchInatPhoto(animal.sci).then(url => {
           if (!url) return;
@@ -2371,13 +2581,21 @@ function _buildNotifList() {
       gotoHandler = () => { closeNotifModal(); activeTab = 'ranch'; setFabOpen(false); renderAll(); };
     } else if (type === 'plant') {
       const { plant } = notif;
+      const discoveredHere = (plant.insectsHosted ?? []).filter(c => engine.discoveredCreatures.has(engine.creatureKey(c.name))).length;
+      const totalHere = (plant.insectsHosted ?? []).length;
       const thumbSrc = STATIC_INAT_PHOTOS[plant.sci] || inatPhotoCache[plant.sci] || BLANK_GIF;
       thumbHtml = `<img class="inat-thumb notif-thumb" data-sci="${plant.sci}" src="${thumbSrc}" alt="${plant.name}">`;
       badgeClass = 'notif-badge-plant';
       badgeLabel = '🌿 Plant Established';
       nameHtml = `<div class="notif-entry-name">${plant.name}</div>`
         + `<a class="garden-plant-sci inat-link" href="${inatUrl(plant.sci)}" target="_blank" rel="noopener noreferrer">${plant.sci} ↗</a>`;
-      subHtml = `<div class="notif-entry-host">Hosts <strong>${plant.insectsHosted?.length ?? 0}</strong> species</div>${plant.desc ? `<div class="notif-entry-desc">${plant.desc}</div>` : ''}`;
+      subHtml = `
+        <div class="notif-entry-host">Hosts <strong>${totalHere}</strong> species · Observed <strong>${discoveredHere}/${totalHere}</strong></div>
+        <div class="notif-entry-host">Type: <strong>${plant.type}</strong>${plant.height ? ` · Height: <strong>${plant.height}</strong>` : ''}${plant.seasonOfInterest ? ` · Focus: <strong>${plant.seasonOfInterest}</strong>` : ''}</div>
+        <div class="notif-entry-host">Biosphere: <strong>+${plant.biosphereBonus ?? 0} BP</strong>${plant.caterpillarSpp ? ` · Supports <strong>${plant.caterpillarSpp}+</strong> caterpillar species` : ''}</div>
+        ${plant.wildlifeNote ? `<div class="notif-entry-desc">${plant.wildlifeNote}</div>` : ''}
+        ${plant.desc ? `<div class="notif-entry-desc">${plant.desc}</div>` : ''}
+      `;
       if (thumbSrc === BLANK_GIF) {
         fetchInatPhoto(plant.sci).then(url => {
           if (!url) return;
@@ -2399,11 +2617,46 @@ function _buildNotifList() {
       badgeClass = 'notif-badge-research';
       badgeLabel = '🌱 Project Complete';
       nameHtml = `<div class="notif-entry-name">${project.name}</div>`;
-      subHtml = `<div class="notif-entry-host">${project.effect?.label ?? ''}</div>${project.desc ? `<div class="notif-entry-desc">${project.desc}</div>` : ''}`;
+      const bp = project.effect?.biosphereBonus ?? 0;
+      subHtml = `
+        ${project.effect?.label ? `<div class="notif-entry-host">${project.effect.label}</div>` : ''}
+        ${bp > 0 ? `<div class="notif-entry-host">Biosphere: <strong>+${bp} BP</strong></div>` : ''}
+        ${project.desc ? `<div class="notif-entry-desc">${project.desc}</div>` : ''}
+      `;
       gotoHandler = () => { closeNotifModal(); activeTab = 'research'; setFabOpen(false); renderAll(); };
     }
 
     entry.innerHTML = `
+          } else if (type === 'bird_attracted') {
+            const { bird } = notif;
+            const thumbSrc = STATIC_INAT_PHOTOS[bird.sci] || inatPhotoCache[bird.sci] || BLANK_GIF;
+            thumbHtml = `<img class="inat-thumb notif-thumb" data-sci="${bird.sci}" src="${thumbSrc}" alt="${bird.name}">`;
+            badgeClass = 'notif-badge-bird';
+            badgeLabel = '🐦 Bird Attracted';
+            nameHtml = `<div class="notif-entry-name">${bird.name}</div>`
+              + `<a class="garden-plant-sci inat-link" href="${inatUrl(bird.sci)}" target="_blank" rel="noopener noreferrer">${bird.sci} ↗</a>`;
+            subHtml = `
+              <div class="notif-entry-host">Attracted by: <strong>${bird.attractedBy}</strong></div>
+              <div class="notif-entry-host">Role: <strong>${bird.role}</strong></div>
+              ${bird.note ? `<div class="notif-entry-desc">${bird.note}</div>` : ''}
+              <div class="notif-entry-host">Biosphere: <strong>+1 BP</strong></div>
+            `;
+            if (thumbSrc === BLANK_GIF) {
+              fetchInatPhoto(bird.sci).then(url => {
+                if (!url) return;
+                inatPhotoCache[bird.sci] = url;
+                const img = entry.querySelector('.notif-thumb');
+                if (img) img.src = url;
+              });
+            }
+            gotoHandler = () => {
+              closeNotifModal();
+              _pendingScrollToCollection = { filter: 'birds' };
+              activeTab = 'collection';
+              setFabOpen(false);
+              renderAll();
+            };
+          }
       <div class="notif-entry-thumb">${thumbHtml}</div>
       <div class="notif-entry-body">
         <div class="notif-entry-top">
@@ -2425,6 +2678,7 @@ function _buildNotifList() {
         const idx = _notifLog.findIndex(n => n.id === notif.id);
         if (idx >= 0) _notifLog.splice(idx, 1);
       }
+      _saveNotifs();
       updateNotifBadge();
       _buildNotifList();
     });
@@ -2441,6 +2695,7 @@ function openNotifModal() {
 }
 function closeNotifModal() {
   _notifLog.forEach(n => { n.read = true; });
+  _saveNotifs();
   updateNotifBadge();
   notifModal.hidden = true;
 }

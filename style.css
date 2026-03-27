@@ -2,6 +2,8 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+button, input, select, label, a { touch-action: manipulation; }
+
 /* ── Seasonal CSS variables ─────────────────────────────── */
 :root {
   /* primary chrome accent: header border, active tab, section headers, buttons */
@@ -414,6 +416,7 @@ body {
 .notif-badge-ranch      { background: rgba(180,120,60,0.25);  color: #e0a060; }
 .notif-badge-plant      { background: rgba(60,160,120,0.25);  color: #7edcb0; }
 .notif-badge-research   { background: rgba(100,160,220,0.22); color: #90caf9; }
+.notif-badge-bird        { background: rgba(100,180,240,0.22); color: #80d8ff; }
 .notif-entry-date { font-size: 11px; color: #555; margin-left: auto; white-space: nowrap; }
 .notif-entry-name { font-size: 14px; font-weight: 700; color: #e0e0e0; }
 .notif-entry-host { font-size: 12px; color: #777; }

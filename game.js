@@ -5,6 +5,7 @@ import { CROPS, CropInstance } from './crops.js';
 import { RESEARCH }            from './research.js';
 import { ECOREGIONS, findPlant } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
+import { BIRD_LIST } from './birds.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 export const YEAR_REAL_SECS = 8 * 3600;             // 8 real hours = 1 in-game year
@@ -233,6 +234,7 @@ export function createEngine() {
 
   // Reverse lookup: creature slug → array of plantIds that host it (built once)
   const creatureHostPlants = new Map();
+  const creatureTypeMap    = new Map(); // ckey → creature type string ('butterfly', 'bird', etc.)
   for (const _heco of ECOREGIONS) {
     for (const _hplant of _heco.plants) {
       for (const _hc of (_hplant.insectsHosted ?? [])) {
@@ -240,7 +242,47 @@ export function createEngine() {
         const _harr = creatureHostPlants.get(_hck);
         if (_harr) _harr.push(_hplant.id);
         else creatureHostPlants.set(_hck, [_hplant.id]);
+        if (!creatureTypeMap.has(_hck)) creatureTypeMap.set(_hck, _hc.type);
       }
+    }
+  }
+
+  // ── Bird attraction state ─────────────────────────────────────────────────
+  // Birds are attracted as insect diversity increases and fruiting plants establish.
+  // Separate from the creatures-in-insectsHosted discovery system.
+  const discoveredBirds = new Set(); // bird IDs from birds.js that have been attracted
+  let _onBirdAttracted  = (birdId) => {};
+
+  /** Metrics used to determine which birds can be attracted. */
+  function getBirdMetrics() {
+    let insectsDiscovered = 0;
+    for (const ckey of discoveredCreatures) {
+      const type = creatureTypeMap.get(ckey);
+      if (type !== 'bird' && type !== 'mammal') insectsDiscovered++;
+    }
+    let fruitingPlants = 0;
+    const plantTypeEstablished = new Set();
+    for (const plantId of plantedSpecies) {
+      const result = findPlant(plantId);
+      if (!result) continue;
+      if (result.plant.hasFruit) fruitingPlants++;
+      if (result.plant.type) plantTypeEstablished.add(result.plant.type);
+    }
+    return { insectsDiscovered, fruitingPlants, plantsEstablished: plantedSpecies.size, plantTypeEstablished };
+  }
+
+  /** Check all birds and attract any whose criteria are now met. Called each tick. */
+  function checkBirdAttractions() {
+    const metrics = getBirdMetrics();
+    for (const bird of BIRD_LIST) {
+      if (discoveredBirds.has(bird.id)) continue;
+      const c = bird.unlockCriteria;
+      if (c.insectsDiscovered  && metrics.insectsDiscovered  < c.insectsDiscovered)  continue;
+      if (c.plantsEstablished  && metrics.plantsEstablished  < c.plantsEstablished)  continue;
+      if (c.fruitingPlants     && metrics.fruitingPlants     < c.fruitingPlants)     continue;
+      if (c.hasPlantType       && !metrics.plantTypeEstablished.has(c.hasPlantType)) continue;
+      discoveredBirds.add(bird.id);
+      _onBirdAttracted(bird.id);
     }
   }
 
@@ -284,7 +326,8 @@ export function createEngine() {
   // Scales from 1× (0 BP) to 5× (all BP unlocked) using a power-1.5 curve.
   const MAX_BP = RESEARCH.reduce((s, r) => s + (r.effect?.biosphereBonus ?? 0), 0)
                + ECOREGIONS.flatMap(e => e.plants).reduce((s, p) => s + (p.biosphereBonus ?? 0), 0)
-               + new Set(ECOREGIONS.flatMap(e => e.plants).flatMap(p => (p.insectsHosted ?? []).map(c => creatureKey(c.name)))).size;
+               + new Set(ECOREGIONS.flatMap(e => e.plants).flatMap(p => (p.insectsHosted ?? []).map(c => creatureKey(c.name)))).size
+               + BIRD_LIST.length; // each attractable bird = 1 potential BP
 
   function goldMultiplier() {
     if (MAX_BP <= 0) return 1;
@@ -294,7 +337,7 @@ export function createEngine() {
     }, 0) + [...plantedSpeciesAcres.entries()].reduce((sum, [id, acres]) => {
       const result = findPlant(id);
       return sum + (result?.plant?.biosphereBonus ?? 0) * acres;
-    }, 0) + discoveredCreatures.size;
+    }, 0) + discoveredCreatures.size + discoveredBirds.size;
     const t = currentBP / MAX_BP;
     return 1 + 4 * Math.pow(t, 1.5);
   }
@@ -747,6 +790,7 @@ export function createEngine() {
     runAutoPilot();
     checkAutoUnlocks();
     checkRanchUnlocks();
+    checkBirdAttractions();
   }
 
   // ── Offline simulation ──────────────────────────────────────────────────────
@@ -888,6 +932,7 @@ export function createEngine() {
       habitatRiskCreatures: Object.fromEntries([...habitatRiskCreatures].map(([k, v]) => [k, { ...v }])),
       landMarket:           landMarket.map(p => ({ ...p })),
       nextMarketDripDay,    _landMarketNextId,
+      discoveredBirds: [...discoveredBirds],
       savedAt: Date.now(),
     };
   }
@@ -1084,6 +1129,11 @@ export function createEngine() {
 
     checkAutoUnlocks(); // re-derive zoneProductMap and catch any new unlocks
     checkRanchUnlocks();
+    if (Array.isArray(s.discoveredBirds)) {
+      discoveredBirds.clear();
+      const _validBirdIds = new Set(BIRD_LIST.map(b => b.id));
+      s.discoveredBirds.forEach(id => { if (_validBirdIds.has(id)) discoveredBirds.add(id); });
+    }
   }
 
   function clearSave() { localStorage.removeItem(SAVE_KEY); }
@@ -1265,6 +1315,9 @@ export function createEngine() {
     getAllocatedAcres,
     getFreeAcres,
     set onCreatureExtirpated(fn) { _onCreatureExtirpated = fn; },
+  discoveredBirds,
+  getBirdMetrics,
+  set onBirdAttracted(fn) { _onBirdAttracted = fn; },
 
     buyLandParcel(parcelId) {
       const idx = landMarket.findIndex(p => p.id === parcelId);
