@@ -398,11 +398,11 @@ function _syncTabLayout() {
 
   const showOverflow = isCompact && overflowTabs.length > 0;
   tabOverflowBtn.hidden = !showOverflow;
-  if (showOverflow) {
+  if (!showOverflow) {
+    setFabOpen(false);
+  } else {
     _renderOverflowTabs(overflowTabs);
     tabOverflowBtn.classList.toggle('active', overflowTabs.includes(activeTab));
-  } else {
-    setFabOpen(false);
   }
 }
 
@@ -424,6 +424,15 @@ TABS.forEach(tab => {
 
 tabButtonsEl.appendChild(tabOverflowBtn);
 
+// Create notification tab button
+const notifTabBtn = el('button', 'tab-btn tab-notif-btn');
+notifTabBtn.id = 'notif-btn';
+notifTabBtn.innerHTML = '<span class="tab-btn-icon">🔔</span><span id="notif-badge"></span>';
+notifTabBtn.title = 'Notifications';
+notifTabBtn.setAttribute('aria-label', 'View notifications');
+notifTabBtn.addEventListener('click', openNotifModal);
+tabButtonsEl.appendChild(notifTabBtn);
+
 tabOverflowBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   setFabOpen(!fabOpen);
@@ -435,10 +444,67 @@ document.addEventListener('click', (e) => {
   setFabOpen(false);
 });
 
+// Initialize tab layout on page load
+_syncTabLayout();
+
 window.addEventListener('resize', () => {
   _syncTabLayout();
   tabButtonsEl.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
 });
+
+// ── Swipe navigation ──────────────────────────────────────────────────────────
+let swipeStartX = 0;
+let swipeStartY = 0;
+const SWIPE_MIN_DISTANCE = 40;
+const SWIPE_MAX_TIME = 500;
+let swipeStartTime = 0;
+
+document.addEventListener('touchstart', (e) => {
+  swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
+  swipeStartTime = Date.now();
+}, false);
+
+document.addEventListener('touchend', (e) => {
+  const swipeEndX = e.changedTouches[0].clientX;
+  const swipeEndY = e.changedTouches[0].clientY;
+  const swipeTime = Date.now() - swipeStartTime;
+  const swipeDeltaX = swipeEndX - swipeStartX;
+  const swipeDeltaY = swipeEndY - swipeStartY;
+  
+  // Ignore if too slow or if vertical movement was greater than horizontal
+  if (swipeTime > SWIPE_MAX_TIME || Math.abs(swipeDeltaY) > Math.abs(swipeDeltaX)) return;
+  
+  // Ignore small swipes
+  if (Math.abs(swipeDeltaX) < SWIPE_MIN_DISTANCE) return;
+  
+  // Don't swipe if the target is in the tab bar itself
+  const target = e.target;
+  if (target.closest('#tab-bar')) return;
+  
+  // Find current tab index
+  const currentIndex = TABS.indexOf(activeTab);
+  if (currentIndex === -1) return;
+  
+  let nextIndex = currentIndex;
+  // Swipe right = previous tab
+  if (swipeDeltaX > 0 && currentIndex > 0) {
+    nextIndex = currentIndex - 1;
+  }
+  // Swipe left = next tab
+  else if (swipeDeltaX < 0 && currentIndex < TABS.length - 1) {
+    nextIndex = currentIndex + 1;
+  } else {
+    return;
+  }
+  
+  const nextTab = TABS[nextIndex];
+  if (nextTab) {
+    activeTab = nextTab;
+    setFabOpen(false);
+    renderAll();
+  }
+}, false);
 
 const content = document.getElementById('content');
 
@@ -2296,6 +2362,126 @@ function renderCollection() {
   }
 }
 
+// ── CROP LOADOUT SYSTEM ──────────────────────────────────────────────────────
+const LOADOUT_SAVE_KEY = 'idle-ecologist-loadouts-v1';
+const LOADOUT_SLOTS = ['a', 'b', 'c'];
+const SEASONS_LIST = ['Spring', 'Summer', 'Fall', 'Winter'];
+
+function _getLoadoutKey(season, slot) {
+  return `${season}:${slot}`;
+}
+
+function saveLoadout(season, slot) {
+  const loadout = {};
+  for (const def of FARM_ZONE_DEFS) {
+    const acres = engine.zoneAcres.get(def.name) ?? 0;
+    if (acres > 0) {
+      loadout[def.name] = acres;
+    }
+  }
+
+  const allLoadouts = JSON.parse(localStorage.getItem(LOADOUT_SAVE_KEY) || '{}');
+  const key = _getLoadoutKey(season, slot);
+  allLoadouts[key] = loadout;
+  try {
+    localStorage.setItem(LOADOUT_SAVE_KEY, JSON.stringify(allLoadouts));
+    return true;
+  } catch {
+    console.warn('Failed to save loadout');
+    return false;
+  }
+}
+
+function getLoadout(season, slot) {
+  const allLoadouts = JSON.parse(localStorage.getItem(LOADOUT_SAVE_KEY) || '{}');
+  const key = _getLoadoutKey(season, slot);
+  return allLoadouts[key] || null;
+}
+
+function isLoadoutEmpty(season, slot) {
+  const loadout = getLoadout(season, slot);
+  return !loadout || Object.keys(loadout).length === 0;
+}
+
+function loadLoadout(season, slot) {
+  const loadout = getLoadout(season, slot);
+  if (!loadout) return false;
+
+  // Calculate total acres needed
+  let totalNeeded = 0;
+  for (const def of FARM_ZONE_DEFS) {
+    totalNeeded += loadout[def.name] ?? 0;
+  }
+
+  // Get available acres (including currently allocated)
+  const totalAcres = engine.totalLandAcres;
+  const currentCropAcres = Array.from(engine.zoneAcres.values()).reduce((a, b) => a + b, 0);
+  const currentPlantAcres = Array.from(engine.plantedSpeciesAcres.values()).reduce((a, b) => a + b, 0);
+  const currentlyUsed = currentCropAcres + currentPlantAcres;
+  const freeAcres = totalAcres - currentlyUsed;
+
+  if (totalNeeded <= totalAcres) {
+    // Case 1: Simple case — we have enough total acres
+    const deficitAcres = totalNeeded - freeAcres;
+    if (deficitAcres > 0) {
+      // Need to remove acres from existing crops to make room
+      _removeAcresToMakeRoom(deficitAcres);
+    }
+    // Apply the loadout
+    _applyLoadout(loadout);
+    return true;
+  } else {
+    // Case 2: Not enough total acres — should not happen, but handle gracefully
+    console.warn('Not enough total acres for loadout');
+    return false;
+  }
+}
+
+function _removeAcresToMakeRoom(acresNeeded) {
+  // Build a list of all crops with acres, sorted by yield (lowest cost first)
+  const crops = [];
+  for (const def of FARM_ZONE_DEFS) {
+    const acres = engine.zoneAcres.get(def.name) ?? 0;
+    if (acres > 0) {
+      const cropType = CROPS[def.cropId];
+      crops.push({
+        zoneName: def.name,
+        acres: acres,
+        yieldGold: cropType?.yieldGold ?? 0,
+      });
+    }
+  }
+
+  // Sort by yield (lowest first) to remove cheapest crops
+  crops.sort((a, b) => a.yieldGold - b.yieldGold);
+
+  // Remove acres starting from lowest-yield crops
+  let removed = 0;
+  for (const crop of crops) {
+    if (removed >= acresNeeded) break;
+    const removeCount = Math.min(crop.acres, acresNeeded - removed);
+    for (let i = 0; i < removeCount; i++) {
+      engine.deallocateCropAcre(crop.zoneName);
+    }
+    removed += removeCount;
+  }
+}
+
+function _applyLoadout(loadout) {
+  // First clear all current crop acres
+  for (const def of FARM_ZONE_DEFS) {
+    const currentAcres = engine.zoneAcres.get(def.name) ?? 0;
+    for (let i = 0; i < currentAcres; i++) {
+      engine.deallocateCropAcre(def.name);
+    }
+  }
+
+  // Now apply the loadout
+  for (const [zoneName, targetAcres] of Object.entries(loadout)) {
+    engine.queueCropAcre(zoneName, targetAcres);
+  }
+}
+
 // ── SETTINGS TAB ─────────────────────────────────────────────────────────────
 function renderSettings() {
   content.appendChild(el('h2', 'section-header', '⚙️ Settings'));
@@ -2419,6 +2605,61 @@ function renderSettings() {
   btnRow.appendChild(resetBtn);
   saveSection.appendChild(btnRow);
   content.appendChild(saveSection);
+
+  // Crop Loadouts
+  const loadoutSection = el('div', 'settings-section');
+  loadoutSection.appendChild(el('div', 'settings-label', '🌾 Seasonal Crop Loadouts'));
+  loadoutSection.appendChild(el('p', 'settings-desc', 'Save your current crop setup as a loadout for this season. When the season returns, load it back to restore your layout. Each season has 3 slots (A, B, C). Native plants are never removed.'));
+
+  const currentSeason = engine.currentSeasonName;
+
+  LOADOUT_SLOTS.forEach(slot => {
+    const slotRow = el('div', 'loadout-slot-row');
+    const isEmpty = isLoadoutEmpty(currentSeason, slot);
+
+    const slotLabel = el('span', 'loadout-slot-label', `${currentSeason} slot ${slot.toUpperCase()}: ${isEmpty ? '(empty)' : '✓ saved'}`);
+    slotRow.appendChild(slotLabel);
+
+    const btnContainer = el('div', 'loadout-btn-group');
+
+    const saveBtn = el('button', 'action-btn loadout-save-btn', `Save ${slot.toUpperCase()}`);
+    saveBtn.addEventListener('click', () => {
+      const success = saveLoadout(currentSeason, slot);
+      if (success) {
+        saveBtn.textContent = `✅ Saved!`;
+        setTimeout(() => {
+          saveBtn.textContent = `Save ${slot.toUpperCase()}`;
+          renderAll();
+        }, 1500);
+      }
+    });
+    btnContainer.appendChild(saveBtn);
+
+    if (!isEmpty) {
+      const loadBtn = el('button', 'action-btn loadout-load-btn', `Load ${slot.toUpperCase()}`);
+      loadBtn.addEventListener('click', () => {
+        const success = loadLoadout(currentSeason, slot);
+        if (success) {
+          loadBtn.textContent = `✅ Loaded!`;
+          setTimeout(() => {
+            loadBtn.textContent = `Load ${slot.toUpperCase()}`;
+            renderAll();
+          }, 1500);
+        } else {
+          loadBtn.textContent = `❌ Error`;
+          setTimeout(() => {
+            loadBtn.textContent = `Load ${slot.toUpperCase()}`;
+          }, 1500);
+        }
+      });
+      btnContainer.appendChild(loadBtn);
+    }
+
+    slotRow.appendChild(btnContainer);
+    loadoutSection.appendChild(slotRow);
+  });
+
+  content.appendChild(loadoutSection);
 }
 
 // ── Offline toast ─────────────────────────────────────────────────────────────
@@ -2562,6 +2803,13 @@ function _pushCreatureNotif(type, ckey) {
 
 engine.onCreatureExtirpated = ckey => _pushCreatureNotif('extirpated', ckey);
 
+engine.onSeasonChange = (oldSeason, newSeason) => {
+  // Auto-load slot A for the new season if it exists
+  if (!isLoadoutEmpty(newSeason, 'a')) {
+    loadLoadout(newSeason, 'a');
+  }
+};
+
 function _pushBirdNotif(birdId) {
   const bird = BIRDS[birdId];
   if (!bird) return;
@@ -2577,7 +2825,8 @@ let _notifTab = 'unread'; // 'unread' | 'read'
 
 function updateNotifBadge() {
   const unread = _notifLog.filter(n => !n.read).length;
-  notifWrap.classList.toggle('has-unread', unread > 0);
+  const notifBtn = document.getElementById('notif-btn');
+  if (notifBtn) notifBtn.classList.toggle('has-unread', unread > 0);
   const badge = document.getElementById('notif-badge');
   if (badge) badge.textContent = unread > 0 ? (unread > 99 ? '99+' : String(unread)) : '';
 }
@@ -2821,7 +3070,6 @@ function closeNotifModal() {
   notifModal.hidden = true;
 }
 
-document.getElementById('notif-btn').addEventListener('click', openNotifModal);
 document.getElementById('notif-close').addEventListener('click', closeNotifModal);
 document.getElementById('notif-backdrop').addEventListener('click', closeNotifModal);
 document.getElementById('notif-tab-unread').addEventListener('click', () => { _notifTab = 'unread'; _buildNotifList(); });

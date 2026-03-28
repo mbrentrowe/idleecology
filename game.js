@@ -598,8 +598,13 @@ export function createEngine() {
   // The UI can set engine.onCreatureExtirpated to a function(ckey) for notifications.
   let _onCreatureExtirpated = (ckey) => { /* default: no-op; UI overrides this */ };
 
+  // ── Season change event (overridable from UI layer) ─────────────────────────
+  // The UI can set engine.onSeasonChange to a function(oldSeason, newSeason) for auto-loading.
+  let _onSeasonChange = (oldSeason, newSeason) => { /* default: no-op; UI overrides this */ };
+
   // ── Season transitions ─────────────────────────────────────────────────────
   function onSeasonChange(oldSeason, newSeason) {
+    _onSeasonChange(oldSeason, newSeason);
     for (const [zoneName, instance] of zoneCrops) {
       if (!unlockedFarmZones.has(zoneName)) continue;
       const ct = instance.cropType;
@@ -1327,6 +1332,7 @@ export function createEngine() {
     getAllocatedAcres,
     getFreeAcres,
     set onCreatureExtirpated(fn) { _onCreatureExtirpated = fn; },
+    set onSeasonChange(fn) { _onSeasonChange = fn; },
   discoveredBirds,
   getBirdMetrics,
   set onBirdAttracted(fn) { _onBirdAttracted = fn; },

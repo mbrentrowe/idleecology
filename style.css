@@ -154,6 +154,7 @@ body {
   font-size: 12px;
   line-height: 1;
   white-space: nowrap;
+  display: none;
 }
 .tab-btn-alert {
   font-size: 11px;
@@ -163,8 +164,8 @@ body {
 .tab-btn.active .tab-btn-alert { color: #633300; }
 
 .tab-btn-main {
-  padding: 0 10px;
-  justify-content: flex-start;
+  padding: 0;
+  justify-content: center;
 }
 .tab-btn:hover {
   color: #ffffff;
@@ -181,6 +182,10 @@ body {
   min-width: 38px;
   font-size: 20px;
   line-height: 1;
+}
+.tab-more-btn[hidden],
+.tab-overflow-menu[hidden] {
+  display: none !important;
 }
 
 .tab-overflow-menu {
@@ -215,45 +220,17 @@ body {
   background: rgba(42, 60, 42, 0.98);
 }
 
-/* ── Notification FAB ──────────────────────────────────────────── */
+/* ── Notification Tab Button ──────────────────────────────────── */
 #notif-wrap {
-  position: fixed;
-  bottom: calc(66px + env(safe-area-inset-bottom));
-  right: calc(14px + env(safe-area-inset-right));
-  z-index: 101;
-  width: 52px;
-  height: 52px;
+  display: none; /* Legacy FAB positioning - no longer used */
 }
-#notif-btn {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: #1e2a1e;
-  color: #aaa;
-  font-size: 20px;
-  cursor: pointer;
-  box-shadow: 0 3px 12px rgba(0,0,0,0.5);
-  transition: background 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.tab-notif-btn {
+  position: relative;
 }
-#notif-btn:hover { background: #2a3a2a; color: #ccc; }
-#notif-wrap.has-unread #notif-btn {
-  border-color: #e09030;
-  box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px #e09030, 0 0 12px 4px rgba(224,144,48,0.5);
-  animation: notif-glow 1.8s ease-in-out infinite;
-}
-@keyframes notif-glow {
-  0%, 100% { box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px #e09030, 0 0 10px 3px rgba(224,144,48,0.4); }
-  50%       { box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px #ffb84d, 0 0 18px 7px rgba(255,184,60,0.65); }
-}
-#notif-badge {
+.tab-notif-btn #notif-badge {
   position: absolute;
-  top: 0;
-  right: 0;
-  transform: translate(25%, -25%);
+  top: -8px;
+  right: -8px;
   min-width: 18px;
   height: 18px;
   border-radius: 9px;
@@ -268,7 +245,16 @@ body {
   pointer-events: none;
   box-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
-#notif-badge:empty { display: none; }
+.tab-notif-btn #notif-badge:empty {
+  display: none;
+}
+.tab-notif-btn.has-unread {
+  animation: notif-glow 1.8s ease-in-out infinite;
+}
+@keyframes notif-glow {
+  0%, 100% { box-shadow: 0 0 0 2px #e09030, 0 0 10px 3px rgba(224,144,48,0.4); }
+  50%       { box-shadow: 0 0 0 2px #ffb84d, 0 0 18px 7px rgba(255,184,60,0.65); }
+}
 
 /* ── Notification Modal ─────────────────────────────────────────── */
 #notif-modal {
@@ -990,6 +976,34 @@ body {
 .settings-desc    { font-size: 12px; color: #666; margin-bottom: 8px; }
 .wl-on { background: rgba(var(--s-grow-rgb), 0.12) !important; border-color: var(--s-grow) !important; color: var(--s-grow) !important; }
 .settings-desc    { color: #777; font-size: 12px; margin: 4px 0 8px; line-height: 1.5; }
+
+/* ── Crop Loadouts ───────────────────────────────────────── */
+.loadout-slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.loadout-slot-row:last-child {
+  border-bottom: none;
+}
+.loadout-slot-label {
+  font-size: 13px;
+  color: #aaa;
+  flex: 0 0 auto;
+}
+.loadout-btn-group {
+  display: flex;
+  gap: 6px;
+}
+.loadout-save-btn,
+.loadout-load-btn {
+  font-size: 12px !important;
+  padding: 6px 10px !important;
+  min-width: auto !important;
+}
 
 /* ── Offline toast ───────────────────────────────────────── */
 .offline-toast {
