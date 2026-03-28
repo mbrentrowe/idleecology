@@ -685,14 +685,10 @@ body {
 .progress-bar.growing      { background: linear-gradient(90deg, #3a8a3a, var(--s-grow)); }
 .progress-bar.ready        { background: linear-gradient(90deg, #b8860b, #ffd700); }
 .progress-bar.amber        { background: linear-gradient(90deg, #8a4a10, #ffaa44); }
-.progress-bar.near-harvest { background: var(--s-grow); }
+.progress-bar.near-harvest { background: var(--s-grow); transition: none; }
 
-@keyframes harvest-glow {
-  0%, 100% { box-shadow: 0 0 4px var(--s-grow), 0 0 8px rgba(var(--s-grow-rgb), 0.4); }
-  50%       { box-shadow: 0 0 14px var(--s-grow), 0 0 28px rgba(var(--s-grow-rgb), 0.67); }
-}
 .progress-wrap.near-harvest {
-  animation: harvest-glow 0.5s ease-in-out infinite;
+  box-shadow: 0 0 6px var(--s-grow), 0 0 12px rgba(var(--s-grow-rgb), 0.4);
 }
 .progress-pct {
   position: absolute;
@@ -741,6 +737,8 @@ body {
 }
 .phase-label.active { color: var(--s-accent, #c4a45a); font-weight: 600; }
 .phase-label.passed { color: #4a7a4a; }
+.phase-label.near-harvest { color: var(--s-grow); font-weight: 600; }
+.phase-tick.near-harvest  { background: var(--s-grow); }
 
 /* Compact phase status — shown on narrow screens instead of the label row */
 .phase-status-compact {

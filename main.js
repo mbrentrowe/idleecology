@@ -970,12 +970,16 @@ function renderCrops() {
       // Progress bar
       const barWrap = el('div', 'progress-wrap');
       const bar     = el('div', 'progress-bar');
-      bar.style.width = `${(progress * 100).toFixed(3)}%`;
-      const _wm2      = workerMultiplier(engine.zoneWorkers.get(def.name) ?? 1);
       const _remGame  = (instance && ct && !instance.isFullyGrown)
         ? ((ct.totalPhases - instance.phase) * ct.growthTimePerPhase - instance.timer)
         : 0;
-      const _nearHarvest = instance && !instance.isFullyGrown && (_remGame / (engine.gameSpeed * _wm2)) <= 1;
+      const _nearHarvest = instance && !instance.isFullyGrown && (_remGame / (engine.gameSpeed * _wm * 4)) <= 5;
+      if (_nearHarvest) {
+        bar.style.transition = 'none';
+        bar.style.width = '100%';
+      } else {
+        bar.style.width = `${(progress * 100).toFixed(3)}%`;
+      }
       bar.classList.add(instance?.isFullyGrown ? 'ready' : _nearHarvest ? 'near-harvest' : 'growing');
       if (_nearHarvest) barWrap.classList.add('near-harvest');
       barWrap.appendChild(bar);
@@ -986,12 +990,12 @@ function renderCrops() {
           if (_ti === 0) return; // skip left edge
           const _pct = (_ti / _totalSteps) * 100;
           const _passed = instance?.isFullyGrown || (instance && _ti <= instance.phase);
-          const _tick = el('div', 'phase-tick' + (_passed ? ' passed' : ''));
+          const _tick = el('div', 'phase-tick' + (_nearHarvest ? ' near-harvest' : _passed ? ' passed' : ''));
           _tick.style.left = `${_pct}%`;
           barWrap.appendChild(_tick);
         });
       }
-      const pctLabel = el('span', 'progress-pct', instance?.isFullyGrown ? 'Ready!' : `${Math.round(progress * 100)}%`);
+      const pctLabel = el('span', 'progress-pct', instance?.isFullyGrown ? 'Ready!' : _nearHarvest ? 'Actively growing' : `${Math.round(progress * 100)}%`);
       barWrap.appendChild(pctLabel);
       card.appendChild(barWrap);
 
@@ -1003,7 +1007,7 @@ function renderCrops() {
           const _pct2 = (_li / _totalSteps2) * 100;
           const _isCur = instance && !instance.isFullyGrown && _li === instance.phase;
           const _isPast = instance?.isFullyGrown || (instance && _li < instance.phase);
-          const _lbl = el('span', 'phase-label' + (_isCur ? ' active' : _isPast ? ' passed' : ''));
+          const _lbl = el('span', 'phase-label' + (_nearHarvest ? ' near-harvest' : _isCur ? ' active' : _isPast ? ' passed' : ''));
           _lbl.textContent = phaseName;
           _lbl.style.left = `${_pct2}%`;
           _lbl.style.transform = _li === 0 ? 'translateX(0)' : 'translateX(-50%)';
@@ -3227,7 +3231,14 @@ function liveUpdate() {
         const def = FARM_ZONE_DEFS.find(d => d.name === btn.dataset.zoneNameW);
         if (!def) return;
         const cur = engine.zoneWorkers.get(def.name) ?? 1;
-        btn.disabled = engine.gold.amount < workerUpgradeCost(def, cur);
+        const workerCostFn = n => workerUpgradeCost(def, n);
+        const qtyWorker = cropBuyQty === 'max'
+          ? maxAffordableCount(workerCostFn, cur, engine.gold.amount)
+          : cropBuyQty;
+        const workerTotalCost = qtyWorker > 0 ? bulkCost(workerCostFn, cur, qtyWorker) : 0;
+        const canAfford = qtyWorker > 0 && engine.gold.amount >= workerTotalCost;
+        btn.disabled = !canAfford;
+        btn.classList.toggle('disabled', !canAfford);
       });
     }
   } else if (ENABLE_RANCH && activeTab === 'ranch') {
@@ -3298,32 +3309,41 @@ function updateZoneProgressBars() {
       if (!instance)  return;
       if (!instance.cropType.isInSeason(engine.currentSeasonName)) return; // dormant — static
       const prog = instance.overallProgress;
-      bar.style.width = `${(prog * 100).toFixed(3)}%`;
       const ct2      = instance.cropType;
       const wm2      = workerMultiplier(engine.zoneWorkers.get(zoneDef.name) ?? 1);
       const remGame  = instance.isFullyGrown ? 0
         : ((ct2.totalPhases - instance.phase) * ct2.growthTimePerPhase - instance.timer);
-      const nearHarvest = !instance.isFullyGrown && (remGame / (engine.gameSpeed * wm2)) <= 1;
+      const nearHarvest = !instance.isFullyGrown && (remGame / (engine.gameSpeed * wm2 * 4)) <= 5;
+      if (nearHarvest) {
+        // Snap to 100% and freeze
+        if (!bar.classList.contains('near-harvest')) {
+          bar.style.transition = 'none';
+          bar.style.width = '100%';
+        }
+      } else {
+        bar.style.width = `${(prog * 100).toFixed(3)}%`;
+      }
       bar.className = 'progress-bar ' + (instance.isFullyGrown ? 'ready' : nearHarvest ? 'near-harvest' : 'growing');
       const wrap = bar.parentElement;
       if (wrap) wrap.classList.toggle('near-harvest', nearHarvest);
-      pctEl.textContent = instance.isFullyGrown ? 'Ready!' : `${Math.round(prog * 100)}%`;
+      pctEl.textContent = instance.isFullyGrown ? 'Ready!' : nearHarvest ? 'Actively growing' : `${Math.round(prog * 100)}%`;
       // Update phase tick and label classes
       const _phase2 = instance.phase;
       const _grown2 = instance.isFullyGrown;
       card.querySelectorAll('.phase-tick').forEach((_tick2, _ti2) => {
         const _passed2 = _grown2 || _phase2 > _ti2;
-        _tick2.className = 'phase-tick' + (_passed2 ? ' passed' : '');
+        _tick2.className = 'phase-tick' + (nearHarvest ? ' near-harvest' : _passed2 ? ' passed' : '');
       });
       card.querySelectorAll('.phase-label').forEach((_lbl2, _li2) => {
         const _isCur2  = !_grown2 && _li2 === _phase2;
         const _isPast2 = _grown2 || _li2 < _phase2;
-        _lbl2.className = 'phase-label' + (_isCur2 ? ' active' : _isPast2 ? ' passed' : '');
+        _lbl2.className = 'phase-label' + (nearHarvest ? ' near-harvest' : _isCur2 ? ' active' : _isPast2 ? ' passed' : '');
       });
       const _phaseEl = card.querySelector('.phase-row');
       if (_phaseEl) {
         _phaseEl.textContent = _grown2
           ? '\u2705 Ready to harvest'
+          : nearHarvest ? 'Actively growing'
           : instance.cropType.growthPhaseNames?.[_phase2] ?? `Growing \u2014 stage ${_phase2 + 1} of ${instance.cropType.totalPhases}`;
       }
       const _compactEl = card.querySelector('.phase-status-compact');
@@ -3331,6 +3351,7 @@ function updateZoneProgressBars() {
         const _phaseName = instance.cropType.growthPhaseNames?.[_phase2] ?? `Stage ${_phase2 + 1}`;
         _compactEl.textContent = _grown2
           ? '\u2705 Ready to harvest'
+          : nearHarvest ? 'Actively growing'
           : `\u25b6 ${_phaseName} (${_phase2 + 1} / ${instance.cropType.totalPhases})`;
       }
     }
