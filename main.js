@@ -1033,6 +1033,13 @@ function renderCrops() {
       const freeAcres    = engine.getFreeAcres();
       const acreRow = el('div', 'acre-upgrade-row');
       acreRow.innerHTML = `<span class="acre-label">Acres: <strong>${currentAcres}</strong></span>`;
+      
+      // Buy land button (always present to prevent layout shift)
+      const goLandBtn = el('button', `buy-btn${freeAcres >= 1 ? ' disabled' : ''}`, '🗺️ Buy land');
+      goLandBtn.disabled = freeAcres >= 1;
+      goLandBtn.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
+      acreRow.appendChild(goLandBtn);
+      
       const qtyAcre = cropBuyQty === 'max' ? Math.max(0, freeAcres) : cropBuyQty;
       const qtyRemoveAcre = cropBuyQty === 'max' ? currentAcres : Math.min(cropBuyQty, currentAcres);
       const canAllocate = freeAcres >= 1;
@@ -1056,11 +1063,6 @@ function renderCrops() {
         });
       }
       acreRow.appendChild(allocBtn);
-      if (!canAllocate) {
-        const goLandBtn = el('button', 'buy-btn', '🗺️ Buy land');
-        goLandBtn.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
-        acreRow.appendChild(goLandBtn);
-      }
       card.appendChild(acreRow);
 
       // Worker upgrade row
