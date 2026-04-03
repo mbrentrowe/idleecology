@@ -6,6 +6,7 @@ import { RESEARCH }            from './research.js';
 import { ECOREGIONS, findPlant } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
 import { BIRD_LIST } from './birds.js';
+import { INVASIVES, INVASIVE_MAP, TOTAL_INVADED_ACRES } from './invasives.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 export const YEAR_REAL_SECS = 8 * 3600;             // 8 real hours = 1 in-game year
@@ -125,12 +126,15 @@ export function acreUpgradeCost(def, currentAcres) {
 }
 
 // ── Land system constants ─────────────────────────────────────────────────────
-export const STARTING_LAND_ACRES         = 50;  // acres owned at game start
+export const TOTAL_LAND_ACRES            = 1000; // inherited property size
+export const STARTING_FREE_ACRES         = 10;   // acres clear of invasives at game start
+export const STARTING_LAND_ACRES         = TOTAL_LAND_ACRES; // backward compat alias
 export const ESTABLISH_DAYS              = 2;   // in-game days to establish one acre
-export const LAND_MARKET_INTERVAL_DAYS   = 14;  // in-game days between market parcels
+export const LAND_MARKET_INTERVAL_DAYS   = 14;  // (legacy — land market removed)
 export const HABITAT_RISK_BASE_PCT       = 0.02;  // 2% daily creature-loss chance after removal
 export const HABITAT_RISK_INCREMENT      = 0.005; // +0.5% per additional in-game day at risk
 export const HABITAT_RISK_MAX_PCT        = 0.30;  // cap at 30%
+export const INVASIVE_REGROWTH_CAP       = 1.0;   // species cannot exceed its original baseAcres
 
 /** Maps all historical zone names → current SE USA Plains names for save migration.
  *  Single-pass lookup — all intermediate names point directly to the final SE name.
@@ -192,9 +196,13 @@ export function createEngine() {
   // ── Research state ────────────────────────────────────────────────────────
   let   researchPoints      = 0;
   let   researchAccum       = 0;   // sub-point accumulator
-  let   activeResearchId    = null;
-  let   activeResearchTimer = 0;   // elapsed in-game days
+  let   activeResearchId    = null;   // legacy single-slot (kept for save migration)
+  let   activeResearchTimer = 0;      // legacy single-slot
   const completedResearch    = new Set();
+  // Multi-slot research: each element = { id, timer }
+  let   researchSlots       = [];     // active research jobs
+  let   researchSlotCount   = 1;      // total slots owned (start with 1)
+  const RESEARCH_SLOT_COSTS = [0, 100, 250, 500, 1000]; // cost to buy slot N (index = slot #, 0=free first slot)
 
   // ── Native Garden / Ecoregion state ──────────────────────────────────────
   const plantedSpecies      = new Set(); // plant IDs with ≥1 established acre
@@ -204,7 +212,7 @@ export function createEngine() {
   let   activePlantingTimer = 0;
 
   // ── Land pool state ───────────────────────────────────────────────────────
-  let totalLandAcres = STARTING_LAND_ACRES;
+  let totalLandAcres = TOTAL_LAND_ACRES;
   // Per-type establishing queues — each item = 1 acre, ~ESTABLISH_DAYS each
   const cropEstablishQueue   = []; // [{zoneName}]
   const ranchEstablishQueue  = []; // [{animalId}]
@@ -214,16 +222,26 @@ export function createEngine() {
   let nativeEstablishTimer = 0;
   // Habitat-risk state for creatures whose host plant acres have been removed
   const habitatRiskCreatures = new Map(); // ckey → {daysAtRisk, riskPct}
-  // Land market
+  // Land market (legacy — kept for save migration, no longer generates new parcels)
   const landMarket        = [];  // [{id, acres, cost}]
-  let nextMarketDripDay   = LAND_MARKET_INTERVAL_DAYS;
+  let nextMarketDripDay   = Infinity;
   let _landMarketNextId   = 1;
+
+  // ── Invasive species state ────────────────────────────────────────────────
+  // invasiveAcres: how many acres each invasive currently occupies
+  const invasiveAcres = new Map(); // invasiveId → current acre count
+  // Initialize from database defaults
+  for (const inv of INVASIVES) invasiveAcres.set(inv.id, inv.baseAcres);
+  // Removal queue: timed removal jobs (large batch removals)
+  const invasiveRemovalQueue = []; // [{invasiveId, acresRemaining, timer}]
+  // Grid layout: randomized positions for the 1000-acre grid (generated once, saved)
+  let landGridLayout = null; // null = not yet generated; array of {type, id} per cell
 
   // ── Creature discovery state ──────────────────────────────────────────────
   // Each insect/wildlife in ecoregion plants is discovered via daily rolls.
   // Pity timer guarantees discovery within CREATURE_PITY_DAYS days of opportunity.
   const CREATURE_PITY_DAYS  = 1825; // 5 in-game years
-  const CREATURE_BASE_CHANCE = 0.02; // 2% per day base; ramps to 100% at pity max
+  const CREATURE_BASE_CHANCE = 0.008; // 0.8% per day base; ramps to 100% at pity max
   const discoveredCreatures  = new Set();  // creature keys
   const creaturePity          = new Map();  // creatureKey → days of opportunity elapsed
   const creatureDiscoveryLog  = new Map();  // creatureKey → inGameDay when first discovered
@@ -355,13 +373,18 @@ export function createEngine() {
     n += nativeEstablishQueue.length;
     return n;
   }
-  function getFreeAcres() { return totalLandAcres - getAllocatedAcres(); }
+  function getTotalInvadedAcres() {
+    let n = 0;
+    for (const v of invasiveAcres.values()) n += v;
+    // Also count acres currently being removed in the queue
+    for (const job of invasiveRemovalQueue) n += job.acresRemaining;
+    return n;
+  }
+  function getFreeAcres() { return totalLandAcres - getAllocatedAcres() - getTotalInvadedAcres(); }
 
   function _generateMarketParcel() {
-    // Size & cost scale with how many parcels the player already owns
-    const size = Math.min(5, 1 + Math.floor(totalLandAcres / 20));
-    const cost = Math.round(Math.max(5000, 2000 * totalLandAcres) * size * (0.8 + Math.random() * 0.4));
-    return { id: _landMarketNextId++, acres: size, cost };
+    // Legacy — land market no longer generates parcels
+    return null;
   }
 
   // ── Auto-unlock: criteria-based zone activation ──────────────────────────────
@@ -523,29 +546,24 @@ export function createEngine() {
 
   /** Buy cheapest land parcel when gold is at least 3× the parcel cost (safety buffer). */
   function _apLandMarket() {
-    if (landMarket.length === 0) return;
-    const cheapest = landMarket.reduce((a, b) => a.cost < b.cost ? a : b);
-    if (gold.amount >= cheapest.cost * 3) {
-      gold.add(-cheapest.cost);
-      totalLandAcres += cheapest.acres;
-      const idx = landMarket.indexOf(cheapest);
-      if (idx >= 0) landMarket.splice(idx, 1);
-    }
+    // Land market removed — invasive system replaces it
+    return;
   }
 
   /** Auto-start the cheapest affordable research project with all prerequisites met. */
   function _apResearch() {
-    if (activeResearchId) return;
+    if (researchSlots.length >= researchSlotCount) return;
+    const activeRIds = new Set(researchSlots.map(s => s.id));
     const affordable = RESEARCH.filter(r =>
       !completedResearch.has(r.id) &&
+      !activeRIds.has(r.id) &&
       r.requires.every(req => completedResearch.has(req)) &&
       researchPoints >= r.cost
     );
     if (affordable.length === 0) return;
     const cheapest = affordable.reduce((a, b) => a.cost < b.cost ? a : b);
-    researchPoints     -= cheapest.cost;
-    activeResearchId    = cheapest.id;
-    activeResearchTimer = 0;
+    researchPoints -= cheapest.cost;
+    researchSlots.push({ id: cheapest.id, timer: 0 });
   }
 
   /**
@@ -597,6 +615,9 @@ export function createEngine() {
   // ── Habitat-loss event (overridable from UI layer) ───────────────────────
   // The UI can set engine.onCreatureExtirpated to a function(ckey) for notifications.
   let _onCreatureExtirpated = (ckey) => { /* default: no-op; UI overrides this */ };
+
+  // ── Invasive regrowth event (overridable from UI layer) ─────────────────
+  let _onInvasiveRegrowth = (invasiveId) => { /* default: no-op; UI overrides this */ };
 
   // ── Season change event (overridable from UI layer) ─────────────────────────
   // The UI can set engine.onSeasonChange to a function(oldSeason, newSeason) for auto-loading.
@@ -707,6 +728,21 @@ export function createEngine() {
         researchPoints += earned;
         researchAccum  -= earned;
       }
+      // Process all active research slots
+      for (let si = researchSlots.length - 1; si >= 0; si--) {
+        const slot = researchSlots[si];
+        const project = RESEARCH.find(r => r.id === slot.id);
+        if (project) {
+          slot.timer += gameSpeed / DAY_REAL_SECS;
+          if (slot.timer >= project.duration) {
+            completedResearch.add(slot.id);
+            researchSlots.splice(si, 1);
+          }
+        } else {
+          researchSlots.splice(si, 1);
+        }
+      }
+      // Legacy single-slot migration: process old activeResearchId if present
       if (activeResearchId) {
         const project = RESEARCH.find(r => r.id === activeResearchId);
         if (project) {
@@ -793,10 +829,42 @@ export function createEngine() {
         }
       }
 
-      // ── Land market drip (once per in-game day) ────────────────────────────
-      if (inGameDay >= nextMarketDripDay) {
-        nextMarketDripDay = inGameDay + LAND_MARKET_INTERVAL_DAYS;
-        if (landMarket.length < 3) landMarket.push(_generateMarketParcel());
+      // ── Land market drip (disabled — invasive system replaces it) ─────────
+      // Legacy land market no longer generates parcels.
+
+      // ── Invasive removal queue processing (once per in-game day) ────────
+      for (let i = invasiveRemovalQueue.length - 1; i >= 0; i--) {
+        const job = invasiveRemovalQueue[i];
+        job.timer += 1; // 1 in-game day elapsed
+        const inv = INVASIVE_MAP[job.invasiveId];
+        if (!inv) { invasiveRemovalQueue.splice(i, 1); continue; }
+        while (job.timer >= inv.removeTimeDays && job.acresRemaining > 0) {
+          job.timer -= inv.removeTimeDays;
+          job.acresRemaining--;
+          // Acre is now cleared — it becomes a free acre
+        }
+        if (job.acresRemaining <= 0) invasiveRemovalQueue.splice(i, 1);
+      }
+
+      // ── Invasive regrowth (once per in-game day) ────────────────────────
+      // Each invasive species still present can reclaim cleared-but-unused acres.
+      // Only free acres (not allocated to crops, natives, or ranch) are at risk.
+      {
+        const currentFree = getFreeAcres();
+        if (currentFree > 0) {
+          for (const inv of INVASIVES) {
+            const currentInvaded = invasiveAcres.get(inv.id) ?? 0;
+            if (currentInvaded <= 0) continue; // species fully eradicated — no regrowth source
+            if (currentInvaded >= inv.baseAcres) continue; // already at cap
+            // Roll for regrowth: probability scales with free acres available
+            const growthChance = inv.regrowthRate * Math.min(currentFree, 10) / 10;
+            if (Math.random() < growthChance) {
+              const newCount = Math.min(inv.baseAcres, currentInvaded + 1);
+              invasiveAcres.set(inv.id, newCount);
+              _onInvasiveRegrowth(inv.id);
+            }
+          }
+        }
       }
     }
 
@@ -926,6 +994,8 @@ export function createEngine() {
       cropStats: Object.fromEntries([...cropStats].map(([k, v]) => [k, { ...v }])),
       researchPoints, researchAccum,
       activeResearchId, activeResearchTimer,
+      researchSlots: researchSlots.map(s => ({ id: s.id, timer: s.timer })),
+      researchSlotCount,
       completedResearch:    [...completedResearch],
       plantedSpecies:       [...plantedSpecies],
       plantedSpeciesAcres:  Object.fromEntries(plantedSpeciesAcres),
@@ -947,6 +1017,9 @@ export function createEngine() {
       habitatRiskCreatures: Object.fromEntries([...habitatRiskCreatures].map(([k, v]) => [k, { ...v }])),
       landMarket:           landMarket.map(p => ({ ...p })),
       nextMarketDripDay,    _landMarketNextId,
+      // Invasive species state
+      invasiveAcres:         Object.fromEntries(invasiveAcres),
+      invasiveRemovalQueue:  invasiveRemovalQueue.map(j => ({ ...j })),
       discoveredBirds: [...discoveredBirds],
       savedAt: Date.now(),
     };
@@ -1031,6 +1104,22 @@ export function createEngine() {
     if (typeof s.researchAccum       === 'number')  researchAccum       = s.researchAccum;
     if ('activeResearchId' in s)                    activeResearchId    = s.activeResearchId;
     if (typeof s.activeResearchTimer === 'number')  activeResearchTimer = s.activeResearchTimer;
+    // Multi-slot research: restore or migrate from old single-slot save
+    if (Array.isArray(s.researchSlots)) {
+      researchSlots = s.researchSlots.map(sl => ({ id: sl.id, timer: sl.timer }));
+    } else if (s.activeResearchId) {
+      // Migrate old save: move single active research into slot array
+      researchSlots = [{ id: s.activeResearchId, timer: s.activeResearchTimer ?? 0 }];
+      activeResearchId    = null;
+      activeResearchTimer = 0;
+    } else {
+      researchSlots = [];
+    }
+    if (typeof s.researchSlotCount === 'number' && s.researchSlotCount >= 1) {
+      researchSlotCount = s.researchSlotCount;
+    } else {
+      researchSlotCount = 1;
+    }
     if (Array.isArray(s.completedResearch)) {
       completedResearch.clear();
       s.completedResearch.forEach(id => completedResearch.add(id));
@@ -1129,18 +1218,49 @@ export function createEngine() {
     if (Array.isArray(s.landMarket)) s.landMarket.forEach(p => landMarket.push({ ...p }));
     if (typeof s.nextMarketDripDay  === 'number') nextMarketDripDay  = s.nextMarketDripDay;
     if (typeof s._landMarketNextId  === 'number') _landMarketNextId  = s._landMarketNextId;
-    if (typeof s.totalLandAcres     === 'number') {
-      totalLandAcres = s.totalLandAcres;
-    } else {
-      // Migration: derive totalLandAcres from existing allocations + starting buffer
-      const existingCrop   = s.zoneAcres    ? Object.values(s.zoneAcres).reduce((a, b) => a + b, 0) : 0;
-      const existingRanch  = ENABLE_RANCH && s.ranchAcres ? Object.values(s.ranchAcres).reduce((a, b) => a + b, 0) : 0;
-      const existingNative = Array.isArray(s.plantedSpecies) ? s.plantedSpecies.length : 0;
-      totalLandAcres = existingCrop + existingRanch + existingNative + STARTING_LAND_ACRES;
+    // totalLandAcres is now always TOTAL_LAND_ACRES (1000)
+    totalLandAcres = TOTAL_LAND_ACRES;
+
+    // ── Invasive species restore / migration ────────────────────────────────
+    // Reset to defaults, then overlay saved state
+    for (const inv of INVASIVES) invasiveAcres.set(inv.id, inv.baseAcres);
+    if (s.invasiveAcres) {
+      // Saved invasive state exists — restore it
+      const validIds = new Set(INVASIVES.map(i => i.id));
+      for (const [id, acres] of Object.entries(s.invasiveAcres)) {
+        if (!validIds.has(id)) continue;
+        invasiveAcres.set(id, Math.max(0, safeInt(acres)));
+      }
+    } else if (s.totalLandAcres && s.totalLandAcres !== TOTAL_LAND_ACRES) {
+      // Migration from old save: player had bought some acres via land market.
+      // Treat their purchased acres as having already cleared some invasives.
+      // We'll reduce invasives starting from the cheapest (tier 1) species.
+      let acresCleared = Math.max(0, getAllocatedAcres() - STARTING_FREE_ACRES);
+      const sorted = [...INVASIVES].sort((a, b) => a.tier - b.tier || a.baseAcres - b.baseAcres);
+      for (const inv of sorted) {
+        if (acresCleared <= 0) break;
+        const current = invasiveAcres.get(inv.id) ?? inv.baseAcres;
+        const remove = Math.min(acresCleared, current);
+        invasiveAcres.set(inv.id, current - remove);
+        acresCleared -= remove;
+      }
+    }
+    invasiveRemovalQueue.length = 0;
+    if (Array.isArray(s.invasiveRemovalQueue)) {
+      const validIds = new Set(INVASIVES.map(i => i.id));
+      for (const job of s.invasiveRemovalQueue) {
+        if (job?.invasiveId && validIds.has(job.invasiveId) && safeInt(job.acresRemaining) > 0) {
+          invasiveRemovalQueue.push({
+            invasiveId: job.invasiveId,
+            acresRemaining: safeInt(job.acresRemaining),
+            timer: safeNumber(job.timer ?? 0),
+          });
+        }
+      }
     }
 
     // Keep land totals internally consistent even for malformed legacy saves.
-    totalLandAcres = Math.max(STARTING_LAND_ACRES, safeInt(totalLandAcres), getAllocatedAcres());
+    totalLandAcres = TOTAL_LAND_ACRES;
 
     checkAutoUnlocks(); // re-derive zoneProductMap and catch any new unlocks
     checkRanchUnlocks();
@@ -1260,8 +1380,11 @@ export function createEngine() {
 
     // Research
     get researchPoints()      { return researchPoints; },
-    get activeResearchId()    { return activeResearchId; },
-    get activeResearchTimer() { return activeResearchTimer; },
+    get activeResearchId()    { return researchSlots.length > 0 ? researchSlots[0].id : activeResearchId; },
+    get activeResearchTimer() { return researchSlots.length > 0 ? researchSlots[0].timer : activeResearchTimer; },
+    get researchSlots()       { return researchSlots; },
+    get researchSlotCount()   { return researchSlotCount; },
+    RESEARCH_SLOT_COSTS,
     completedResearch,
     getBiosphereScore() {
       return [...completedResearch].reduce((sum, id) => {
@@ -1330,22 +1453,66 @@ export function createEngine() {
     get nativeEstablishTimer()  { return nativeEstablishTimer; },
     get habitatRiskCreatures()  { return habitatRiskCreatures; },
     getAllocatedAcres,
+    getTotalInvadedAcres,
     getFreeAcres,
     set onCreatureExtirpated(fn) { _onCreatureExtirpated = fn; },
+    set onInvasiveRegrowth(fn) { _onInvasiveRegrowth = fn; },
     set onSeasonChange(fn) { _onSeasonChange = fn; },
   discoveredBirds,
   getBirdMetrics,
   set onBirdAttracted(fn) { _onBirdAttracted = fn; },
 
     buyLandParcel(parcelId) {
-      const idx = landMarket.findIndex(p => p.id === parcelId);
-      if (idx < 0) return false;
-      const parcel = landMarket[idx];
-      if (gold.amount < parcel.cost) return false;
-      gold.add(-parcel.cost);
-      totalLandAcres += parcel.acres;
-      landMarket.splice(idx, 1);
-      return true;
+      // Legacy — land market removed; kept for backward compat
+      return false;
+    },
+
+    // ── Invasive species API ───────────────────────────────────────────────────
+    get invasiveAcres()         { return invasiveAcres; },
+    get invasiveRemovalQueue()  { return invasiveRemovalQueue; },
+    INVASIVES,
+    INVASIVE_MAP,
+
+    /** Check if removal is unlocked for an invasive species (required research completed). */
+    canRemoveInvasive(invasiveId) {
+      const inv = INVASIVE_MAP[invasiveId];
+      if (!inv) return false;
+      if (!inv.requiredResearch) return true;
+      return completedResearch.has(inv.requiredResearch);
+    },
+
+    /**
+     * Remove acres of an invasive species.
+     * - If count ≤ instantRemoveMax: instant removal (deduct CP, reduce acres immediately)
+     * - If count > instantRemoveMax: instant up to max, rest queued for timed removal
+     * Returns { ok, removed, queued, reason }
+     */
+    removeInvasiveAcres(invasiveId, count) {
+      const inv = INVASIVE_MAP[invasiveId];
+      if (!inv) return { ok: false, removed: 0, queued: 0, reason: 'not_found' };
+      if (!this.canRemoveInvasive(invasiveId)) return { ok: false, removed: 0, queued: 0, reason: 'research_required' };
+      const current = invasiveAcres.get(invasiveId) ?? 0;
+      if (current <= 0) return { ok: false, removed: 0, queued: 0, reason: 'already_cleared' };
+      const actual = Math.min(count, current);
+      const totalCost = actual * inv.removeCpPerAcre;
+      if (researchPoints < totalCost) return { ok: false, removed: 0, queued: 0, reason: 'insufficient_pts' };
+
+      // Deduct CP upfront for all acres
+      researchPoints -= totalCost;
+
+      // Instant removal (up to instantRemoveMax)
+      const instant = Math.min(actual, inv.instantRemoveMax);
+      invasiveAcres.set(invasiveId, current - instant);
+
+      // Queue the rest for timed removal
+      const queued = actual - instant;
+      if (queued > 0) {
+        // Reduce invasiveAcres now (they're "being removed" — tracked in queue)
+        invasiveAcres.set(invasiveId, (invasiveAcres.get(invasiveId) ?? 0) - queued);
+        invasiveRemovalQueue.push({ invasiveId, acresRemaining: queued, timer: 0 });
+      }
+
+      return { ok: true, removed: instant, queued };
     },
 
     /** Queue N acres from the pool to a crop zone. Returns actual queued count. */
@@ -1497,22 +1664,53 @@ export function createEngine() {
       return true;
     },
     startResearch(id) {
-      if (activeResearchId) return false;
+      // All slots occupied?
+      if (researchSlots.length >= researchSlotCount) return false;
+      // Already in a slot?
+      if (researchSlots.some(s => s.id === id)) return false;
       const project = RESEARCH.find(r => r.id === id);
       if (!project || completedResearch.has(id)) return false;
       if (researchPoints < project.cost) return false;
       if (project.requires.some(req => !completedResearch.has(req))) return false;
-      researchPoints     -= project.cost;
-      activeResearchId    = id;
-      activeResearchTimer = 0;
+      researchPoints -= project.cost;
+      researchSlots.push({ id, timer: 0 });
       return true;
     },
-    cancelResearch() {
-      if (!activeResearchId) return;
-      const project = RESEARCH.find(r => r.id === activeResearchId);
+    cancelResearch(id) {
+      // If called with an id, cancel that specific slot
+      // If called without, cancel the first slot (legacy compat)
+      const idx = id
+        ? researchSlots.findIndex(s => s.id === id)
+        : (researchSlots.length > 0 ? 0 : -1);
+      if (idx === -1) {
+        // Legacy single-slot fallback
+        if (!id && activeResearchId) {
+          const project = RESEARCH.find(r => r.id === activeResearchId);
+          if (project) researchPoints += project.cost;
+          activeResearchId    = null;
+          activeResearchTimer = 0;
+          return;
+        }
+        return;
+      }
+      const slot = researchSlots[idx];
+      const project = RESEARCH.find(r => r.id === slot.id);
       if (project) researchPoints += project.cost;
-      activeResearchId    = null;
-      activeResearchTimer = 0;
+      researchSlots.splice(idx, 1);
+    },
+    buyResearchSlot() {
+      const nextSlot = researchSlotCount;
+      const cost = RESEARCH_SLOT_COSTS[nextSlot] ?? (nextSlot * 500);
+      if (researchPoints < cost) return false;
+      if (researchSlotCount >= 5) return false; // max 5 slots
+      researchPoints -= cost;
+      researchSlotCount++;
+      return true;
+    },
+    getNextSlotCost() {
+      const nextSlot = researchSlotCount;
+      if (nextSlot >= 5) return null;
+      return RESEARCH_SLOT_COSTS[nextSlot] ?? (nextSlot * 500);
     },
 
     // Engine lifecycle

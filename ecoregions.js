@@ -31,6 +31,15 @@ export const ECOREGIONS = [
     prestigeRequires: null, // first region — always available
     prestigeReward:   'Unlocks 8.4 – Ozark/Ouachita-Appalachian Forests · +10% conservation point generation',
 
+    // Invasive species IDs present in this ecoregion (references invasives.js)
+    invasiveIds: [
+      'kudzu', 'chinese_privet', 'cogongrass', 'feral_hogs',
+      'japanese_stiltgrass', 'autumn_olive', 'japanese_honeysuckle', 'mimosa',
+      'chinese_tallow', 'multiflora_rose', 'fire_ants',
+      'bradford_pear', 'nandina', 'english_ivy', 'wisteria',
+      'lesser_celandine', 'asian_tiger_mosquito', 'spotted_lanternfly',
+    ],
+
     plants: [
 
       // ══ FLOWERS ════════════════════════════════════════════════════════════

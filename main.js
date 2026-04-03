@@ -1,10 +1,11 @@
 ﻿// main.js — UI layer and entry point for Idle Ecologist Text UI
-import { createEngine, shortNumber, FARM_ZONE_DEFS, DAY_REAL_SECS, YEAR_REAL_SECS, CALENDAR_MONTHS, SEASONS, calendarDate, acreUpgradeCost, workerUpgradeCost, workerMultiplier, STARTING_LAND_ACRES, ESTABLISH_DAYS, LAND_MARKET_INTERVAL_DAYS, ENABLE_RANCH } from './game.js';
+import { createEngine, shortNumber, FARM_ZONE_DEFS, DAY_REAL_SECS, YEAR_REAL_SECS, CALENDAR_MONTHS, SEASONS, calendarDate, acreUpgradeCost, workerUpgradeCost, workerMultiplier, STARTING_LAND_ACRES, ESTABLISH_DAYS, LAND_MARKET_INTERVAL_DAYS, ENABLE_RANCH, TOTAL_LAND_ACRES } from './game.js';
 import { CROPS } from './crops.js';
 import { RESEARCH, RESEARCH_CATEGORIES } from './research.js';
 import { ECOREGIONS, WILDLIFE_TYPE_ICONS } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
 import { BIRDS, BIRD_LIST } from './birds.js';
+import { INVASIVES, INVASIVE_MAP, findInvasive } from './invasives.js';
 
 // Module-level cache for the full plant list (avoid repeated flatMap across renders)
 const ALL_PLANTS = ECOREGIONS.flatMap(e => e.plants);
@@ -221,10 +222,8 @@ const TUTORIAL_STEPS = [
     focusSelector: '#content',
   },
   {
-    title: 'Step 2: Expand Land Capacity',
-    body: ENABLE_RANCH
-      ? 'In Land, buy more parcels and establish acres. Land is your shared capacity for crops, ranch animals, and native plants.'
-      : 'In Land, buy more parcels and establish acres. Land is your shared capacity for crops and native plants.',
+    title: 'Step 2: Reclaim Your Land',
+    body: 'You\'ve inherited 1,000 acres — but 990 are overrun by invasive species! In the Land tab, view the battle and remove invasives once you\'ve researched how to control them.',
     tab: 'land',
     focusSelector: '#content',
   },
@@ -271,6 +270,7 @@ let tutorialSkipBtn = null;
 let hideCompletedResearch = localStorage.getItem('hideCompletedResearch') === 'true';
 let hideCompletedGarden   = localStorage.getItem('hideCompletedGarden')   === 'true';
 let hideLockedGarden      = localStorage.getItem('hideLockedGarden')      === 'true';
+let hideCompletedLand     = localStorage.getItem('hideCompletedLand')     === 'true';
 const collapsedGardenCards = new Set(); // plant IDs currently collapsed
 
 // ── UI Construction ───────────────────────────────────────────────────────────
@@ -711,9 +711,10 @@ function updateHeader() {
 
   // Check if any research project is affordable & available
   const _completedR = engine.completedResearch;
-  const _activeR    = engine.activeResearchId;
-  const hasAffordableResearch = RESEARCH.some(r =>
-    !_completedR.has(r.id) && r.id !== _activeR &&
+  const _activeRIds = new Set(engine.researchSlots.map(s => s.id));
+  const _hasOpenSlot = engine.researchSlots.length < engine.researchSlotCount;
+  const hasAffordableResearch = _hasOpenSlot && RESEARCH.some(r =>
+    !_completedR.has(r.id) && !_activeRIds.has(r.id) &&
     r.requires.every(req => _completedR.has(req)) &&
     pts >= r.cost
   );
@@ -729,13 +730,13 @@ function updateHeader() {
     )
   );
 
-  const rpAlert = (hasAffordableResearch && !engine.activeResearchId) || (hasAffordableGarden && !engine.activePlantingId && engine.nativeEstablishQueue.length === 0);
+  const rpAlert = hasAffordableResearch || (hasAffordableGarden && !engine.activePlantingId && engine.nativeEstablishQueue.length === 0);
   const _rpPerDay = engine.unlockedFarmZones.size;
   rpHeaderEl.textContent = `🌱 ${shortNumber(pts)} CP (+${_rpPerDay}/day)${rpAlert ? ' ❗' : ''}`;
 
   // Update tab button labels with ❗ when relevant tab has affordable items
   const _gardenBusy = !!engine.activePlantingId || engine.nativeEstablishQueue.length > 0;
-  _setTabBtnText('research', hasAffordableResearch && !engine.activeResearchId);
+  _setTabBtnText('research', hasAffordableResearch);
   _setTabBtnText('garden', hasAffordableGarden && !_gardenBusy);
 }
 
@@ -1281,8 +1282,9 @@ function renderRanch() {
 // ── RESEARCH TAB ─────────────────────────────────────────────────────────────
 function renderResearch() {
   const completed  = engine.completedResearch;
-  const activeId   = engine.activeResearchId;
-  const activeTimer= engine.activeResearchTimer;
+  const slots      = engine.researchSlots;
+  const slotCount  = engine.researchSlotCount;
+  const activeIds  = new Set(slots.map(s => s.id));
   const pts        = engine.researchPoints;
   const planted    = engine.plantedSpecies;
   const biosphere    = engine.getBiosphereScore();
@@ -1316,34 +1318,60 @@ function renderResearch() {
   `;
   content.appendChild(banner);
 
-  // ── Active research card ────────────────────────────────────────────────────
-  if (activeId) {
-    const project = RESEARCH.find(r => r.id === activeId);
-    const pct     = project ? Math.min(100, Math.round(activeTimer / project.duration * 100)) : 0;
-    const remaining = project ? Math.max(0, project.duration - activeTimer) : 0;
+  // ── Research slots header ──────────────────────────────────────────────────
+  const slotsHeader = el('div', 'research-slots-header');
+  slotsHeader.innerHTML = `<span class="research-slots-label">🔬 Research Slots: ${slots.length} / ${slotCount} in use</span>`;
 
-    const activeCard = el('div', 'research-active-card');
-    activeCard.innerHTML = `
-      <div class="research-active-header">
-        <span class="research-active-icon">${project?.icon ?? '🌱'}</span>
-        <span class="research-active-name">${project?.name ?? activeId}</span>
-        <span class="research-active-time">${fmtDays(remaining)} remaining</span>
-      </div>
-      <div class="research-progress-track">
-        <div class="research-progress-fill" style="width:${pct}%"></div>
-      </div>
-      <div class="research-active-footer">
-        <span class="research-active-pct">${pct}% complete</span>
-        <button class="action-btn danger research-cancel-btn">✕ Cancel</button>
-      </div>
-    `;
-    activeCard.querySelector('.research-cancel-btn').addEventListener('click', () => {
-      engine.cancelResearch();
-      renderAll();
-    });
-    content.appendChild(activeCard);
+  // Buy slot button
+  const nextSlotCost = engine.getNextSlotCost();
+  if (nextSlotCost !== null) {
+    const canBuy = pts >= nextSlotCost;
+    const buyBtn = el('button', `action-btn research-buy-slot-btn${canBuy ? '' : ' disabled'}`,
+      canBuy ? `+ Buy Slot ${slotCount + 1} (${nextSlotCost} CP)` : `+ Slot ${slotCount + 1} — need ${nextSlotCost - pts} more CP`);
+    if (canBuy) {
+      buyBtn.addEventListener('click', () => { engine.buyResearchSlot(); renderAll(); });
+    } else {
+      buyBtn.disabled = true;
+    }
+    slotsHeader.appendChild(buyBtn);
   } else {
-    const idleNote = el('p', 'research-idle-note', '— No project in progress. Start one below. —');
+    slotsHeader.appendChild(el('span', 'research-slots-max', '(max slots)'));
+  }
+  content.appendChild(slotsHeader);
+
+  // ── Active research cards ────────────────────────────────────────────────────
+  if (slots.length > 0) {
+    for (const slot of slots) {
+      const project = RESEARCH.find(r => r.id === slot.id);
+      const pct     = project ? Math.min(100, Math.round(slot.timer / project.duration * 100)) : 0;
+      const remaining = project ? Math.max(0, project.duration - slot.timer) : 0;
+
+      const activeCard = el('div', 'research-active-card');
+      activeCard.innerHTML = `
+        <div class="research-active-header">
+          <span class="research-active-icon">${project?.icon ?? '🌱'}</span>
+          <span class="research-active-name">${project?.name ?? slot.id}</span>
+          <span class="research-active-time">${fmtDays(remaining)} remaining</span>
+        </div>
+        <div class="research-progress-track">
+          <div class="research-progress-fill" style="width:${pct}%"></div>
+        </div>
+        <div class="research-active-footer">
+          <span class="research-active-pct">${pct}% complete</span>
+          <button class="action-btn danger research-cancel-btn">✕ Cancel</button>
+        </div>
+      `;
+      const slotId = slot.id;
+      activeCard.querySelector('.research-cancel-btn').addEventListener('click', () => {
+        engine.cancelResearch(slotId);
+        renderAll();
+      });
+      content.appendChild(activeCard);
+    }
+  }
+  if (slots.length < slotCount) {
+    const freeSlots = slotCount - slots.length;
+    const idleNote = el('p', 'research-idle-note', `— ${freeSlots} research slot${freeSlots !== 1 ? 's' : ''} available. Start a project below. —`);
     content.appendChild(idleNote);
   }
 
@@ -1378,10 +1406,11 @@ function renderResearch() {
     for (const project of catProjects) {
       const isDone   = completed.has(project.id);
       if (hideCompletedResearch && isDone) continue;
-      const isActive = activeId === project.id;
+      const isActive = activeIds.has(project.id);
       const prereqsMet = project.requires.every(req => completed.has(req));
       const canAfford  = pts >= project.cost;
-      const canStart   = prereqsMet && canAfford && !isDone && !activeId;
+      const hasOpenSlot = slots.length < slotCount;
+      const canStart   = prereqsMet && canAfford && !isDone && !isActive && hasOpenSlot;
 
       const card = el('div', `research-card${isDone ? ' research-done' : ''}${isActive ? ' research-in-progress' : ''}${!prereqsMet ? ' research-locked' : ''}`);
 
@@ -1442,7 +1471,12 @@ function renderResearch() {
       // Action button
       if (!isDone && !isActive) {
         const btnRow = el('div', 'btn-row');
-        const btn = el('button', `action-btn${canStart ? '' : ' disabled'}`, canStart ? '▶ Start Project' : (!prereqsMet ? '🔒 Prerequisites needed' : `🌱 Need ${project.cost - pts} more CP`));
+        const btnLabel = canStart
+          ? '▶ Start Project'
+          : !prereqsMet ? '🔒 Prerequisites needed'
+          : !canAfford  ? `🌱 Need ${project.cost - pts} more CP`
+          : '🔬 All slots full';
+        const btn = el('button', `action-btn${canStart ? '' : ' disabled'}`, btnLabel);
         if (canStart) {
           btn.addEventListener('click', () => { engine.startResearch(project.id); renderAll(); });
         } else {
@@ -1796,35 +1830,50 @@ const CREATURE_TYPE_META = {
 function renderLand() {
   const totalAcres    = engine.totalLandAcres;
   const allocAcres    = engine.getAllocatedAcres();
+  const invadedAcres  = engine.getTotalInvadedAcres();
   const freeAcres     = engine.getFreeAcres();
-  const market        = engine.landMarket;
   const nativeQ       = engine.nativeEstablishQueue;
   const nativeTimer   = engine.nativeEstablishTimer;
   const ESTABLISH_SECS = ESTABLISH_DAYS * DAY_REAL_SECS;
+  const removalQ      = engine.invasiveRemovalQueue;
 
   // ── Summary banner ──────────────────────────────────────────────────────────
   const banner = el('div', 'land-banner');
+  const invPct  = totalAcres > 0 ? Math.round(invadedAcres / totalAcres * 100) : 0;
+  const allocPct = totalAcres > 0 ? Math.round(allocAcres / totalAcres * 100) : 0;
+  const freePct  = totalAcres > 0 ? Math.round(freeAcres / totalAcres * 100) : 0;
   banner.innerHTML = `
     <div class="land-banner-row">
       <span class="land-stat"><span class="land-stat-num">${totalAcres}</span> Total Acres</span>
-      <span class="land-stat"><span class="land-stat-num">${allocAcres}</span> Allocated</span>
+      <span class="land-stat" style="color:#e57373"><span class="land-stat-num">${invadedAcres}</span> Invaded</span>
+      <span class="land-stat"><span class="land-stat-num">${allocAcres}</span> In Use</span>
       <span class="land-stat land-stat-free"><span class="land-stat-num">${freeAcres}</span> Free</span>
     </div>
-    <div class="bio-bar-track land-bar-track">
-      <div class="bio-bar-fill land-bar-fill" style="width:${totalAcres > 0 ? Math.round(allocAcres / totalAcres * 100) : 0}%"></div>
+    <div class="bio-bar-track land-bar-track" title="Red = invaded, Green = in use, White = free">
+      <div style="display:flex;height:100%;width:100%;border-radius:inherit;overflow:hidden">
+        <div style="width:${allocPct}%;background:#4caf50;transition:width .3s"></div>
+        <div style="width:${freePct}%;background:#78909c;transition:width .3s"></div>
+        <div style="width:${invPct}%;background:#e57373;transition:width .3s"></div>
+      </div>
+    </div>
+    <div class="bio-breakdown">
+      <span>🟩 In Use: ${allocAcres}</span>
+      <span>⬜ Free: ${freeAcres}</span>
+      <span>🟥 Invaded: ${invadedAcres}</span>
+      <span>🔬 CP: ${Math.floor(engine.researchPoints)}</span>
     </div>
   `;
   content.appendChild(banner);
 
   // ── Establish queues ────────────────────────────────────────────────────────
-  if (nativeQ.length > 0) {
+  if (nativeQ.length > 0 || removalQ.length > 0) {
     const qSect = el('div', 'land-section');
-    qSect.innerHTML = '<h2 class="land-section-header">⏳ Establishing</h2>';
+    qSect.innerHTML = '<h2 class="land-section-header">⏳ In Progress</h2>';
 
-    function queueBlock(queue, timer, typeLabel, getLabel) {
+    function queueBlock(queue, timer, secs, typeLabel, getLabel) {
       if (queue.length === 0) return;
-      const pct    = Math.min(100, Math.round((timer / ESTABLISH_SECS) * 100));
-      const remain = Math.max(0, ESTABLISH_DAYS - timer / DAY_REAL_SECS);
+      const pct    = Math.min(100, Math.round((timer / secs) * 100));
+      const remain = Math.max(0, secs / DAY_REAL_SECS - timer / DAY_REAL_SECS);
       const first  = queue[0];
       const rest   = queue.length - 1;
       const card   = el('div', 'land-queue-card');
@@ -1842,95 +1891,218 @@ function renderLand() {
       qSect.appendChild(card);
     }
 
-    queueBlock(nativeQ, nativeTimer, '🌿 Native', i => {
+    queueBlock(nativeQ, nativeTimer, ESTABLISH_SECS, '🌿 Planting', i => {
       const r = engine.findPlant(i.plantId);
       return r ? r.plant.name : i.plantId;
     });
 
+    // Show invasive removal queue jobs
+    for (const job of removalQ) {
+      const inv = INVASIVE_MAP[job.invasiveId];
+      if (!inv) continue;
+      const secs = inv.removeTimeDays * DAY_REAL_SECS;
+      const pct  = Math.min(100, Math.round((job.timer / inv.removeTimeDays) * 100));
+      const card = el('div', 'land-queue-card');
+      card.innerHTML = `
+        <div class="land-queue-row">
+          <span class="land-queue-type">🛡️ Removing</span>
+          <span class="land-queue-name">${inv.icon} ${inv.name} (${job.acresRemaining} ac left)</span>
+          <span class="land-queue-time">${fmtDays(Math.max(0, inv.removeTimeDays - job.timer))}</span>
+        </div>
+        <div class="research-progress-track">
+          <div class="research-progress-fill" style="width:${pct}%"></div>
+        </div>
+      `;
+      qSect.appendChild(card);
+    }
+
     content.appendChild(qSect);
   }
 
-  // ── Land market ─────────────────────────────────────────────────────────────
-  const marketSect = el('div', 'land-section');
-  marketSect.innerHTML = '<h2 class="land-section-header">🏪 Land Market</h2>';
-  if (market.length === 0) {
-    const nextDrip = engine.nextMarketDripDay - engine.inGameDay;
-    marketSect.innerHTML += `<p class="land-empty-note">No parcels available right now. Next parcel in ${nextDrip > 0 ? `~${fmtDays(nextDrip)}` : 'soon'}.</p>`;
-  } else {
-    for (const parcel of market) {
-      const canAfford = engine.gold.amount >= parcel.cost;
-      const card = el('div', 'land-market-card');
+  // ── Invasive species list ───────────────────────────────────────────────────
+  const invSect = el('div', 'land-section');
+  invSect.innerHTML = '<h2 class="land-section-header">🛡️ Invasive Species Battle</h2>';
+
+  // Hide-completed toggle
+  const clearedCount = INVASIVES.filter(inv => (engine.invasiveAcres.get(inv.id) ?? 0) <= 0).length;
+  const toggleBar = el('div', 'tab-toggle-bar');
+  const toggleBtn = el('button',
+    `tab-toggle-btn${hideCompletedLand ? ' active' : ''}`,
+    hideCompletedLand
+      ? `👁 Show cleared (${clearedCount})`
+      : `✓ Hide cleared (${clearedCount})`
+  );
+  toggleBtn.addEventListener('click', () => {
+    hideCompletedLand = !hideCompletedLand;
+    localStorage.setItem('hideCompletedLand', hideCompletedLand);
+    renderAll();
+  });
+  toggleBar.appendChild(toggleBtn);
+  invSect.appendChild(toggleBar);
+
+  // Group by tier
+  const tiers = [
+    { tier: 1, label: '🟢 Minor Invasives' },
+    { tier: 2, label: '🟡 Medium Invasives' },
+    { tier: 3, label: '🔴 Dominant Invasives' },
+  ];
+
+  for (const { tier, label } of tiers) {
+    const species = INVASIVES.filter(s => s.tier === tier);
+    if (species.length === 0) continue;
+    const tierHeader = el('h3', 'land-tier-header', label);
+    invSect.appendChild(tierHeader);
+
+    for (const inv of species) {
+      const current = engine.invasiveAcres.get(inv.id) ?? 0;
+      const canRemove = engine.canRemoveInvasive(inv.id);
+      const isCleared = current <= 0;
+      if (hideCompletedLand && isCleared) continue;
+      const pct = inv.baseAcres > 0 ? Math.round((1 - current / inv.baseAcres) * 100) : 100;
+      const cp = engine.researchPoints;
+
+      const card = el('div', `land-invasive-card${isCleared ? ' land-invasive-cleared' : ''}`);
       card.innerHTML = `
-        <div class="land-market-row">
-          <span class="land-market-acres">🌲 ${parcel.acres} acre${parcel.acres !== 1 ? 's' : ''}</span>
-          <span class="land-market-cost">🪙 ${shortNumber(parcel.cost)}</span>
-          <button class="action-btn land-buy-btn${canAfford ? '' : ' disabled'}"
-            ${canAfford ? '' : 'disabled'}>
-            Buy
-          </button>
+        <div class="land-invasive-header">
+          <span class="land-invasive-icon">${inv.icon}</span>
+          <div class="land-invasive-names">
+            <span class="land-invasive-name">${inv.name}</span>
+            <span class="land-invasive-sci">${inv.sci}</span>
+          </div>
+          <div class="land-invasive-status">
+            ${isCleared
+              ? '<span class="land-invasive-cleared-badge">✅ Cleared!</span>'
+              : `<span class="land-invasive-acres">${current} / ${inv.baseAcres} ac</span>`
+            }
+          </div>
         </div>
+        <div class="research-progress-track">
+          <div class="research-progress-fill ${isCleared ? 'land-progress-cleared' : ''}" style="width:${pct}%;background:${isCleared ? '#4caf50' : '#66bb6a'}"></div>
+        </div>
+        <div class="land-invasive-desc">${inv.desc}</div>
+        ${!isCleared ? `
+          <div class="land-invasive-damage"><strong>Damage:</strong> ${inv.damage}</div>
+          <div class="land-invasive-control"><strong>Control:</strong> ${inv.controlMethod}</div>
+        ` : ''}
+        <div class="land-invasive-actions" id="inv-actions-${inv.id}"></div>
       `;
-      card.querySelector('.land-buy-btn').addEventListener('click', () => {
-        if (engine.buyLandParcel(parcel.id)) renderAll();
-      });
-      marketSect.appendChild(card);
+      invSect.appendChild(card);
+
+      // Action buttons
+      const actionsDiv = card.querySelector(`#inv-actions-${inv.id}`);
+      if (isCleared) {
+        // Nothing to do — species is cleared
+      } else if (!canRemove) {
+        const req = RESEARCH.find(r => r.id === inv.requiredResearch);
+        const lockEl = el('div', 'land-invasive-locked');
+        lockEl.innerHTML = `🔒 Research <strong>${req?.name ?? inv.requiredResearch}</strong> to unlock removal`;
+        lockEl.style.cursor = 'pointer';
+        lockEl.addEventListener('click', () => { activeTab = 'research'; renderAll(); });
+        actionsDiv.appendChild(lockEl);
+      } else {
+        // Show removal buttons: 1, 5, 10, All
+        const amounts = [1, 5, 10, current];
+        const btnRow = el('div', 'land-invasive-btn-row');
+        for (const amt of amounts) {
+          if (amt <= 0 || amt > current) continue;
+          const cost = amt * inv.removeCpPerAcre;
+          const canAfford = cp >= cost;
+          const label = amt === current ? `All (${amt})` : `${amt}`;
+          const btn = el('button', `action-btn land-remove-btn${canAfford ? '' : ' disabled'}`, `Remove ${label} · ${cost} CP`);
+          if (!canAfford) btn.disabled = true;
+          btn.addEventListener('click', () => {
+            const result = engine.removeInvasiveAcres(inv.id, amt);
+            if (result.ok) renderAll();
+          });
+          btnRow.appendChild(btn);
+        }
+        actionsDiv.appendChild(btnRow);
+      }
     }
   }
-  content.appendChild(marketSect);
+  content.appendChild(invSect);
 
-  // ── Land grid (all allocated acres visualized) ──────────────────────────────
+  // ── Land grid (40×25 = 1000 cells) ──────────────────────────────────────────
   const gridSect = el('div', 'land-section');
   gridSect.innerHTML = '<h2 class="land-section-header">🗺️ Your Land</h2>';
   const grid = el('div', 'land-grid');
 
-  // Crop zone tiles
+  // Build cell data: invasive, crop, native, establishing, free
+  const cells = [];
+
+  // Invasive cells (by species, in descending tier order for visual impact)
+  const sortedInvasives = [...INVASIVES].sort((a, b) => b.tier - a.tier);
+  for (const inv of sortedInvasives) {
+    const count = engine.invasiveAcres.get(inv.id) ?? 0;
+    for (let i = 0; i < count; i++) cells.push({ type: 'invasive', inv });
+  }
+  // Removal queue cells
+  for (const job of removalQ) {
+    const inv = INVASIVE_MAP[job.invasiveId];
+    if (!inv) continue;
+    for (let i = 0; i < job.acresRemaining; i++) cells.push({ type: 'removing', inv });
+  }
+  // Crop zone cells
   for (const [zoneName, acres] of engine.zoneAcres) {
     const def = FARM_ZONE_DEFS.find(d => d.name === zoneName);
     if (!def) continue;
     const crop = CROPS[def.cropId];
-    for (let i = 0; i < acres; i++) {
-      const tile = el('div', 'land-tile land-tile-crop');
-      tile.title = crop?.name ?? zoneName;
-      tile.innerHTML = inatThumbHtml(crop?.sciName, 'land-tile-thumb', crop?.name ?? zoneName);
-      grid.appendChild(tile);
-    }
+    for (let i = 0; i < acres; i++) cells.push({ type: 'crop', crop, zoneName });
   }
-  // Ranch animal tiles
-  if (ENABLE_RANCH) {
-    for (const [animalId, acres] of engine.ranchAcres) {
-      const animal = RANCH_ANIMALS[animalId];
-      for (let i = 0; i < acres; i++) {
-        const tile = el('div', 'land-tile land-tile-ranch');
-        tile.title = animal?.name ?? animalId;
-        tile.innerHTML = inatThumbHtml(animal?.sci, 'land-tile-thumb', animal?.name ?? animalId);
-        grid.appendChild(tile);
-      }
-    }
-  }
-  // Native plant tiles
+  // Native plant cells
   for (const [plantId, acres] of engine.plantedSpeciesAcres) {
     const result = engine.findPlant(plantId);
-    const plant  = result?.plant;
-    for (let i = 0; i < acres; i++) {
-      const tile = el('div', 'land-tile land-tile-native');
-      tile.title = plant?.name ?? plantId;
-      tile.innerHTML = inatThumbHtml(plant?.sci, 'land-tile-thumb', plant?.name ?? plantId);
-      grid.appendChild(tile);
-    }
+    const plant = result?.plant;
+    for (let i = 0; i < acres; i++) cells.push({ type: 'native', plant });
   }
-  // Queued native tiles
+  // Queued native cells
   for (const { plantId } of nativeQ) {
     const result = engine.findPlant(plantId);
-    const tile = el('div', 'land-tile land-tile-native land-tile-establishing');
-    tile.title = `${result?.plant?.name ?? plantId} (establishing…)`;
-    tile.innerHTML = `<span class="land-tile-icon">⏳</span>`;
-    grid.appendChild(tile);
+    cells.push({ type: 'establishing', plant: result?.plant });
   }
-  // Free acres
-  for (let i = 0; i < freeAcres; i++) {
-    const tile = el('div', 'land-tile land-tile-free');
-    tile.title = 'Free acre';
-    tile.innerHTML = `<span class="land-tile-icon">＋</span>`;
+  // Free cells
+  const freeCount = Math.max(0, totalAcres - cells.length);
+  for (let i = 0; i < freeCount; i++) cells.push({ type: 'free' });
+
+  // Render cells (cap at 1000)
+  const maxCells = Math.min(cells.length, 1000);
+  for (let i = 0; i < maxCells; i++) {
+    const c = cells[i];
+    const tile = document.createElement('div');
+    tile.className = 'land-tile';
+
+    switch (c.type) {
+      case 'invasive':
+        tile.classList.add('land-tile-invasive', `land-tile-tier${c.inv.tier}`);
+        tile.title = `${c.inv.name} (invasive)`;
+        tile.textContent = c.inv.icon;
+        break;
+      case 'removing':
+        tile.classList.add('land-tile-invasive', 'land-tile-removing');
+        tile.title = `${c.inv.name} (removing…)`;
+        tile.textContent = '⏳';
+        break;
+      case 'crop':
+        tile.classList.add('land-tile-crop');
+        tile.title = c.crop?.name ?? c.zoneName;
+        tile.textContent = CROP_EMOJI[c.crop?.id] ?? '🌾';
+        break;
+      case 'native':
+        tile.classList.add('land-tile-native');
+        tile.title = c.plant?.name ?? '?';
+        tile.textContent = c.plant?.icon ?? '🌿';
+        break;
+      case 'establishing':
+        tile.classList.add('land-tile-native', 'land-tile-establishing');
+        tile.title = `${c.plant?.name ?? '?'} (establishing…)`;
+        tile.textContent = '⏳';
+        break;
+      case 'free':
+        tile.classList.add('land-tile-free');
+        tile.title = 'Free acre';
+        tile.textContent = '＋';
+        break;
+    }
     grid.appendChild(tile);
   }
 
@@ -1994,12 +2166,16 @@ function renderCollection() {
   `;
   content.appendChild(banner);
 
-  const showCrops     = collectionFilter === 'all' || collectionFilter === 'crops';
-  const showPlants    = collectionFilter === 'all' || collectionFilter === 'plants';
-  const showCreatures = collectionFilter === 'all' || collectionFilter === 'creatures';
-  const showRanch     = ENABLE_RANCH && (collectionFilter === 'all' || collectionFilter === 'ranch');
-  const showHistory   = collectionFilter === 'history';
-  const showBirds     = collectionFilter === 'all' || collectionFilter === 'birds';
+  const showCrops      = collectionFilter === 'all' || collectionFilter === 'crops';
+  const showPlants     = collectionFilter === 'all' || collectionFilter === 'plants';
+  const showCreatures  = collectionFilter === 'all' || collectionFilter === 'creatures';
+  const showRanch      = ENABLE_RANCH && (collectionFilter === 'all' || collectionFilter === 'ranch');
+  const showHistory    = collectionFilter === 'history';
+  const showBirds      = collectionFilter === 'all' || collectionFilter === 'birds';
+  const showInvasives  = collectionFilter === 'all' || collectionFilter === 'invasives';
+
+  const researchedInvasives = INVASIVES.filter(inv => engine.completedResearch.has(inv.requiredResearch));
+  const researchedInvasiveCount = researchedInvasives.length;
 
   // ── Filter bar ──────────────────────────────────────────────────────────────
   const filterBar = el('div', 'collection-filter-bar');
@@ -2009,6 +2185,7 @@ function renderCollection() {
     { key: 'plants',    label: `🌿 Native Plants (${planted.size} / ${totalPlantCount})`                         },
     { key: 'creatures', label: `🦋 Creatures (${discoveredCount} / ${totalCreatures})`                           },
     { key: 'birds',     label: `🐦 Birds (${engine.discoveredBirds.size} / ${BIRD_LIST.length})`                 },
+    { key: 'invasives', label: `🛡️ Invasives (${researchedInvasiveCount} / ${INVASIVES.length})`                  },
     ...(ENABLE_RANCH ? [{ key: 'ranch', label: `🐄 Ranch Animals (${unlockedRanchAnimals.size} / ${RANCH_ANIMAL_LIST.length})` }] : []),
     { key: 'history',   label: `📊 History (${discoveredCount} / ${totalCreatures})` },
   ];
@@ -2324,6 +2501,74 @@ function renderCollection() {
       birdGrid.appendChild(card);
     }
     content.appendChild(birdGrid);
+  }
+
+  // ── Invasive species ──────────────────────────────────────────────────
+  if (showInvasives) {
+    content.appendChild(el('h2', 'section-header', `🛡️ Invasive Species — ${researchedInvasiveCount} of ${INVASIVES.length} researched`));
+    if (researchedInvasiveCount === 0) {
+      content.appendChild(el('p', 'research-idle-note', '— Complete invasive control research in the 🔬 Research tab to catalogue invasive species. —'));
+    }
+
+    const tierLabels = { 3: 'Dominant', 2: 'Medium', 1: 'Minor' };
+    for (const tier of [3, 2, 1]) {
+      const tierInvasives = INVASIVES.filter(inv => inv.tier === tier);
+      const tierResearched = tierInvasives.filter(inv => engine.completedResearch.has(inv.requiredResearch));
+      if (tierResearched.length === 0 && collectionFilter === 'invasives') {
+        // Show locked tier header only in dedicated invasives view
+        content.appendChild(el('h3', 'collection-type-header', `${tier === 3 ? '🔴' : tier === 2 ? '🟠' : '🟡'} ${tierLabels[tier]} Tier — 0 / ${tierInvasives.length} researched`));
+        continue;
+      } else if (tierResearched.length === 0) {
+        continue;
+      }
+      content.appendChild(el('h3', 'collection-type-header', `${tier === 3 ? '🔴' : tier === 2 ? '🟠' : '🟡'} ${tierLabels[tier]} Tier — ${tierResearched.length} / ${tierInvasives.length} researched`));
+
+      const grid = el('div', 'collection-creature-grid');
+      for (const inv of tierInvasives) {
+        const isResearched = engine.completedResearch.has(inv.requiredResearch);
+        const card = el('div', `collection-creature-card${isResearched ? '' : ' collection-bird-locked'}`);
+        const currentAcres = engine.invasiveAcres.get(inv.id) ?? 0;
+        const pctRemoved = inv.baseAcres > 0 ? Math.round((1 - currentAcres / inv.baseAcres) * 100) : 100;
+        if (isResearched) {
+          card.innerHTML = `
+            ${inv.sci ? inatThumbHtml(inv.sci, 'collection-creature-card-thumb', inv.name) : `<span class="collection-creature-card-thumb-icon">${inv.icon}</span>`}
+            <div class="collection-creature-card-body">
+              <div class="collection-creature-head">
+                <span class="collection-creature-name">${inv.icon} ${inv.name}</span>
+                <span class="collection-creature-type-badge type-${inv.type}">${inv.type === 'plant' ? '🌿' : '🐾'} ${inv.type}</span>
+              </div>
+              ${inv.sci ? `<a class="garden-plant-sci inat-link" href="${inatUrl(inv.sci)}" target="_blank" rel="noopener noreferrer">${inv.sci} ↗</a>` : ''}
+              <span class="collection-creature-role">${inv.desc}</span>
+              <p class="collection-creature-note"><strong>Ecological damage:</strong> ${inv.damage}</p>
+              <p class="collection-creature-note"><strong>Control method:</strong> ${inv.controlMethod}</p>
+              <div class="collection-host-label">🏕️ ${currentAcres > 0 ? `${currentAcres} / ${inv.baseAcres} acres remaining — ${pctRemoved}% cleared` : `Fully eradicated! (was ${inv.baseAcres} acres)`}</div>
+            </div>
+          `;
+          const thumbImg = card.querySelector('.collection-creature-card-thumb');
+          if (thumbImg && thumbImg.src === BLANK_GIF) {
+            fetchInatPhoto(inv.sci).then(url => {
+              if (!url) return;
+              inatPhotoCache[inv.sci] = url;
+              thumbImg.src = url;
+            });
+          }
+        } else {
+          card.innerHTML = `
+            <span class="collection-creature-card-thumb-icon">${inv.icon}</span>
+            <div class="collection-creature-card-body">
+              <div class="collection-creature-head">
+                <span class="collection-creature-name undiscovered-name">${inv.name}</span>
+                <span class="collection-creature-type-badge type-${inv.type}">${inv.type === 'plant' ? '🌿' : '🐾'}</span>
+              </div>
+              <span class="collection-creature-role">Complete <strong>${inv.requiredResearch.replace(/_/g, ' ')}</strong> research to learn about this invasive.</span>
+              <div class="collection-host-label">🏕️ Occupying ${currentAcres} acres</div>
+            </div>
+          `;
+        }
+        grid.appendChild(card);
+      }
+      content.appendChild(grid);
+    }
   }
 
   // ── Discovery history ──────────────────────────────────────────────
@@ -2711,7 +2956,7 @@ let lastResearchFingerprint   = '';
 let lastGardenFingerprint     = '';
 let lastCollectionFingerprint = '';
 let lastLandFingerprint       = '';
-let collectionFilter = 'all'; // 'all' | 'crops' | 'plants' | 'creatures' | 'birds' | 'history'
+let collectionFilter = 'all'; // 'all' | 'crops' | 'plants' | 'creatures' | 'birds' | 'invasives' | 'history'
 let collectionCreaturesCollapsed = new Set(); // plant IDs whose creature list is collapsed
 let collectionAllCollapsed = false;
 
@@ -3251,23 +3496,28 @@ function liveUpdate() {
     }
   } else if (activeTab === 'research') {
     // Re-render fully when completions, pts, or active project change
-    const rfp = `${engine.completedResearch.size}|${engine.activeResearchId}|${Math.floor(engine.researchPoints)}`;
+    const _rSlots = engine.researchSlots;
+    const rfp = `${engine.completedResearch.size}|${_rSlots.map(s => s.id).join(',')}|${Math.floor(engine.researchPoints)}|${engine.researchSlotCount}`;
     if (rfp !== lastResearchFingerprint) {
       lastResearchFingerprint = rfp;
       renderAll();
-    } else if (engine.activeResearchId) {
-      // In-place: update progress bar and time remaining
-      const project = RESEARCH.find(r => r.id === engine.activeResearchId);
-      if (project) {
-        const pct       = Math.min(100, Math.round(engine.activeResearchTimer / project.duration * 100));
-        const remaining = Math.max(0, project.duration - engine.activeResearchTimer);
-        const fill    = content.querySelector('.research-progress-fill');
+    } else if (_rSlots.length > 0) {
+      // In-place: update progress bars and time remaining for all active slots
+      const activeCards = content.querySelectorAll('.research-active-card');
+      _rSlots.forEach((slot, i) => {
+        const card = activeCards[i];
+        if (!card) return;
+        const project = RESEARCH.find(r => r.id === slot.id);
+        if (!project) return;
+        const pct       = Math.min(100, Math.round(slot.timer / project.duration * 100));
+        const remaining = Math.max(0, project.duration - slot.timer);
+        const fill    = card.querySelector('.research-progress-fill');
         if (fill) fill.style.width = `${pct}%`;
-        const timeEl  = content.querySelector('.research-active-time');
+        const timeEl  = card.querySelector('.research-active-time');
         if (timeEl) timeEl.textContent = `${fmtDays(remaining)} remaining`;
-        const pctEl   = content.querySelector('.research-active-pct');
+        const pctEl   = card.querySelector('.research-active-pct');
         if (pctEl) pctEl.textContent = `${pct}% complete`;
-      }
+      });
     }
   } else if (activeTab === 'garden') {
     // Re-render fully when planted set or active plant changes

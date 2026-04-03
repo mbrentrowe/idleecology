@@ -1,6 +1,7 @@
 // research.js — Ecology research definitions for Idle Ecologist
 
 export const RESEARCH_CATEGORIES = {
+  invasive: { id: 'invasive', label: '🛡️ Invasive Control', desc: 'Research and implement strategies to remove invasive species from your land.' },
   flora:   { id: 'flora',   label: '🌿 Native Flora',   desc: 'Introduce native plant species to increase habitat diversity and soil health.' },
   insects: { id: 'insects', label: '🦋 Native Insects',  desc: 'Restore native pollinators and beneficial insects to your land.' },
   wildlife:{ id: 'wildlife',label: '🦉 Native Wildlife', desc: 'Bring back native animals to build a richer, more resilient biosphere.' },
@@ -11,6 +12,80 @@ export const RESEARCH_CATEGORIES = {
 // add small bonuses to crop yield or gold-per-second.
 
 export const RESEARCH = [
+
+  // ── Invasive Control ────────────────────────────────────────────────────────
+  {
+    id:         'invasive_plant_survey',
+    category:   'invasive',
+    name:       'Invasive Plant Survey',
+    icon:       '📋',
+    desc:       'Walk your 1,000 acres with a field guide and GPS to map the extent of ornamental escapees — Bradford pear, nandina, and lesser celandine — and design removal plans for each.',
+    flavorText: 'Know your enemy. Every red pin on the map is an acre waiting to be reclaimed.',
+    cost:       30,
+    duration:   30,          // in-game days
+    requires:   [],
+    effect: { biosphereBonus: 3, label: '+3 Biosphere Score · unlocks removal of tier-1 plants' },
+  },
+  {
+    id:         'vine_groundcover_control',
+    category:   'invasive',
+    name:       'Vine & Groundcover Control',
+    icon:       '🪓',
+    desc:       'Develop cutting and herbicide protocols for the aggressive vine species strangling your woodlands — English ivy, wisteria, Japanese stiltgrass, and Japanese honeysuckle.',
+    flavorText: 'Sever the vine at the base. Cut the runners. Watch the canopy open to light again.',
+    cost:       60,
+    duration:   60,          // in-game days
+    requires:   ['invasive_plant_survey'],
+    effect: { biosphereBonus: 5, label: '+5 Biosphere Score · unlocks removal of invasive vines & grasses' },
+  },
+  {
+    id:         'woody_invasive_removal',
+    category:   'invasive',
+    name:       'Woody Invasive Removal',
+    icon:       '🪚',
+    desc:       'Bring in chainsaw crews and stump-treatment teams for the established woody invaders — autumn olive, mimosa, Chinese tallow, and multiflora rose require cut-stump herbicide to prevent regrowth.',
+    flavorText: 'The chainsaw bites, the stump gets its dose. One by one, the thickets fall.',
+    cost:       120,
+    duration:   100,         // in-game days
+    requires:   ['vine_groundcover_control'],
+    effect: { biosphereBonus: 8, cropYieldBonus: 0.02, label: '+8 Biosphere Score · +2% crop yield · unlocks woody invasive removal' },
+  },
+  {
+    id:         'deep_root_eradication',
+    category:   'invasive',
+    name:       'Deep-Root Eradication',
+    icon:       '⛏️',
+    desc:       'The toughest invasive plants on your land — kudzu, Chinese privet, and cogongrass — have deep root systems that can regenerate from fragments. This multi-year program combines repeated cutting, prescribed burning, and targeted herbicide.',
+    flavorText: 'Three years of burning and cutting. Then one morning you notice — the privet is gone, and native seedlings are pushing through.',
+    cost:       200,
+    duration:   150,         // in-game days
+    requires:   ['woody_invasive_removal'],
+    effect: { biosphereBonus: 12, cropYieldBonus: 0.03, label: '+12 Biosphere Score · +3% crop yield · unlocks removal of dominant invasives' },
+  },
+  {
+    id:         'invasive_pest_management',
+    category:   'invasive',
+    name:       'Invasive Pest Management',
+    icon:       '🔬',
+    desc:       'Develop integrated pest management strategies for the invasive animals on your land — fire ants, Asian tiger mosquitoes, and spotted lanternflies. Combines biological control, habitat management, and targeted treatment.',
+    flavorText: 'The phorid fly circles the mound. A tiny parasitoid — but the fire ants have never encountered anything like it.',
+    cost:       80,
+    duration:   80,          // in-game days
+    requires:   ['invasive_plant_survey'],
+    effect: { biosphereBonus: 5, label: '+5 Biosphere Score · unlocks invasive animal control' },
+  },
+  {
+    id:         'large_fauna_control',
+    category:   'invasive',
+    name:       'Large Fauna Control',
+    icon:       '🎯',
+    desc:       'Coordinate with state wildlife agencies to implement a year-round feral hog removal program using corral traps, trail cameras, and professional trappers. One of the most challenging invasive management problems in the Southeast.',
+    flavorText: 'The trap camera catches them at 3 AM — a sounder of thirty, rooting through your newly planted oaks. Time to call in the professionals.',
+    cost:       150,
+    duration:   120,         // in-game days
+    requires:   ['invasive_pest_management'],
+    effect: { biosphereBonus: 10, cropYieldBonus: 0.03, label: '+10 Biosphere Score · +3% crop yield · unlocks feral hog removal' },
+  },
 
   // ── Native Flora ────────────────────────────────────────────────────────────
   {
@@ -60,6 +135,18 @@ export const RESEARCH = [
     duration:   200,         // in-game days
     requires:   ['prairie_grass_patches'],
     effect: { biosphereBonus: 12, label: '+12 Biosphere Score · unlocks amphibian research' },
+  },
+  {
+    id:         'prescribed_burn_program',
+    category:   'flora',
+    name:       'Prescribed Burn Program',
+    icon:       '🔥',
+    desc:       'Implement a controlled burn regime to restore fire-adapted native ecosystems. Prescribed fire — used for millennia by Indigenous peoples and now managed by state forestry agencies across the South — suppresses invasive vegetation, recycles nutrients into the soil, and triggers germination of fire-dependent species like longleaf pine and native bunchgrasses. Alabama alone burns over 500,000 acres annually to maintain healthy forests and grasslands.',
+    flavorText: 'Smoke drifts low across the field. Beneath the blackened stubble, dormant seeds stir for the first time in decades.',
+    cost:       280,
+    duration:   180,         // in-game days
+    requires:   ['prairie_grass_patches'],
+    effect: { biosphereBonus: 14, cropYieldBonus: 0.03, label: '+14 Biosphere Score · +3% crop yield' },
   },
 
   // ── Native Insects ──────────────────────────────────────────────────────────

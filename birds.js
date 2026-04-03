@@ -32,7 +32,7 @@ export const BIRDS = {
     note: 'Cardinals are one of the few bird species where the female also sings — unusual among North American songbirds. Both sexes feed caterpillars almost exclusively to nestlings, making your insect community directly responsible for their breeding success.',
     desc: 'The Northern Cardinal is a year-round resident and an iconic SE USA garden bird. Males are brilliant crimson; females are warm brown with red accents. Cardinals prefer dense shrubby cover for nesting and foraging. During breeding season, animal protein from insects makes up over 90% of what they feed chicks — every caterpillar in your native plantings matters. In winter they switch to seeds and berries, making a diversity of native plants valuable across all seasons.',
     attractedBy: 'Native plant diversity providing both caterpillars and seeds',
-    unlockCriteria: { insectsDiscovered: 5, plantsEstablished: 2 },
+    unlockCriteria: { insectsDiscovered: 4, plantsEstablished: 2 },
   },
 
   carolina_chickadee: {
@@ -44,7 +44,7 @@ export const BIRDS = {
     note: "Doug Tallamy's research showed that a single Carolina Chickadee nest requires 6,000–9,000 caterpillars to raise one clutch of chicks. Their presence is a direct biological measure of your caterpillar abundance.",
     desc: 'The Carolina Chickadee is the quintessential SE USA woodland songbird — quick, acrobatic, and sociable year-round. While it consumes seeds and berries in winter, during breeding season it switches almost exclusively to caterpillars. It forages primarily in trees and shrubs, gleaning insects from leaf undersides. Understanding the food chain — native plant → caterpillar → chickadee nestling — is the ecological foundation of the Homegrown National Park movement.',
     attractedBy: 'High caterpillar diversity on native plants',
-    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 3 },
+    unlockCriteria: { insectsDiscovered: 5, plantsEstablished: 3 },
   },
 
   carolina_wren: {
@@ -56,7 +56,7 @@ export const BIRDS = {
     note: "Carolina Wrens are unusually loud for their size — the male's song can carry over a quarter of a mile. Pairs maintain year-round territories and become familiar, dependable presences in gardens with dense native understory.",
     desc: 'A plump, rufous-brown wren with a bold white eyebrow stripe and a persistently cocked tail. The Carolina Wren is a habitat generalist as long as dense cover is available — it forages in the leaf litter, along fallen logs, and in tangles of native shrubs for insects, spiders, and small invertebrates. It readily nests in unusual spots: flowerpots, open sheds, and hanging baskets. One of the most loyal garden inhabitants once it establishes territory.',
     attractedBy: 'Dense native shrubs providing foraging cover and leaf litter',
-    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'shrub' },
+    unlockCriteria: { insectsDiscovered: 5, hasPlantType: 'shrub' },
   },
 
   eastern_bluebird: {
@@ -68,7 +68,7 @@ export const BIRDS = {
     note: 'Bluebird populations crashed in the 20th century due to cavity competition from European Starlings and House Sparrows. Their recovery is a conservation success story driven by nest box programs — adding native plantings multiplies the effect by restoring their food supply.',
     desc: 'The Eastern Bluebird is one of the most beloved garden birds in the SE USA — sky-blue above, rusty-orange below, with a gentle manner and a soft warbling song. Bluebirds hunt by watching from a perch and dropping to the ground to capture caterpillars, beetles, grasshoppers, and other insects in the open. A high diversity of native insects is the single most important factor in successful bluebird nesting, making native plantings the best complement to nest boxes.',
     attractedBy: 'Diverse insects across open areas with native plantings',
-    unlockCriteria: { insectsDiscovered: 18, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 6, plantsEstablished: 3 },
   },
 
   red_bellied_woodpecker: {
@@ -80,7 +80,7 @@ export const BIRDS = {
     note: "Despite its name, the red belly is only faintly visible — the brilliant red cap is the standout field mark. Their call — a rolling churr — is one of the most characteristic sounds of SE USA woodland gardens.",
     desc: 'A medium-sized woodpecker with bold black-and-white barring and a vivid red crown. The Red-bellied Woodpecker is a fixture in mature native trees across the SE USA, excavating cavities that later shelter owls, ducks, and small mammals. It forages across tree bark for wood-boring beetles and other insects, caches acorns in bark crevices, and visits insect-rich native plantings year-round. Its presence reflects the structural maturity of native woody plants in your landscape.',
     attractedBy: 'Mature native trees providing bark insects and food-caching sites',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree' },
+    unlockCriteria: { insectsDiscovered: 6, hasPlantType: 'tree' },
   },
 
   cedar_waxwing: {
@@ -92,7 +92,7 @@ export const BIRDS = {
     note: 'Cedar Waxwings are nomadic and highly social — they rarely travel alone. When a flock finds a heavily fruiting tree, dozens descend simultaneously and strip the branches within minutes. Multiple fruiting native species extend your ability to attract them across seasons.',
     desc: 'Among the most elegant birds in North America — sleek, crested, and masked, with waxy red wingtip spots that give them their name. Cedar Waxwings are specialists on fruit, consuming native berries and drupes almost exclusively outside the brief insect-rich breeding period. They are nomadic rather than territorial, wandering wherever fruit is abundant. Fruiting native shrubs and trees are the single key to attracting them — no amount of other landscaping substitutes.',
     attractedBy: 'Multiple species of fruiting native shrubs and trees',
-    unlockCriteria: { insectsDiscovered: 15, fruitingPlants: 3 },
+    unlockCriteria: { insectsDiscovered: 14, fruitingPlants: 3 },
   },
 
   northern_mockingbird: {
@@ -104,7 +104,7 @@ export const BIRDS = {
     note: 'A male mockingbird can learn 200+ songs over its lifetime, incorporating the calls of neighbors, car alarms, and frogs. They sing day and night during breeding season — loud proof that your habitat is rich enough to sustain a territorial resident.',
     desc: 'The Northern Mockingbird is the boldest, most conspicuous garden bird in the SE USA — a medium-sized grey bird with white wing patches visible in flight. It defends large territories that it fills with constant song. Mockingbirds are dietary generalists — eating insects in summer and switching to berries in winter — which means a diverse native planting supports them across all seasons. They are often the bird most dramatically improved by native planting programs.',
     attractedBy: 'Diverse insects, fruiting plants, and enough land for a territory',
-    unlockCriteria: { insectsDiscovered: 25, fruitingPlants: 2, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 6, fruitingPlants: 1, plantsEstablished: 3 },
   },
 
   indigo_bunting: {
@@ -116,7 +116,7 @@ export const BIRDS = {
     note: 'Indigo Buntings navigate migration almost entirely by the stars, calibrating their internal compass each night. Their appearance in larger numbers tracks directly with the recovery of native insect and seed plant diversity — a living metric of your restoration progress.',
     desc: 'The male Indigo Bunting in breeding plumage is one of the most intensely blue birds on earth — not from pigment but from structural coloration that scatters blue light. Females are streaky brown and easily overlooked. Buntings eat small seeds and insects, favouring native meadow-edge habitats. In summer they switch substantially to caterpillars and other insects for the protein demands of breeding season.',
     attractedBy: 'Native flower diversity with abundant caterpillars and seed heads',
-    unlockCriteria: { insectsDiscovered: 30, plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 18, plantsEstablished: 8 },
   },
 
   eastern_towhee: {
@@ -128,7 +128,7 @@ export const BIRDS = {
     note: "The Towhee's drink-your-tea! song is one of the most recognizable sounds of SE USA shrubby habitat. They scratch through leaf litter with both feet simultaneously — a double-scratch technique unique among SE birds — to expose insects and seeds.",
     desc: 'A boldly patterned, robin-sized sparrow with a black hood, rufous sides, and white belly. The Eastern Towhee is strictly a bird of dense shrubby edges and thickets — it will not occupy open lawns or sparse plantings. It forages exclusively on the ground, scratching noisily through leaf litter to find insects, caterpillars, seeds, and berries. Because it needs both structural density from native shrubs and the insects living in the leaf litter beneath them, it is one of the most reliable ecological indicators of a maturing native planting.',
     attractedBy: 'Dense native shrubs with deep leaf litter and ground insects',
-    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'shrub', plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'shrub', plantsEstablished: 7 },
   },
 
   american_barn_owl: {
@@ -140,7 +140,7 @@ export const BIRDS = {
     note: 'Barn Owls hunt almost entirely by sound. Their asymmetrical ear placement allows them to pinpoint rodent movement in complete darkness.',
     desc: 'A ghostly white-faced owl with dark eyes and a heart-shaped face. American Barn Owls hunt primarily at night, patrolling open fields for rodents. They are drawn to grasslands and meadows — native prairie plantings increase rodent diversity and attract these remarkable hunters.',
     attractedBy: 'Open fields with native grasses supporting rodent populations',
-    unlockCriteria: { insectsDiscovered: 8, hasPlantType: 'flower' },
+    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'flower' },
   },
   
   american_crow: {
@@ -152,7 +152,7 @@ export const BIRDS = {
     note: 'Crows are among the most intelligent birds in North America. They recognize individual faces, use tools, and hold "grudges" against people who harm them.',
     desc: 'One of the most familiar and adaptable birds in North America, the American Crow is all black with a heavy bill and intelligent eyes. They are highly social, gathering in large flocks and employing complex communication. Crows benefit from diverse native plantings that support insects, fruits, and seeds — their dietary staple.',
     attractedBy: 'Native plants providing a diversity of food sources',
-    unlockCriteria: { insectsDiscovered: 6, plantsEstablished: 3 },
+    unlockCriteria: { insectsDiscovered: 4, plantsEstablished: 2 },
   },
   
   american_goldfinch: {
@@ -164,7 +164,7 @@ export const BIRDS = {
     note: 'American Goldfinches delay breeding until late summer, timing their chick-rearing to coincide with the peak of native thistle and seed production.',
     desc: 'The American Goldfinch is a small, acrobatic finch with a brilliant yellow plumage in breeding season (males) and olive-brown in winter. Goldfinches are almost entirely vegetarian, feeding on seeds from native flowers, especially thistles and asters. They are one of the few bird species that appreciates a garden left somewhat "wild" — native plants allowed to set seed are the key to their presence year-round.',
     attractedBy: 'Native plants with abundant seed production',
-    unlockCriteria: { plantsEstablished: 5, fruitingPlants: 2 },
+    unlockCriteria: { plantsEstablished: 6, fruitingPlants: 2 },
   },
   
   american_kestrel: {
@@ -176,7 +176,7 @@ export const BIRDS = {
     note: 'The American Kestrel is North America\'s smallest falcon, yet hunts insects, small birds, and rodents from utility wires and fence posts with striking precision.',
     desc: 'A dainty falcon with rufous back, blue-gray wings, and distinctive facial markings. American Kestrels hunt from open perches, making quick aerial dives after insects or small prey. Native grasslands and open areas with scattered trees or structures for perching provide ideal habitat. Their presence indicates healthy insect populations.',
     attractedBy: 'Open areas with native grasses and scattered perches',
-    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'flower' },
+    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'flower' },
   },
   
   american_pipit: {
@@ -188,7 +188,7 @@ export const BIRDS = {
     note: 'American Pipits nest above treeline in alpine zones but migrate to lower elevations in winter, where they favor open grasslands and disturbed areas.',
     desc: 'A small, thin billed songbird that walks on the ground like a sparrow, bobbing its tail continuously. American Pipits are highly migratory, using open grasslands and meadows during spring and fall passage. Native prairie plantings that maintain some open ground attract these delicate insectivores.',
     attractedBy: 'Open meadows and grasslands with abundant insects',
-    unlockCriteria: { insectsDiscovered: 10, hasPlantType: 'flower' },
+    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'flower' },
   },
 
   ash_throated_flycatcher: {
@@ -200,7 +200,7 @@ export const BIRDS = {
     note: 'Ash-throated Flycatchers are expanding their range northward, increasingly wintering in the Southeast rather than migrating to Mexico.',
     desc: 'A pale flycatcher with a rusty tail and whitish underparts. Ash-throated Flycatchers hunt insects in flight from open perches in trees and shrubs. They nest in cavities and readily use nest boxes. Their presence in a garden indicates adequate insect diversity and structural variety in native plantings.',
     attractedBy: 'Trees and shrubs supporting flying insects',
-    unlockCriteria: { insectsDiscovered: 15, hasPlantType: 'shrub' },
+    unlockCriteria: { insectsDiscovered: 48, hasPlantType: 'shrub' },
   },
 
   bachman_s_sparrow: {
@@ -212,7 +212,7 @@ export const BIRDS = {
     note: "Bachman's Sparrows require large areas of longleaf pine grassland and face severe habitat constraints. Their presence is a sign of rare, high-quality native grassland.",
     desc: 'A rare and elusive sparrow of southeastern grasslands. Bachman\'s Sparrows forage on the ground among native grasses, searching for insects and seeds. Their recovery depends on restoring large patches of native grassland habitat — they avoid small, isolated patches.',
     attractedBy: 'Extensive native grasslands with minimal tree cover',
-    unlockCriteria: { insectsDiscovered: 25, hasPlantType: 'flower', plantsEstablished: 15 },
+    unlockCriteria: { insectsDiscovered: 55, hasPlantType: 'flower', plantsEstablished: 20 },
   },
 
   bald_eagle: {
@@ -224,7 +224,7 @@ export const BIRDS = {
     note: 'Bald Eagles were nearly extinct in the lower 48 states by the 1970s but have made a remarkable recovery due to wetland protection and pesticide removal. Their return is one of America\'s greatest conservation successes.',
     desc: 'North America\'s most iconic raptor — a massive eagle with a white head and brown body in adults. Bald Eagles require large territories with tall trees for nesting and are drawn to areas with abundant fish and waterfowl. While not attracted to small yards, their presence in a community reflects landscape-scale conservation.',
     attractedBy: 'Large territories with mature trees and abundant aquatic food',
-    unlockCriteria: { insectsDiscovered: 50, plantsEstablished: 20, hasPlantType: 'tree' },
+    unlockCriteria: { insectsDiscovered: 30, plantsEstablished: 14, hasPlantType: 'tree' },
   },
 
   baltimore_oriole: {
@@ -236,7 +236,7 @@ export const BIRDS = {
     note: 'Male Baltimore Orioles are brilliant orange and black — among the most strikingly colored birds in the eastern forest. Females are much duller but have the same distinctive build.',
     desc: 'A neotropical migrant that breeds across eastern North America. Males are unmistakable with brilliant orange and black plumage. Orioles weave elaborate hanging pouch nests and hunt insects among tree foliage. They are attracted to areas with fruiting native plants and high caterpillar abundance on trees.',
     attractedBy: 'Trees with high insect diversity and fruiting native plants',
-    unlockCriteria: { insectsDiscovered: 20, fruitingPlants: 2, hasPlantType: 'tree' },
+    unlockCriteria: { insectsDiscovered: 22, fruitingPlants: 3, hasPlantType: 'tree' },
   },
 
   barn_swallow: {
@@ -248,7 +248,7 @@ export const BIRDS = {
     note: 'Barn Swallows are incredibly agile fliers, hawking insects mid-air while traveling at sustained speeds. They time their breeding to coincide with peak insect emergence.',
     desc: 'A sleek, streamlined swallow with blue-black upperparts and rusty throat. Barn Swallows nest on human structures but their diet depends entirely on wild insect populations. Landscapes with diverse native plants supporting abundant flying insects are essential for their breeding success.',
     attractedBy: 'Areas with abundant flying insects',
-    unlockCriteria: { insectsDiscovered: 18, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 14, plantsEstablished: 6 },
   },
 
   barred_owl: {
@@ -260,7 +260,7 @@ export const BIRDS = {
     note: 'Barred Owls are highly vocal, with a distinctive who-cooks-for-you call. Unlike many owls, they often hunt in the daytime, especially during breeding season.',
     desc: 'A medium-sized forest owl with bold facial disk and dark eyes. Barred Owls are closely tied to mature forest habitat, especially near water. They hunt from perches, dropping to capture small mammals and sometimes birds. Old-growth native tree plantings eventually serve these impressive hunters.',
     attractedBy: 'Mature native forest with understory prey diversity',
-    unlockCriteria: { insectsDiscovered: 30, hasPlantType: 'tree', plantsEstablished: 12 },
+    unlockCriteria: { insectsDiscovered: 26, hasPlantType: 'tree', plantsEstablished: 12 },
   },
 
   black_vulture: {
@@ -272,7 +272,7 @@ export const BIRDS = {
     note: 'Black Vultures lack the sharp sense of smell of Turkey Vultures and often rely on following Turkey Vultures to find food.',
     desc: 'A large, all-black vulture smaller than Turkey Vulture with a short tail and silvery wing patches visible in flight. Black Vultures are social scavengers, often seen in groups. While they rarely alight on residential properties, their presence in the landscape indicates a functioning ecosystem with natural carrion cycling.',
     attractedBy: 'Landscape-scale open spaces and thermal neighborhoods',
-    unlockCriteria: { insectsDiscovered: 40, plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 24, plantsEstablished: 10 },
   },
 
   black_and_white_warbler: {
@@ -284,7 +284,7 @@ export const BIRDS = {
     note: 'Black-and-white Warblers forage in an unusual manner, creeping along branches and trunks like nuthatches, gleaning insects from bark crevices.',
     desc: 'A striking black-and-white striped warbler that behaves more like a nuthatch than a typical warbler. Black-and-white Warblers are among the earliest spring migrants, returning to forest habitat to hunt insects from tree bark. Mature native trees are essential for their survival.',
     attractedBy: 'Mature native trees with abundant bark insects',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 9 },
   },
 
   black_throated_green_warbler: {
@@ -296,7 +296,7 @@ export const BIRDS = {
     note: 'Black-throated Green Warblers prefer conifers and are most common in mixed forests with evergreen trees.',
     desc: 'A small warbler with olive-green upperparts and yellow face with black throat patch. Black-throated Green Warblers forage high in tree canopies for insects, preferring coniferous or mixed forest habitat. Eastern red cedar and other native evergreens provide important structure.',
     attractedBy: 'Mixed forest with native evergreens and high insect diversity',
-    unlockCriteria: { insectsDiscovered: 25, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 30, hasPlantType: 'tree', plantsEstablished: 12 },
   },
 
   blue_headed_vireo: {
@@ -320,7 +320,7 @@ export const BIRDS = {
     note: 'Male Boat-tailed Grackles are glossy black with enormously long, deeply forked tails. Females are much smaller and brown — so different they were once thought to be separate species.',
     desc: 'A large, long-tailed blackbird most common in the coastal Southeast. Boat-tailed Grackles are social, gathering in large flocks and nesting colonially. They exploit a wide range of food sources including seeds, insects, and small animals. Native adaptability to wetland and open edge habitats.',
     attractedBy: 'Open areas and wetland edges with diverse food sources',
-    unlockCriteria: { insectsDiscovered: 15, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 35, plantsEstablished: 12 },
   },
 
   brewers_blackbird: {
@@ -332,7 +332,7 @@ export const BIRDS = {
     note: "Brewer's Blackbirds expand their range eastward most years, with winter flocks increasingly common across the southeastern states.",
     desc: 'A sleek blackbird with iridescent plumage. Brewer\'s Blackbirds are adaptable, foraging on open ground for insects and seeds. They readily expand into areas with disturbed grasslands and cultivated landscapes mixed with native plantings.',
     attractedBy: 'Open areas with native grasses and seed-producing plants',
-    unlockCriteria: { insectsDiscovered: 12, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 40, plantsEstablished: 10 },
   },
 
   broad_winged_hawk: {
@@ -344,7 +344,7 @@ export const BIRDS = {
     note: 'Broad-winged Hawks are famous for their dramatic fall migrations, with thousands gathering to ride thermal updrafts southward in spectacular kettles.',
     desc: 'A small, compact hawk with compact body proportions. Broad-winged Hawks inhabit deciduous and mixed forest, hunting from perches. They require large territories with mature trees and abundant small-prey populations.',
     attractedBy: 'Mixed forest habitat with hunting perches and prey diversity',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'tree', plantsEstablished: 10 },
   },
 
   bronzed_cowbird: {
@@ -356,7 +356,7 @@ export const BIRDS = {
     note: 'Bronzed Cowbirds are brood parasites, laying eggs in other species\' nests rather than building their own. This strategy can overwhelm host species in areas of high cowbird density.',
     desc: 'A glossy, dark iridescent cowbird that has expanded northward over the past decades. While primarily a brood parasite and seed-eater, Bronzed Cowbirds do consume insects and have benefited from more open, developed landscapes.',
     attractedBy: 'Open areas with seed-producing plants',
-    unlockCriteria: { insectsDiscovered: 8, plantsEstablished: 4 },
+    unlockCriteria: { insectsDiscovered: 45, plantsEstablished: 10 },
   },
 
   brown_creeper: {
@@ -368,7 +368,7 @@ export const BIRDS = {
     note: 'Brown Creepers have a remarkable roosting behavior — they sleep in small pockets behind bark, leaving a thin stream of droppings that later betrays their location.',
     desc: 'A small, cryptic songbird with brown, streaky plumage that blends perfectly with tree bark. Brown Creepers spiral up tree trunks gleaning tiny insects and spider eggs from crevices. Deep, mature bark on native trees is essential for their survival.',
     attractedBy: 'Mature native trees with deep, furrowed bark',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 9 },
   },
 
   brown_thrasher: {
@@ -380,7 +380,7 @@ export const BIRDS = {
     note: 'Brown Thrashers sing with incredible complexity, with individual males capable of singing over 1,100 different song types — more than any other North American songbird.',
     desc: 'A large, rufous-brown thrasher with heavily streaked underparts. Brown Thrashers are ground foragers, using their long curved bill to rake through leaf litter for insects and small animals. They require dense brushy cover for nesting and are attracted to areas with native shrub tangles.',
     attractedBy: 'Dense native shrubs and deep leaf litter',
-    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'shrub', plantsEstablished: 9 },
+    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'shrub', plantsEstablished: 8 },
   },
 
   brown_headed_cowbird: {
@@ -392,7 +392,7 @@ export const BIRDS = {
     note: 'Brown-headed Cowbirds have expanded dramatically with human landscape modification. In some areas, they parasitize over 140 bird species, significantly impacting native populations.',
     desc: 'A small blackbird with brown head (females duller). Brown-headed Cowbirds are brood parasites and seed-eaters. While they benefit from bird feeding stations and open developed areas, they negatively impact many native songbirds.',
     attractedBy: 'Open landscapes with seed sources and host bird nests',
-    unlockCriteria: { insectsDiscovered: 6, plantsEstablished: 3 },
+    unlockCriteria: { insectsDiscovered: 4, plantsEstablished: 2 },
   },
 
   brown_headed_nuthatch: {
@@ -404,7 +404,7 @@ export const BIRDS = {
     note: 'Brown-headed Nuthatches are highly social, maintaining family flocks year-round and even helping parents raise subsequent broods.',
     desc: 'A small, active nuthatch with brown cap and blue-gray upperparts. Brown-headed Nuthatches are specialists on longleaf pine forests, foraging for bark insects in pine trees. Native pine restoration is essential for this species.',
     attractedBy: 'Native pine forests with abundant bark insects',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 9 },
   },
 
   bullocks_oriole: {
@@ -416,7 +416,7 @@ export const BIRDS = {
     note: "Bullock's Orioles are western birds that occasionally appear as vagrants in the Southeast during migration or winter.",
     desc: 'A western oriole with striking orange and black plumage. Bullock\'s Orioles have expanded eastward over recent decades, appearing increasingly in southeastern states during migration and winter.',
     attractedBy: 'Mixed woodland with fruiting native plants',
-    unlockCriteria: { insectsDiscovered: 16, fruitingPlants: 2, hasPlantType: 'tree' },
+    unlockCriteria: { insectsDiscovered: 48, fruitingPlants: 3, hasPlantType: 'tree' },
   },
 
   chipping_sparrow: {
@@ -440,7 +440,7 @@ export const BIRDS = {
     note: 'Chuck-will\'s-widow is one of the largest nightjars and hunts insects in flight at dusk and through the night.',
     desc: 'A cryptic, nocturnal insectivore in the nightjar family. Chuck-will\'s-widow hunts moths and flying insects during darkness, resting on the ground during the day. They are attracted to areas with high flying-insect abundance.',
     attractedBy: 'Forest edges with abundant nocturnal flying insects',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'tree', plantsEstablished: 9 },
   },
 
   clay_colored_sparrow: {
@@ -452,7 +452,7 @@ export const BIRDS = {
     note: 'Clay-colored Sparrows are primarily western and midwestern but increasingly winter in southeastern states.',
     desc: 'A pale, delicate sparrow of grasslands and open areas. Clay-colored Sparrows forage on the ground for seeds and insects. They are attracted to native grassland restorations.',
     attractedBy: 'Native grasslands with sparse shrubby cover',
-    unlockCriteria: { insectsDiscovered: 10, hasPlantType: 'flower', plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'flower', plantsEstablished: 8 },
   },
 
   cliff_swallow: {
@@ -464,7 +464,7 @@ export const BIRDS = {
     note: 'Cliff Swallows have adapted from nesting on natural cliff faces to building mud nests on human structures, making them increasingly common around populated areas.',
     desc: 'A small swallow with buff rump and dark upperparts. Cliff Swallows hunt flying insects exclusively and live in colonial groups. Their presence indicates abundant airborne insect populations.',
     attractedBy: 'Areas with abundant flying insects',
-    unlockCriteria: { insectsDiscovered: 14, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 12, plantsEstablished: 5 },
   },
 
   common_grackle: {
@@ -488,7 +488,7 @@ export const BIRDS = {
     note: 'Common Ground-Doves are one of the smallest dove species in North America and forage almost exclusively on the ground.',
     desc: 'A tiny, long-tailed dove with spotted wings and rufous coloring. Ground-Doves forage on open ground for seeds, preferring areas with bare soil and scattered seeds.',
     attractedBy: 'Open ground with seed-producing native plants',
-    unlockCriteria: { insectsDiscovered: 6, plantsEstablished: 4 },
+    unlockCriteria: { insectsDiscovered: 8, plantsEstablished: 4 },
   },
 
   common_yellowthroat: {
@@ -500,7 +500,7 @@ export const BIRDS = {
     note: 'Male Common Yellowthroats sing constantly throughout breeding season, with males capable of singing over 20 songs per minute.',
     desc: 'A small warbler with males showing a distinctive black mask and yellow throat. Common Yellowthroats are adaptable, inhabiting wetland edges and brushy areas. They forage near the ground for insects and spiders.',
     attractedBy: 'Native wetland plants and brushy edges with insects',
-    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 7 },
   },
 
   coopers_hawk: {
@@ -512,7 +512,7 @@ export const BIRDS = {
     note: "Cooper's Hawks are agile, acrobatic hunters that pursue avian prey through dense vegetation. They have undergone remarkable population recovery since DDT bans.",
     desc: 'A small accipiter with rounded wings and long tail. Cooper\'s Hawks are forest hawks that specialize in hunting birds and small mammals through dense vegetation. They prefer areas with structural complexity from native tree and shrub plantings.',
     attractedBy: 'Native forest with structural diversity',
-    unlockCriteria: { insectsDiscovered: 25, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 10 },
   },
 
   dark_eyed_junco: {
@@ -536,7 +536,7 @@ export const BIRDS = {
     note: 'The Downy Woodpecker is the smallest woodpecker in North America but still powerful enough to excavate cavities in solid wood.',
     desc: 'A tiny woodpecker with black-and-white barring and a short bill. Downy Woodpeckers are year-round residents that forage on small branches and twigs for insects. They readily use suet feeders and nest boxes.',
     attractedBy: 'Trees with bark insects and small branches for gleaning',
-    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'tree', plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 10, hasPlantType: 'tree', plantsEstablished: 5 },
   },
 
   eastern_kingbird: {
@@ -548,7 +548,7 @@ export const BIRDS = {
     note: 'Eastern Kingbirds will dive-bomb raptors and crows to defend their nesting territory. They sometimes even grab flying insects with their beaks mid-pursuit.',
     desc: 'A bold flycatcher with black upperparts and white underparts. Eastern Kingbirds are fierce territorial defenders and skilled aerial hunters. They require open areas with scattered trees for perching and hunting.',
     attractedBy: 'Open areas with scattered perches and abundant flying insects',
-    unlockCriteria: { insectsDiscovered: 20, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 7 },
   },
 
   eastern_meadowlark: {
@@ -560,7 +560,7 @@ export const BIRDS = {
     note: 'Eastern Meadowlarks produce a clear, whistled song that gives them their name. The song varies regionally but is instantly recognizable to southeastern residents.',
     desc: 'A chunky songbird of grasslands with yellow underparts and a bold black "V" on the breast. Eastern Meadowlarks forage on the ground for insects and seeds in open grassy areas. Grassland restoration provides critical habitat.',
     attractedBy: 'Large, open grasslands with native vegetation',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'flower', plantsEstablished: 12 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'flower', plantsEstablished: 10 },
   },
 
   eastern_phoebe: {
@@ -572,7 +572,7 @@ export const BIRDS = {
     note: 'Eastern Phoebes are often the first spring migrant to return north, arriving while snow still lies on the ground as they subsist on early-emerging insects.',
     desc: 'A modest grey flycatcher with white underparts. Eastern Phoebes are year-round residents in many areas, habitually pumping their tail. They forage for insects from low perches and low flight and readily nest under human structures.',
     attractedBy: 'Areas with perches for hunting and abundant insects',
-    unlockCriteria: { insectsDiscovered: 14, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 12, plantsEstablished: 5 },
   },
 
   eastern_screech_owl: {
@@ -584,7 +584,7 @@ export const BIRDS = {
     note: 'Eastern Screech-Owls have two color morphs — gray and rufous — that live sympatrically with no apparent fitness difference between them.',
     desc: 'A small, ear-tufted owl with cryptic plumage in gray or rufous phases. Eastern Screech-Owls hunt at night for insects, small birds, and mammals in wooded areas. They readily nest in boxes and are attracted to areas with structural diversity.',
     attractedBy: 'Wooded areas with understory diversity and nest boxes',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 9 },
   },
 
   eastern_whip_poor_will: {
@@ -596,7 +596,7 @@ export const BIRDS = {
     note: 'Eastern Whip-poor-wills are declining across their range, likely due to reduced flying-insect populations from pesticide use and habitat loss.',
     desc: 'A cryptic nightjar that hunts insects in flight during twilight and darkness. Eastern Whip-poor-wills rest on the ground during the day and are attracted to areas with abundant nocturnal flying insects.',
     attractedBy: 'Forest clearings and edges with abundant nocturnal insects',
-    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 26, hasPlantType: 'tree', plantsEstablished: 10 },
   },
 
   eurasian_collared_dove: {
@@ -620,7 +620,7 @@ export const BIRDS = {
     note: 'European Starlings are invasive throughout North America. A single founding population of 100 birds released in New York in the 1890s spawned hundreds of millions of offspring.',
     desc: 'A glossy black bird with iridescent plumage and sharp bill. European Starlings are extremely adaptable and competitive, often displacing native cavity-nesting species.',
     attractedBy: 'Any developed area with food sources',
-    unlockCriteria: { insectsDiscovered: 5, plantsEstablished: 2 },
+    unlockCriteria: { insectsDiscovered: 3, plantsEstablished: 2 },
   },
 
   field_sparrow: {
@@ -632,7 +632,7 @@ export const BIRDS = {
     note: 'Field Sparrows are declining as grassland habitat disappears across eastern North America.',
     desc: 'A small, reddish sparrow of open grasslands and brushy fields. Field Sparrows forage on the ground for seeds and insects. They require grassland habitat with scattered shrubby cover.',
     attractedBy: 'Native grasslands with some shrubby cover',
-    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'flower', plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'flower', plantsEstablished: 8 },
   },
 
   fish_crow: {
@@ -644,7 +644,7 @@ export const BIRDS = {
     note: 'Fish Crows were once restricted to coastal areas but have expanded inland dramatically, now common along interior waterways and developed areas.',
     desc: 'A smaller version of the American Crow with a distinctive nasal call. Fish Crows are highly adaptable and opportunistic, exploiting urban and waterside resources.',
     attractedBy: 'Waterside areas with developed zones',
-    unlockCriteria: { insectsDiscovered: 8, plantsEstablished: 4 },
+    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 5 },
   },
 
   fox_sparrow: {
@@ -656,7 +656,7 @@ export const BIRDS = {
     note: 'Fox Sparrows are migrants that pass through the Southeast in spring and fall, scratching vigorously through leaf litter.',
     desc: 'A large, heavily-streaked sparrow with rufous coloration. Fox Sparrows forage on the ground, scratching through leaf litter for seeds and insects. Deep leaf litter and native shrubby cover attract them during migration.',
     attractedBy: 'Native plants with deep leaf litter',
-    unlockCriteria: { insectsDiscovered: 10, hasPlantType: 'shrub', plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 32, hasPlantType: 'shrub', plantsEstablished: 10 },
   },
 
   golden_crowned_kinglet: {
@@ -668,7 +668,7 @@ export const BIRDS = {
     note: 'Golden-crowned Kinglets are among the smallest North American songbirds and can survive harsh winter conditions by approaching torpor at night.',
     desc: 'One of the smallest birds in North America with an ornate crown. Golden-crowned Kinglets forage in treetops, gleaning tiny insects from conifer foliage. Native evergreens are essential for winter survival.',
     attractedBy: 'Native conifers and mixed forest with high insect diversity',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 8 },
   },
 
   grasshopper_sparrow: {
@@ -680,7 +680,7 @@ export const BIRDS = {
     note: 'Grasshopper Sparrows produce insect-like buzzing songs and are most easily identified by sound rather than sight.',
     desc: 'A cryptic sparrow of native grasslands and prairies. Grasshopper Sparrows forage on the ground for insects and seeds. Extensive grassland restoration is critical for their survival.',
     attractedBy: 'Large native grasslands minimally invaded by woody plants',
-    unlockCriteria: { insectsDiscovered: 25, hasPlantType: 'flower', plantsEstablished: 15 },
+    unlockCriteria: { insectsDiscovered: 50, hasPlantType: 'flower', plantsEstablished: 18 },
   },
 
   gray_catbird: {
@@ -692,7 +692,7 @@ export const BIRDS = {
     note: 'Gray Catbirds are famous for mimicking the mewing calls of cats — a striking vocalization that has inspired both their common and scientific names.',
     desc: 'A slate-gray songbird with black cap and rusty undertail coverts. Gray Catbirds prefer dense shrubby cover and forage for insects and berries. They readily visit feeding stations and are attracted to native plantings with structure.',
     attractedBy: 'Dense native shrubs providing both insects and berries',
-    unlockCriteria: { insectsDiscovered: 16, fruitingPlants: 2, hasPlantType: 'shrub' },
+    unlockCriteria: { insectsDiscovered: 14, fruitingPlants: 2, hasPlantType: 'shrub' },
   },
 
   great_crested_flycatcher: {
@@ -716,7 +716,7 @@ export const BIRDS = {
     note: 'Great Horned Owls are one of the most powerful avian predators in North America, capable of hunting rabbits, ducks, and even smaller raptors.',
     desc: 'North America\'s largest eared owl with powerful talons and fierce disposition. Great Horned Owls hunt at night from favorite perches. They are drawn to wooded areas with prey diversity and tall trees for roosting.',
     attractedBy: 'Mature forest with hunting perches and prey diversity',
-    unlockCriteria: { insectsDiscovered: 30, hasPlantType: 'tree', plantsEstablished: 12 },
+    unlockCriteria: { insectsDiscovered: 28, hasPlantType: 'tree', plantsEstablished: 12 },
   },
 
   henslows_sparrow: {
@@ -728,7 +728,7 @@ export const BIRDS = {
     note: "Henslow's Sparrows are reclusive grassland specialists that are declining dramatically due to grassland loss.",
     desc: 'A small, cryptic sparrow of native grasslands. Henslow\'s Sparrows remain close to the ground and are best identified by their insect-like song.',
     attractedBy: 'Well-managed native grasslands',
-    unlockCriteria: { insectsDiscovered: 28, hasPlantType: 'flower', plantsEstablished: 16 },
+    unlockCriteria: { insectsDiscovered: 55, hasPlantType: 'flower', plantsEstablished: 20 },
   },
 
   hermit_thrush: {
@@ -740,7 +740,7 @@ export const BIRDS = {
     note: 'Hermit Thrushes produce ethereal, flute-like songs that are among the most beautiful sounds of eastern forests.',
     desc: 'A brown thrush with spotted underparts and rusty tail. Hermit Thrushes breed in northern and montane forests but pass through or winter in the Southeast. They forage close to the ground in dense understory.',
     attractedBy: 'Forest understory with dense native shrubs and insects',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'shrub', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 28, hasPlantType: 'shrub', plantsEstablished: 10 },
   },
 
   horned_lark: {
@@ -752,7 +752,7 @@ export const BIRDS = {
     note: 'Horned Larks are among the earliest birds to breed in spring, with eggs laid while snow still covers much of their range.',
     desc: 'A pale lark with a distinctive black-and-yellow face pattern and prominent crown tufts. Horned Larks forage on bare open ground for insects and seeds. They require open grasslands with minimal vegetation.',
     attractedBy: 'Open grasslands and bare areas',
-    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'flower', plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'flower', plantsEstablished: 7 },
   },
 
   house_finch: {
@@ -764,7 +764,7 @@ export const BIRDS = {
     note: 'House Finches are the most common feeder finch across North America, with their populations exploding in the 20th century due to human bird feeders.',
     desc: 'A small finch with rosy plumage (males) or streaky coloring (females). House Finches forage for seeds from native plants and feeders. They readily visit yards with plantings and feeders.',
     attractedBy: 'Seed-producing native plants and feeders',
-    unlockCriteria: { insectsDiscovered: 8, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 8, plantsEstablished: 4 },
   },
 
   house_sparrow: {
@@ -776,7 +776,7 @@ export const BIRDS = {
     note: 'House Sparrows are highly successful invasive species that often displace native cavity nesters and consume huge quantities of seeds.',
     desc: 'An Old World sparrow that has become abundant across North America. House Sparrows are highly adaptable and exploit any available food and shelter.',
     attractedBy: 'Any developed area with shelter and food',
-    unlockCriteria: { insectsDiscovered: 5, plantsEstablished: 2 },
+    unlockCriteria: { insectsDiscovered: 3, plantsEstablished: 2 },
   },
 
   inca_dove: {
@@ -788,7 +788,7 @@ export const BIRDS = {
     note: 'Inca Doves are western birds making a gradual range expansion eastward and are now regular in southeastern states.',
     desc: 'A tiny, long-tailed dove with scalloped plumage. Inca Doves forage on the ground for seeds and are attracted to open areas.',
     attractedBy: 'Open ground with scattered seeds',
-    unlockCriteria: { insectsDiscovered: 6, plantsEstablished: 3 },
+    unlockCriteria: { insectsDiscovered: 45, plantsEstablished: 10 },
   },
 
   loggerhead_shrike: {
@@ -800,7 +800,7 @@ export const BIRDS = {
     note: 'Loggerhead Shrikes are unusual among songbirds in that they actively hunt live prey. They famously impale prey on thorns — a behavior that has earned them the nickname "butcher bird."',
     desc: 'A predatory songbird with falcon-like hooked bill and black mask. Loggerhead Shrikes are declining across their range due to habitat loss. They require open grasslands with scattered shrubs for hunting perches.',
     attractedBy: 'Open grasslands with scattered shrubs and perches',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'shrub', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 35, hasPlantType: 'shrub', plantsEstablished: 12 },
   },
 
   louisiana_waterthrush: {
@@ -812,7 +812,7 @@ export const BIRDS = {
     note: 'Louisiana Waterthrushes are among the earliest spring migrants, with males returning to territories weeks before females.',
     desc: 'A warbler of flowing streams and seep areas. Louisiana Waterthrushes walk along stream banks bobbing their tails, gleaning insects. They require high-quality stream habitat.',
     attractedBy: 'Healthy flowing streams with native riparian vegetation',
-    unlockCriteria: { insectsDiscovered: 22, plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 35, plantsEstablished: 14 },
   },
 
   marsh_wren: {
@@ -824,7 +824,7 @@ export const BIRDS = {
     note: 'Male Marsh Wrens are prolific singers, capable of singing 150+ different song types and delivering song bursts of 50+ songs per minute.',
     desc: 'A small wren of marshy areas that builds elaborate dummy nests. Marsh Wrens glean insects from marsh vegetation and readily nest in native wetland plantings.',
     attractedBy: 'Native wetland plants with tall, sturdy stems',
-    unlockCriteria: { insectsDiscovered: 18, plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 32, plantsEstablished: 12 },
   },
 
   merlin: {
@@ -836,7 +836,7 @@ export const BIRDS = {
     note: 'Merlins are agile hunting falcons that often hunt other birds in low-level pursuit flights between trees.',
     desc: 'A small, compact falcon with direct, swift flight. Merlins hunt birds and large insects from low-level flights. They migrate through the Southeast and occasionally winter in open areas.',
     attractedBy: 'Open areas with scattered perches and small bird prey',
-    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 35, plantsEstablished: 12 },
   },
 
   mourning_dove: {
@@ -848,7 +848,7 @@ export const BIRDS = {
     note: 'Mourning Doves produce a sad, mournful cooing call that has earned them their common name. They are one of the most productive doves, raising multiple broods per season.',
     desc: 'A slim dove with a tapered tail and mournful call. Mourning Doves forage on the ground for seeds and nest openly on branches. They are attracted to native plantings with seed-producing plants.',
     attractedBy: 'Open areas with seed-producing native plants',
-    unlockCriteria: { insectsDiscovered: 8, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 4, plantsEstablished: 3 },
   },
 
   nashville_warbler: {
@@ -860,7 +860,7 @@ export const BIRDS = {
     note: 'Nashville Warblers breed in northern forests and mountains but pass through the Southeast during spring and fall migration.',
     desc: 'A small warbler with olive-green back and yellow underparts. Nashville Warblers forage in canopy foliage for small insects. They are attracted to forest edges and restoring forests.',
     attractedBy: 'Mixed forest with good insect diversity',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 8 },
   },
 
   northern_bobwhite: {
@@ -872,7 +872,7 @@ export const BIRDS = {
     note: 'Northern Bobwhites are declining dramatically across their range due to grassland loss and habitat fragmentation. Grassland restoration is critical for their recovery.',
     desc: 'A small game bird of native grasslands and open scrub. Northern Bobwhites forage on the ground for seeds and insects. They require large areas of grassland with scattered shrubby cover.',
     attractedBy: 'Large native grasslands with some shrubby structure',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'flower', plantsEstablished: 14 },
+    unlockCriteria: { insectsDiscovered: 28, hasPlantType: 'flower', plantsEstablished: 14 },
   },
 
   northern_flicker: {
@@ -884,7 +884,7 @@ export const BIRDS = {
     note: 'Northern Flickers are unusual woodpeckers that spend much time on the ground hunting ants rather than foraging on tree bark. Their diet is up to 45% ants.',
     desc: 'A large, spotted woodpecker that acts more like a finch than typical woodpeckers. Northern Flickers frequently visit the ground foraging for ants and flying insects. They are attracted to open grassy areas with scattered trees.',
     attractedBy: 'Open areas with diverse ants and native trees',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'tree', plantsEstablished: 7 },
   },
 
   northern_harrier: {
@@ -896,7 +896,7 @@ export const BIRDS = {
     note: 'Northern Harriers hunt by flying low over open grasslands in a distinctive harrier pattern, flushing prey from cover with rapid maneuvers.',
     desc: 'A slim raptor that hunts over open grasslands with buoyant, low-level flight. Northern Harriers prey on small animals and birds flushed from tall grasses. Grassland restoration supports their hunting.',
     attractedBy: 'Open grasslands with adequate height for flushing prey',
-    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'flower', plantsEstablished: 12 },
+    unlockCriteria: { insectsDiscovered: 26, hasPlantType: 'flower', plantsEstablished: 12 },
   },
 
   northern_house_wren: {
@@ -908,7 +908,7 @@ export const BIRDS = {
     note: 'House Wrens are remarkably vocal and aggressive despite their small size. Males sing persistently and readily nest in boxes.',
     desc: 'A small grey-brown wren with a potent voice. House Wrens hunt insects in trees and shrubs and readily nest in boxes and cavities. They are attracted to areas with shrub diversity.',
     attractedBy: 'Native shrubs with high insect diversity and nest cavities',
-    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'shrub', plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'shrub', plantsEstablished: 6 },
   },
 
   northern_parula: {
@@ -920,7 +920,7 @@ export const BIRDS = {
     note: 'Northern Parulas demonstrate a surprising nesting strategy — they use Spanish moss or other lichens to build their hanging pouch nests.',
     desc: 'A small warbler that hunts insects in treetop foliage. Northern Parulas breed in deciduous and mixed forests with suitable nesting material like Spanish moss or lichen.',
     attractedBy: 'Mature trees with Spanish moss or lichen for nesting',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'tree', plantsEstablished: 10 },
   },
 
   northern_rough_winged_swallow: {
@@ -932,7 +932,7 @@ export const BIRDS = {
     note: 'Northern Rough-winged Swallows are solitary nesters, unlike many other swallow species that breed in colonies.',
     desc: 'A brown swallow that hunts flying insects over water and open areas. Northern Rough-winged Swallows nest in burrows along stream banks or in nest boxes.',
     attractedBy: 'Open areas with water and abundant flying insects',
-    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 18, plantsEstablished: 7 },
   },
 
   northern_waterthrush: {
@@ -944,7 +944,7 @@ export const BIRDS = {
     note: 'Northern Waterthrushes are actually warblers, not true thrushes, finding their name from their habit of walking along waterside vegetation.',
     desc: 'A warbler that walks on the ground along stream edges, bobbing its tail. Northern Waterthrushes migrate through the Southeast and breed in northern riparian zones.',
     attractedBy: 'Healthy stream habitats with riparian vegetation',
-    unlockCriteria: { insectsDiscovered: 20, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 35, plantsEstablished: 12 },
   },
 
   northern_yellow_warbler: {
@@ -956,7 +956,7 @@ export const BIRDS = {
     note: 'Yellow Warblers produce one of the most diagnostic sounds of wetland edges — a sweet song transcribed as "sweet, sweet, sweet, I\'m so sweet."',
     desc: 'A brilliant yellow warbler that hunts insects among willows and shrubs along waterways. Yellow Warblers are attracted to riparian native plantings with dense growth.',
     attractedBy: 'Native riparian shrubs with high insect diversity',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'shrub', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'shrub', plantsEstablished: 8 },
   },
 
   orange_crowned_warbler: {
@@ -968,7 +968,7 @@ export const BIRDS = {
     note: 'Orange-crowned Warblers are surprisingly common migrants through the Southeast, yet often overlooked due to their dull plumage.',
     desc: 'A dull green warbler that hunts insects in mid-canopy foliage. Orange-crowned Warblers pass through the Southeast during spring and fall migration.',
     attractedBy: 'Mixed forest with good insect diversity',
-    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'tree', plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'tree', plantsEstablished: 7 },
   },
 
   orchard_oriole: {
@@ -980,7 +980,7 @@ export const BIRDS = {
     note: 'Male Orchard Orioles are striking with deep chestnut and black plumage — one of the most expertly colored North American songbirds.',
     desc: 'A small oriole with chestnut and black plumage (males) or yellow and olive (females). Orchard Orioles forage for insects and berries in trees. They weave pendant nests and appreciate native fruiting trees.',
     attractedBy: 'Native trees with good insect diversity and fruit',
-    unlockCriteria: { insectsDiscovered: 16, fruitingPlants: 2, hasPlantType: 'tree' },
+    unlockCriteria: { insectsDiscovered: 22, fruitingPlants: 2, hasPlantType: 'tree' },
   },
 
   ovenbird: {
@@ -992,7 +992,7 @@ export const BIRDS = {
     note: 'Ovenbirds build remarkable domed nests on the forest floor that resemble Dutch ovens — the source of their common name.',
     desc: 'A ground-foraging warbler with olive-green upperparts and spotted breast. Ovenbirds walk on the forest floor gleaning insects. They require mature forest with good leaf litter.',
     attractedBy: 'Mature forest with deep leaf litter and insect diversity',
-    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 26, hasPlantType: 'tree', plantsEstablished: 11 },
   },
 
   painted_bunting: {
@@ -1004,7 +1004,7 @@ export const BIRDS = {
     note: 'Male Painted Buntings are considered among the most beautiful birds in North America, with kaleidoscopic plumage of blue, green, red, and yellow.',
     desc: 'A small songbird with fantastically colorful plumage in males. Painted Buntings forage for seeds and insects in weedy fields and brushy areas. They are attracted to native plantings with seed production.',
     attractedBy: 'Native plants with abundant seeds and insects',
-    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 28, plantsEstablished: 12 },
   },
 
   palm_warbler: {
@@ -1028,7 +1028,7 @@ export const BIRDS = {
     note: 'Peregrine Falcons are the fastest animals on Earth, reaching speeds over 200 mph during a hunting dive. They were nearly extinct but have recovered dramatically with DDT removal and nest protection.',
     desc: 'A powerful medium-sized falcon with swift, direct flight. Peregrine Falcons hunt birds in mid-air with incredible speed and precision. They prefer open areas and avoid dense forest.',
     attractedBy: 'Open landscapes with perches and abundant bird prey',
-    unlockCriteria: { insectsDiscovered: 35, plantsEstablished: 12 },
+    unlockCriteria: { insectsDiscovered: 38, plantsEstablished: 14 },
   },
 
   pileated_woodpecker: {
@@ -1040,7 +1040,7 @@ export const BIRDS = {
     note: 'Pileated Woodpeckers create characteristic rectangular cavities while foraging. Their presence is an indicator of mature forest habitat.',
     desc: 'North America\'s largest woodpecker with a prominent red crest. Pileated Woodpeckers excavate large cavities in dead trees and search for wood-boring beetle larvae. They require mature forest with standing snags.',
     attractedBy: 'Mature native forest with standing dead wood',
-    unlockCriteria: { insectsDiscovered: 28, hasPlantType: 'tree', plantsEstablished: 12 },
+    unlockCriteria: { insectsDiscovered: 26, hasPlantType: 'tree', plantsEstablished: 11 },
   },
 
   pine_siskin: {
@@ -1052,7 +1052,7 @@ export const BIRDS = {
     note: 'Pine Siskins are irruptive migrants that appear in large flocks when conifer seed crops fail in their northern range.',
     desc: 'A small finch with streaky plumage and thin bill for extracting seeds. Pine Siskins specialize on seeds from native conifers and other plantings. They readily visit feeders.',
     attractedBy: 'Native conifers with good seed production',
-    unlockCriteria: { insectsDiscovered: 10, hasPlantType: 'tree', plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'tree', plantsEstablished: 8 },
   },
 
   pine_warbler: {
@@ -1064,7 +1064,7 @@ export const BIRDS = {
     note: 'Pine Warblers are year-round residents across much of the Southeast and remain longer into fall and return earlier in spring than most other warblers.',
     desc: 'A greenish warbler closely associated with pine forests. Pine Warblers forage among pine foliage and readily visit feeders. Native pine restoration supports this species.',
     attractedBy: 'Native pine forests with high insect diversity',
-    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'tree', plantsEstablished: 7 },
   },
 
   prairie_falcon: {
@@ -1076,7 +1076,7 @@ export const BIRDS = {
     note: 'Prairie Falcons are western birds that occasionally appear as winter vagrants in the Southeast.',
     desc: 'A western falcon similar to Peregrine but with buffy underparts. Prairie Falcons hunt birds and large insects in open terrain.',
     attractedBy: 'Open landscapes with scattered perches',
-    unlockCriteria: { insectsDiscovered: 18, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 55, plantsEstablished: 16 },
   },
 
   prairie_warbler: {
@@ -1088,7 +1088,7 @@ export const BIRDS = {
     note: 'Prairie Warblers have a distinctive rapid tail-pumping behavior and are declining dramatically as early-successional scrubland habitat is lost.',
     desc: 'A small warbler of open scrubland. Prairie Warblers forage in low tree canopies and shrubs. They require early-successional habitat that is increasingly rare.',
     attractedBy: 'Native scrubland with good insect diversity',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'shrub', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'shrub', plantsEstablished: 9 },
   },
 
   prothonotary_warbler: {
@@ -1100,7 +1100,7 @@ export const BIRDS = {
     note: 'Prothonotary Warblers are striking golden warblers of swamp forests. They readily nest in boxes placed in wetlands.',
     desc: 'A brilliant golden warbler of wooded wetlands. Prothonotary Warblers hunt insects in swamp forest canopies and nest in tree cavities. Wetland forest restoration supports them.',
     attractedBy: 'Wooded wetlands with native trees and high insect diversity',
-    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 35, hasPlantType: 'tree', plantsEstablished: 14 },
   },
 
   purple_finch: {
@@ -1112,7 +1112,7 @@ export const BIRDS = {
     note: 'Purple Finches are irruptive visitors that appear in variable numbers depending on seed crop success up north.',
     desc: 'A rosy-colored finch with thick bill for seed cracking. Purple Finches visit feeders and forage for seeds from native plants during winter migrations.',
     attractedBy: 'Native seed-producing plants and feeders',
-    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 5 },
   },
 
   purple_martin: {
@@ -1124,7 +1124,7 @@ export const BIRDS = {
     note: 'Purple Martins are the largest North American swallows and are completely dependent on human-provided housing for nesting.',
     desc: 'A large swallow with glossy black plumage (males). Purple Martins hunt flying insects exclusively and depend entirely on martin houses for nesting. They require large open areas.',
     attractedBy: 'Open areas with abundant flying insects and martin houses',
-    unlockCriteria: { insectsDiscovered: 20, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 22, plantsEstablished: 9 },
   },
 
   red_crossbill: {
@@ -1136,7 +1136,7 @@ export const BIRDS = {
     note: 'Red Crossbills have specialized bills with mandibles that cross, allowing them to extract seeds from closed pine cones.',
     desc: 'A finch with distinctively crossed mandibles that extract seeds from pine cones. Red Crossbills are irruptive northern migrants dependent on conifer seed crops.',
     attractedBy: 'Native pines with seed production',
-    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 48, hasPlantType: 'tree', plantsEstablished: 14 },
   },
 
   red_breasted_nuthatch: {
@@ -1148,7 +1148,7 @@ export const BIRDS = {
     note: 'Red-breasted Nuthatches are irruptive migrants that appear in variable numbers depending on northern spruce seed crop success.',
     desc: 'A small nuthatch with rusty underparts and black eyeline. Red-breasted Nuthatches forage on tree trunks and branches for insects. They prefer coniferous and mixed forest.',
     attractedBy: 'Native conifers and mixed forest with bark insects',
-    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 9 },
   },
 
   red_cockaded_woodpecker: {
@@ -1160,7 +1160,7 @@ export const BIRDS = {
     note: 'Red-cockaded Woodpeckers are federally endangered and depend on old-growth longleaf pine forests. Their recovery is tied to longleaf restoration.',
     desc: 'A black-and-white woodpecker dependent on old-growth longleaf pine forests. Red-cockaded Woodpeckers excavate cavities and are a keystone species for cavity-nesting community.',
     attractedBy: 'Old-growth native longleaf pine forest',
-    unlockCriteria: { insectsDiscovered: 32, hasPlantType: 'tree', plantsEstablished: 18 },
+    unlockCriteria: { insectsDiscovered: 45, hasPlantType: 'tree', plantsEstablished: 18 },
   },
 
   red_eyed_vireo: {
@@ -1172,7 +1172,7 @@ export const BIRDS = {
     note: 'Red-eyed Vireos are famous for their relentless singing — a single male may sing over 20,000 times per day during breeding season.',
     desc: 'A small warbler-like bird with red eye and white eyebrow stripe. Red-eyed Vireos forage methodically through canopy foliage hunting insects. They require mature forest habitat.',
     attractedBy: 'Mature native forest with high canopy insect diversity',
-    unlockCriteria: { insectsDiscovered: 26, hasPlantType: 'tree', plantsEstablished: 11 },
+    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'tree', plantsEstablished: 10 },
   },
 
   red_headed_woodpecker: {
@@ -1184,7 +1184,7 @@ export const BIRDS = {
     note: 'Red-headed Woodpeckers are strikingly patterned and are declining across their range due to loss of open oak woodlands.',
     desc: 'A striking woodpecker with entire red head and black-and-white body. Red-headed Woodpeckers prefer open oak woodlands and cache acorns for winter food. Oak restoration supports them.',
     attractedBy: 'Open native oak woodland with standing snags',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 10 },
   },
 
   red_shouldered_hawk: {
@@ -1196,7 +1196,7 @@ export const BIRDS = {
     note: 'Red-shouldered Hawks are closely associated with wooded streams and swamps where they hunt from elevated perches.',
     desc: 'A small, stocky hawk with rusty shoulders and barred tail. Red-shouldered Hawks hunt small mammals, frogs, and large insects near water. Riparian forest restoration supports them.',
     attractedBy: 'Wooded riparian corridors with mature trees',
-    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
   },
 
   red_tailed_hawk: {
@@ -1208,7 +1208,7 @@ export const BIRDS = {
     note: 'Red-tailed Hawks are the most abundant and widely distributed hawk in North America, visible perched on utility poles across open landscapes.',
     desc: 'A large hawk with distinctive red tail (in adults). Red-tailed Hawks are generalist predators hunting mammals, birds, and large insects from perches or out of thermal soars.',
     attractedBy: 'Open landscapes with perches and prey diversity',
-    unlockCriteria: { insectsDiscovered: 25, plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 8 },
   },
 
   red_winged_blackbird: {
@@ -1220,7 +1220,7 @@ export const BIRDS = {
     note: 'Red-winged Blackbirds are one of the most abundant birds in North America and are highly territorial during breeding season.',
     desc: 'A male blackbird with brilliant red and yellow wing patches. Red-winged Blackbirds breed in wetlands and margins, foraging for insects and seeds. Wetland restoration supports them.',
     attractedBy: 'Native wetland plants with dense structure',
-    unlockCriteria: { insectsDiscovered: 14, plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 12, plantsEstablished: 6 },
   },
 
   rusty_blackbird: {
@@ -1232,7 +1232,7 @@ export const BIRDS = {
     note: 'Rusty Blackbirds are significantly declining — their populations have crashed nearly 95% over the last 50 years.',
     desc: 'A blackbird with rusty-edged plumage in winter and glossy black in breeding plumage. Rusty Blackbirds migrate through wetlands and use riparian corridors.',
     attractedBy: 'Wetland and riparian habitats with native plants',
-    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 32, plantsEstablished: 12 },
   },
 
   savannah_sparrow: {
@@ -1244,7 +1244,7 @@ export const BIRDS = {
     note: 'Savannah Sparrows are declining across their range due to grassland loss and are particularly vulnerable to grazing and mowing during nesting season.',
     desc: 'A small sparrow of grasslands and open areas. Savannah Sparrows forage on the ground for seeds and insects. Grassland conservation is critical.',
     attractedBy: 'Native grasslands with minimal disturbance',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'flower', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'flower', plantsEstablished: 8 },
   },
 
   scaly_breasted_munia: {
@@ -1256,7 +1256,7 @@ export const BIRDS = {
     note: 'Scaly-breasted Munias are Asian birds that have become established as invasive populations in parts of Texas and California.',
     desc: 'An exotic Asian finch with ornate scaly plumage. Scaly-breasted Munias are highly invasive seed specialists that have begun colonizing southeastern states.',
     attractedBy: 'Open areas with seed production',
-    unlockCriteria: { insectsDiscovered: 8, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 45, plantsEstablished: 10 },
   },
 
   scarlet_tanager: {
@@ -1280,7 +1280,7 @@ export const BIRDS = {
     note: 'Sedge Wrens are cryptic and rarely seen despite being fairly common. They are difficult to identify due to their reclusive habits.',
     desc: 'A tiny wren of sedge marshes and wetland edges. Sedge Wrens glean insects from marsh vegetation and are attracted to native wetland plantings.',
     attractedBy: 'Native sedges and wetland plants',
-    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 32, plantsEstablished: 12 },
   },
 
   sharp_shinned_hawk: {
@@ -1292,7 +1292,7 @@ export const BIRDS = {
     note: 'Sharp-shinned Hawks are the smallest accipiter and are agile hunters of small songbirds, especially at feeders during winter.',
     desc: 'A tiny hawk with long tail and short wings. Sharp-shinned Hawks hunt small birds with incredible agility through dense vegetation.',
     attractedBy: 'Shrubby areas with small bird populations',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'shrub', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 30, hasPlantType: 'shrub', plantsEstablished: 10 },
   },
 
   shiny_cowbird: {
@@ -1304,7 +1304,7 @@ export const BIRDS = {
     note: 'Shiny Cowbirds are from South America but have been expanding their range northward over recent decades.',
     desc: 'An iridescent cowbird that is a brood parasite and seed-eater. Shiny Cowbirds have expanded into southeastern states from the Southwest.',
     attractedBy: 'Open areas with seed sources',
-    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 45, plantsEstablished: 10 },
   },
 
   short_eared_owl: {
@@ -1316,7 +1316,7 @@ export const BIRDS = {
     note: 'Short-eared Owls hunt over open grasslands with a distinctive bouncy, moth-like flight pattern.',
     desc: 'A medium-sized owl that hunts over open grasslands during daylight. Short-eared Owls are attracted to large expanses of grassland with abundant rodents.',
     attractedBy: 'Large open grasslands with rodent populations',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'flower', plantsEstablished: 12 },
+    unlockCriteria: { insectsDiscovered: 40, hasPlantType: 'flower', plantsEstablished: 16 },
   },
 
   snow_bunting: {
@@ -1328,7 +1328,7 @@ export const BIRDS = {
     note: 'Snow Buntings are arctic breeders that appear in the Southeast during harsh winter weather, following food supplies southward.',
     desc: 'A striking arctic bunting with white and black plumage. Snow Buntings visit the Southeast only during winters, foraging on the ground.',
     attractedBy: 'Open areas with winter seeds during harsh conditions',
-    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 50, plantsEstablished: 14 },
   },
 
   song_sparrow: {
@@ -1340,7 +1340,7 @@ export const BIRDS = {
     note: 'Song Sparrows are among the most studied North American songbirds and are known for geographic variation in both plumage and song.',
     desc: 'A brownish sparrow with heavy streaking on the breast. Song Sparrows are year-round residents in many areas and forage on the ground for seeds and insects.',
     attractedBy: 'Brushy areas with dense native plants',
-    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'shrub', plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'shrub', plantsEstablished: 6 },
   },
 
   summer_tanager: {
@@ -1352,7 +1352,7 @@ export const BIRDS = {
     note: 'Summer Tanagers specialize on wasps and bees, apparently immune to their stings. They catch flying insects in mid-air.',
     desc: 'A brilliant red tanager that hunts for flying insects, specializing on wasps and bees. Summer Tanagers prefer open woodlands and require mature trees.',
     attractedBy: 'Open native woodland with tall trees and flying insects',
-    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 9 },
   },
 
   swallow_tailed_kite: {
@@ -1364,7 +1364,7 @@ export const BIRDS = {
     note: 'Swallow-tailed Kites are incredibly acrobatic fliers that hunt flying insects and small animals with astonishing precision.',
     desc: 'A strikingly beautiful raptor with deeply forked tail. Swallow-tailed Kites hunt flying insects and small prey in open woodlands with graceful aerial maneuvers.',
     attractedBy: 'Open woodland with tall trees and flying insects',
-    unlockCriteria: { insectsDiscovered: 28, hasPlantType: 'tree', plantsEstablished: 12 },
+    unlockCriteria: { insectsDiscovered: 40, hasPlantType: 'tree', plantsEstablished: 16 },
   },
 
   swamp_sparrow: {
@@ -1376,7 +1376,7 @@ export const BIRDS = {
     note: 'Swamp Sparrows are close associates of wetland vegetation and are rarely seen except in tall marsh plants.',
     desc: 'A reddish sparrow of marshes and wetland edges. Swamp Sparrows forage close to the ground in wetland vegetation. Native wetland plants are essential.',
     attractedBy: 'Native wetland plants with dense structure',
-    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 18, plantsEstablished: 8 },
   },
 
   tennessee_warbler: {
@@ -1388,7 +1388,7 @@ export const BIRDS = {
     note: 'Tennessee Warblers breed in northern boreal forests but migrate through the Southeast during spring and fall.',
     desc: 'A small grey warbler that forages in tree canopies for insects. Tennessee Warblers pass through southeastern forests during migration.',
     attractedBy: 'Mixed forest with good insect diversity',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 8 },
   },
 
   tree_swallow: {
@@ -1400,7 +1400,7 @@ export const BIRDS = {
     note: 'Tree Swallows are among the earliest spring migrants, arriving when flying insect populations are barely emerging.',
     desc: 'A small swallow with iridescent blue-green upperparts. Tree Swallows hunt flying insects over water and open areas. They readily nest in boxes.',
     attractedBy: 'Open areas with flying insects and nest boxes',
-    unlockCriteria: { insectsDiscovered: 14, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 12, plantsEstablished: 5 },
   },
 
   turkey_vulture: {
@@ -1412,7 +1412,7 @@ export const BIRDS = {
     note: 'Turkey Vultures have an incredibly acute sense of smell and can detect carrion from high altitudes. They are environmental sanitation specialists.',
     desc: 'A large blackbird with bare red head visible in sunlight. Turkey Vultures are scavengers, riding thermals while searching for carrion. They are environmental health indicators.',
     attractedBy: 'Open landscapes with thermal neighborhoods',
-    unlockCriteria: { insectsDiscovered: 30, plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 18, plantsEstablished: 8 },
   },
 
   vermilion_flycatcher: {
@@ -1424,7 +1424,7 @@ export const BIRDS = {
     note: 'Vermilion Flycatchers are western birds that occasionally appear as vagrants in the Southeast during winter.',
     desc: 'A brilliant red and black flycatcher. Vermilion Flycatchers hunt flying insects from exposed perches.',
     attractedBy: 'Open areas with perches and flying insects',
-    unlockCriteria: { insectsDiscovered: 14, plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 24, plantsEstablished: 10 },
   },
 
   vesper_sparrow: {
@@ -1436,7 +1436,7 @@ export const BIRDS = {
     note: 'Vesper Sparrows are declining across their range due to grassland loss and fragmentation.',
     desc: 'A pale sparrow of grasslands with white outer tail feathers. Vesper Sparrows forage on the ground for seeds and insects in open grasslands.',
     attractedBy: 'Large native grasslands',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'flower', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 32, hasPlantType: 'flower', plantsEstablished: 12 },
   },
 
   western_kingbird: {
@@ -1448,7 +1448,7 @@ export const BIRDS = {
     note: 'Western Kingbirds are western birds that have expanded eastward dramatically over the past century, now regular in the Southeast.',
     desc: 'A pale flycatcher with thin yellow belly stripe. Western Kingbirds have expanded their range eastward and hunt flying insects from scattered perches.',
     attractedBy: 'Open areas with scattered perches',
-    unlockCriteria: { insectsDiscovered: 16, plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 40, plantsEstablished: 12 },
   },
 
   western_meadowlark: {
@@ -1460,7 +1460,7 @@ export const BIRDS = {
     note: 'Western Meadowlarks are western birds with expanding populations eastward in recent decades.',
     desc: 'A grassland specialist similar to Eastern Meadowlark but with different song and narrow eastern range.',
     attractedBy: 'Open grasslands with native vegetation',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'flower', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 48, hasPlantType: 'flower', plantsEstablished: 14 },
   },
 
   western_tanager: {
@@ -1472,7 +1472,7 @@ export const BIRDS = {
     note: 'Western Tanagers are western birds that occasionally appear as vagrants during migration in the Southeast.',
     desc: 'A striking tanager with brilliant yellow and black plumage. Western Tanagers occasionally appear as migrants in southeastern states.',
     attractedBy: 'Mixed forest trees during migration',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 48, hasPlantType: 'tree', plantsEstablished: 14 },
   },
 
   white_breasted_nuthatch: {
@@ -1484,7 +1484,7 @@ export const BIRDS = {
     note: 'White-breasted Nuthatches are year-round residents and readily visit feeders. They descend trees head-first using their stiff tail as a brake.',
     desc: 'A medium-sized nuthatch with white breast and black crown. White-breasted Nuthatches forage on large tree trunks and branches for bark insects.',
     attractedBy: 'Mature native trees with bark insects',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 12, hasPlantType: 'tree', plantsEstablished: 6 },
   },
 
   white_crowned_sparrow: {
@@ -1496,7 +1496,7 @@ export const BIRDS = {
     note: 'White-crowned Sparrows breed in the north and pass through or winter in the Southeast, becoming common at feeders.',
     desc: 'A striking sparrow with bold black-and-white crown stripes. White-crowned Sparrows forage on the ground for seeds during winter migration.',
     attractedBy: 'Ground cover with seed production',
-    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 5 },
   },
 
   white_eyed_vireo: {
@@ -1508,7 +1508,7 @@ export const BIRDS = {
     note: 'White-eyed Vireos are persistent singers with distinctive loud calls and are often heard before seen in scrubby vegetation.',
     desc: 'A small vireo of scrubland edges with distinctive red eye in adults. White-eyed Vireos forage in dense shrubby vegetation for insects.',
     attractedBy: 'Dense native shrubs with good insect diversity',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'shrub', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'shrub', plantsEstablished: 8 },
   },
 
   white_throated_sparrow: {
@@ -1520,7 +1520,7 @@ export const BIRDS = {
     note: 'White-throated Sparrows breed in boreal forests and regularly winter in the Southeast. They often appear at feeders.',
     desc: 'A sparrow with bold white throat patch and yellow lores. White-throated Sparrows forage on the ground for seeds during winter.',
     attractedBy: 'Ground cover with seed production',
-    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 5 },
   },
 
   white_winged_dove: {
@@ -1532,7 +1532,7 @@ export const BIRDS = {
     note: 'White-winged Doves have expanded dramatically northeastward over recent decades and now breed throughout the Southeast.',
     desc: 'A dove with distinctive white wing patches on black wings. White-winged Doves forage for seeds on the ground.',
     attractedBy: 'Open areas with seed-producing plants',
-    unlockCriteria: { insectsDiscovered: 8, plantsEstablished: 5 },
+    unlockCriteria: { insectsDiscovered: 10, plantsEstablished: 5 },
   },
 
   wild_turkey: {
@@ -1544,7 +1544,7 @@ export const BIRDS = {
     note: 'Wild Turkeys were nearly hunted to extinction but have recovered dramatically due to reintroduction and protection programs.',
     desc: 'North America\'s largest game bird with iridescent plumage. Wild Turkeys forage on the ground for seeds, nuts, and insects. They require large tracts of forest habitat.',
     attractedBy: 'Forest with good seed and insect diversity',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'tree', plantsEstablished: 10 },
   },
 
   wilsons_warbler: {
@@ -1556,7 +1556,7 @@ export const BIRDS = {
     note: "Wilson's Warblers migrate through the Southeast and are often among the last warblers to depart in fall.",
     desc: 'A small, active warbler with black cap and olive-green upperparts. Wilson\'s Warblers glean insects from foliage during migration.',
     attractedBy: 'Mixed forest with good insect diversity',
-    unlockCriteria: { insectsDiscovered: 14, hasPlantType: 'tree', plantsEstablished: 7 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 8 },
   },
 
   winter_wren: {
@@ -1568,7 +1568,7 @@ export const BIRDS = {
     note: 'Winter Wrens are cryptic forest floor foragers that forage along logs and stream banks.',
     desc: 'A tiny wren that forages actively along fallen logs and stream banks. Winter Wrens are year-round residents in wooded ravines and gorges.',
     attractedBy: 'Forest with deep leaf litter and logs',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 8 },
   },
 
   wood_thrush: {
@@ -1580,7 +1580,7 @@ export const BIRDS = {
     note: 'Wood Thrushes produce one of the most beautiful songs of eastern forests — a flute-like song in contrast with their counterparts in dense woods.',
     desc: 'A reddish-brown thrush with spotted breast. Wood Thrushes are migrants that breed in mature forest and forage on the ground for insects.',
     attractedBy: 'Mature forest with deep leaf litter',
-    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'tree', plantsEstablished: 10 },
+    unlockCriteria: { insectsDiscovered: 26, hasPlantType: 'tree', plantsEstablished: 11 },
   },
 
   worm_eating_warbler: {
@@ -1592,7 +1592,7 @@ export const BIRDS = {
     note: 'Worm-eating Warblers spend much of their time picking caterpillars from rolled leaves and tangles of vines.',
     desc: 'A small warbler with buffy coloring. Worm-eating Warblers forage actively on fallen leaves and tangles for caterpillars.',
     attractedBy: 'Forest with good caterpillar diversity',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 9 },
+    unlockCriteria: { insectsDiscovered: 35, hasPlantType: 'tree', plantsEstablished: 12 },
   },
 
   yellow_bellied_sapsucker: {
@@ -1604,7 +1604,7 @@ export const BIRDS = {
     note: 'Yellow-bellied Sapsuckers are the only woodpeckers that widely visit feeders, drawn to suet and soft woods.',
     desc: 'A woodpecker with checkered plumage and striking head. Yellow-bellied Sapsuckers drill wells in tree bark to access sap.',
     attractedBy: 'Trees with good sap flow and bark insects',
-    unlockCriteria: { insectsDiscovered: 16, hasPlantType: 'tree', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 8 },
   },
 
   yellow_breasted_chat: {
@@ -1616,7 +1616,7 @@ export const BIRDS = {
     note: 'Yellow-breasted Chats are among the strangest warblers, with bizarre mechanical calls and acrobatic singing displays.',
     desc: 'A large warbler with olive upperparts and bright yellow breast. Yellow-breasted Chats forage in brush and tangles for insects.',
     attractedBy: 'Dense native shrubs with insects',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'shrub', plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'shrub', plantsEstablished: 10 },
   },
 
   yellow_headed_blackbird: {
@@ -1628,7 +1628,7 @@ export const BIRDS = {
     note: 'Yellow-headed Blackbirds are western birds that have been expanding eastward and now breed in some southeastern wetlands.',
     desc: 'A striking blackbird with brilliant yellow head (males). Yellow-headed Blackbirds nest in cattail marshes and have expanded eastward.',
     attractedBy: 'Native wetland marshes',
-    unlockCriteria: { insectsDiscovered: 14, plantsEstablished: 8 },
+    unlockCriteria: { insectsDiscovered: 48, plantsEstablished: 14 },
   },
 
   yellow_rumped_warbler: {
@@ -1640,7 +1640,7 @@ export const BIRDS = {
     note: 'Yellow-rumped Warblers are among the most abundant warblers passing through the Southeast and often winter in the region.',
     desc: 'A warbler with distinctive yellow rump patch and crown. Yellow-rumped Warblers are highly adaptable migrants that forage for insects and berries.',
     attractedBy: 'Native plants with berries and insects',
-    unlockCriteria: { insectsDiscovered: 12, fruitingPlants: 1, plantsEstablished: 6 },
+    unlockCriteria: { insectsDiscovered: 10, fruitingPlants: 1, plantsEstablished: 5 },
   },
 
   yellow_throated_vireo: {
@@ -1652,7 +1652,7 @@ export const BIRDS = {
     note: 'Yellow-throated Vireos are close associates of tall shade trees and sycamore groves, where they sing from the treetops.',
     desc: 'A vireo with bright yellow throat and breast. Yellow-throated Vireos forage methodically in tall tree canopies for insects.',
     attractedBy: 'Tall native trees with good insect diversity',
-    unlockCriteria: { insectsDiscovered: 18, hasPlantType: 'tree', plantsEstablished: 9 },
+    unlockCriteria: { insectsDiscovered: 22, hasPlantType: 'tree', plantsEstablished: 9 },
   },
 
   yellow_throated_warbler: {
@@ -1664,7 +1664,7 @@ export const BIRDS = {
     note: 'Yellow-throated Warblers have expanded northward dramatically over recent decades and are now breeding across more of the Southeast.',
     desc: 'A striking warbler with black mask and yellow throat. Yellow-throated Warblers forage high in pine and cypress canopies.',
     attractedBy: 'Native conifers with high insect diversity',
-    unlockCriteria: { insectsDiscovered: 20, hasPlantType: 'tree', plantsEstablished: 9 },
+    unlockCriteria: { insectsDiscovered: 24, hasPlantType: 'tree', plantsEstablished: 10 },
   },
 
 };
