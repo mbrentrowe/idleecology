@@ -181,7 +181,23 @@ class Gold {
 }
 
 // ── Engine factory ────────────────────────────────────────────────────────────
-export function createEngine() {
+export function createEngine(regionData) {
+
+  // ── Region data (shadows module-level imports within this factory) ─────────
+  const CROPS           = regionData.crops;
+  const RESEARCH        = regionData.research;
+  const INVASIVES       = regionData.invasives;
+  const INVASIVE_MAP    = regionData.invasiveMap;
+  const BIRD_LIST       = regionData.birdList;
+  const FARM_ZONE_DEFS  = regionData.farmZoneDefs;
+  const RANCH_ANIMALS   = regionData.ranchAnimals;
+  const RANCH_ANIMAL_LIST = regionData.ranchAnimalList;
+
+  /** Region-scoped plant lookup (replaces global findPlant from ecoregions.js). */
+  function findPlant(plantId) {
+    const plant = regionData.plants.find(p => p.id === plantId);
+    return plant ? { eco: regionData, plant } : null;
+  }
 
   // ── Core state ──────────────────────────────────────────────────────────────
   const gold         = new Gold(5000);
@@ -189,6 +205,7 @@ export function createEngine() {
   let   autoPilot    = false;
   let   autoPilotMode = 'economy'; // 'economy' | 'conservation'
   let   gamePaused   = false;
+  let   prestigeGoldMult = 1; // set externally from prestige BP
   let   calendarAccum  = 0;
   let   inGameDay      = SEASONS[0].startDoy; // start on first day of Spring (Mar 20)
   let   lastSeasonName = calendarDate(SEASONS[0].startDoy).season.name; // always 'Spring'
@@ -254,15 +271,13 @@ export function createEngine() {
   // Reverse lookup: creature slug → array of plantIds that host it (built once)
   const creatureHostPlants = new Map();
   const creatureTypeMap    = new Map(); // ckey → creature type string ('butterfly', 'bird', etc.)
-  for (const _heco of ECOREGIONS) {
-    for (const _hplant of _heco.plants) {
-      for (const _hc of (_hplant.insectsHosted ?? [])) {
-        const _hck = creatureKey(_hc.name);
-        const _harr = creatureHostPlants.get(_hck);
-        if (_harr) _harr.push(_hplant.id);
-        else creatureHostPlants.set(_hck, [_hplant.id]);
-        if (!creatureTypeMap.has(_hck)) creatureTypeMap.set(_hck, _hc.type);
-      }
+  for (const _hplant of regionData.plants) {
+    for (const _hc of (_hplant.insectsHosted ?? [])) {
+      const _hck = creatureKey(_hc.name);
+      const _harr = creatureHostPlants.get(_hck);
+      if (_harr) _harr.push(_hplant.id);
+      else creatureHostPlants.set(_hck, [_hplant.id]);
+      if (!creatureTypeMap.has(_hck)) creatureTypeMap.set(_hck, _hc.type);
     }
   }
 
@@ -270,6 +285,7 @@ export function createEngine() {
   // Birds are attracted as insect diversity increases and fruiting plants establish.
   // Separate from the creatures-in-insectsHosted discovery system.
   const discoveredBirds = new Set(); // bird IDs from birds.js that have been attracted
+  const birdDiscoveryLog = new Map(); // birdId → inGameDay when attracted
   let _onBirdAttracted  = (birdId) => {};
 
   /** Metrics used to determine which birds can be attracted. */
@@ -301,6 +317,7 @@ export function createEngine() {
       if (c.fruitingPlants     && metrics.fruitingPlants     < c.fruitingPlants)     continue;
       if (c.hasPlantType       && !metrics.plantTypeEstablished.has(c.hasPlantType)) continue;
       discoveredBirds.add(bird.id);
+      birdDiscoveryLog.set(bird.id, inGameDay);
       _onBirdAttracted(bird.id);
     }
   }
@@ -345,12 +362,12 @@ export function createEngine() {
   // ── Gold multiplier from Biosphere Points ───────────────────────────────────
   // Scales from 1× (0 BP) to 5× (all BP unlocked) using a power-1.5 curve.
   const MAX_BP = RESEARCH.reduce((s, r) => s + (r.effect?.biosphereBonus ?? 0), 0)
-               + ECOREGIONS.flatMap(e => e.plants).reduce((s, p) => s + (p.biosphereBonus ?? 0), 0)
-               + new Set(ECOREGIONS.flatMap(e => e.plants).flatMap(p => (p.insectsHosted ?? []).map(c => creatureKey(c.name)))).size
+               + regionData.plants.reduce((s, p) => s + (p.biosphereBonus ?? 0), 0)
+               + new Set(regionData.plants.flatMap(p => (p.insectsHosted ?? []).map(c => creatureKey(c.name)))).size
                + BIRD_LIST.length; // each attractable bird = 1 potential BP
 
   function goldMultiplier() {
-    if (MAX_BP <= 0) return 1;
+    if (MAX_BP <= 0) return prestigeGoldMult;
     const currentBP = [...completedResearch].reduce((sum, id) => {
       const r = RESEARCH.find(p => p.id === id);
       return sum + (r?.effect?.biosphereBonus ?? 0);
@@ -359,7 +376,7 @@ export function createEngine() {
       return sum + (result?.plant?.biosphereBonus ?? 0) * acres;
     }, 0) + discoveredCreatures.size + discoveredBirds.size;
     const t = currentBP / MAX_BP;
-    return 1 + 4 * Math.pow(t, 1.5);
+    return (1 + 4 * Math.pow(t, 1.5)) * prestigeGoldMult;
   }
 
   // ── Land pool helpers ─────────────────────────────────────────────────────────
@@ -497,16 +514,14 @@ export function createEngine() {
       }
       // 2. Native plants with 0 acres and prereqs met (sorted cheapest CP cost first)
       const plantCandidates = [];
-      for (const eco of ECOREGIONS) {
-        for (const plant of eco.plants) {
-          if (getFreeAcres() <= 0) return;
-          const established = plantedSpeciesAcres.get(plant.id) ?? 0;
-          const queued = nativeEstablishQueue.filter(i => i.plantId === plant.id).length;
-          if (established > 0 || queued > 0) continue;
-          if (!(plant.requiresResearch ?? []).every(rid => completedResearch.has(rid))) continue;
-          if (researchPoints < plant.cost) continue;
-          plantCandidates.push(plant);
-        }
+      for (const plant of regionData.plants) {
+        if (getFreeAcres() <= 0) return;
+        const established = plantedSpeciesAcres.get(plant.id) ?? 0;
+        const queued = nativeEstablishQueue.filter(i => i.plantId === plant.id).length;
+        if (established > 0 || queued > 0) continue;
+        if (!(plant.requiresResearch ?? []).every(rid => completedResearch.has(rid))) continue;
+        if (researchPoints < plant.cost) continue;
+        plantCandidates.push(plant);
       }
       plantCandidates.sort((a, b) => a.cost - b.cost);
       for (const plant of plantCandidates) {
@@ -577,20 +592,18 @@ export function createEngine() {
     if (getFreeAcres() <= 0) return;
     // Collect all plants worth queueing
     const candidates = [];
-    for (const eco of ECOREGIONS) {
-      for (const plant of eco.plants) {
-        const established = plantedSpeciesAcres.get(plant.id) ?? 0;
-        const queued = nativeEstablishQueue.filter(i => i.plantId === plant.id).length;
-        if (established > 0 || queued > 0) continue;
-        if (!(plant.requiresResearch ?? []).every(rid => completedResearch.has(rid))) continue;
-        if (researchPoints < plant.cost) continue;
-        // Priority: habitat-risk creatures hosted by this plant come first
-        const hosting = [...habitatRiskCreatures.keys()].some(ckey => {
-          const pids = creatureHostPlants.get(ckey) ?? [];
-          return pids.includes(plant.id);
-        });
-        candidates.push({ plant, priority: hosting ? 0 : 1 });
-      }
+    for (const plant of regionData.plants) {
+      const established = plantedSpeciesAcres.get(plant.id) ?? 0;
+      const queued = nativeEstablishQueue.filter(i => i.plantId === plant.id).length;
+      if (established > 0 || queued > 0) continue;
+      if (!(plant.requiresResearch ?? []).every(rid => completedResearch.has(rid))) continue;
+      if (researchPoints < plant.cost) continue;
+      // Priority: habitat-risk creatures hosted by this plant come first
+      const hosting = [...habitatRiskCreatures.keys()].some(ckey => {
+        const pids = creatureHostPlants.get(ckey) ?? [];
+        return pids.includes(plant.id);
+      });
+      candidates.push({ plant, priority: hosting ? 0 : 1 });
     }
     candidates.sort((a, b) => a.priority - b.priority || a.plant.cost - b.plant.cost);
     for (const { plant } of candidates) {
@@ -1021,6 +1034,7 @@ export function createEngine() {
       invasiveAcres:         Object.fromEntries(invasiveAcres),
       invasiveRemovalQueue:  invasiveRemovalQueue.map(j => ({ ...j })),
       discoveredBirds: [...discoveredBirds],
+      birdDiscoveryLog: Object.fromEntries(birdDiscoveryLog),
       savedAt: Date.now(),
     };
   }
@@ -1036,7 +1050,7 @@ export function createEngine() {
   function applyState(s) {
     const validFarmZoneNames = new Set(FARM_ZONE_DEFS.map(d => d.name));
     const validRanchAnimalIds = new Set(RANCH_ANIMAL_LIST.map(a => a.id));
-    const validPlantIds = new Set(ECOREGIONS.flatMap(e => e.plants).map(p => p.id));
+    const validPlantIds = new Set(regionData.plants.map(p => p.id));
     const safeInt = v => Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
     const safeNumber = v => Number.isFinite(v) ? v : 0;
 
@@ -1269,6 +1283,11 @@ export function createEngine() {
       const _validBirdIds = new Set(BIRD_LIST.map(b => b.id));
       s.discoveredBirds.forEach(id => { if (_validBirdIds.has(id)) discoveredBirds.add(id); });
     }
+    // Bird discovery log
+    birdDiscoveryLog.clear();
+    if (s.birdDiscoveryLog) {
+      Object.entries(s.birdDiscoveryLog).forEach(([id, day]) => birdDiscoveryLog.set(id, day));
+    }
   }
 
   function clearSave() { localStorage.removeItem(SAVE_KEY); }
@@ -1438,8 +1457,11 @@ export function createEngine() {
       activePlantingId    = null;
       activePlantingTimer = 0;
     },
-    ECOREGIONS,
+    regionData,
     findPlant,
+    /** Set the prestige-derived gold multiplier (from meta BP). */
+    setPrestigeGoldMult(v) { prestigeGoldMult = v; },
+    get prestigeGoldMult() { return prestigeGoldMult; },
 
     // ── Land pool API ──────────────────────────────────────────────────────────
     get totalLandAcres()        { return totalLandAcres; },
@@ -1459,6 +1481,7 @@ export function createEngine() {
     set onInvasiveRegrowth(fn) { _onInvasiveRegrowth = fn; },
     set onSeasonChange(fn) { _onSeasonChange = fn; },
   discoveredBirds,
+  birdDiscoveryLog,
   getBirdMetrics,
   set onBirdAttracted(fn) { _onBirdAttracted = fn; },
 

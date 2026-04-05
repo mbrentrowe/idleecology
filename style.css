@@ -112,29 +112,19 @@ body {
   height: 56px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 8px calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-#tab-buttons.compact { overflow-x: hidden; }
-#tab-buttons.compact .tab-btn-main {
-  min-width: 38px;
-  padding: 0;
   justify-content: center;
-}
-#tab-buttons.compact .tab-btn-label { display: none; }
-#tab-buttons.compact .tab-btn-alert {
-  position: relative;
-  top: -6px;
-  left: -4px;
+  gap: 4px;
+  padding: 6px calc(6px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));
+  overflow-x: hidden;
+  scrollbar-width: none;
 }
 #tab-buttons::-webkit-scrollbar { display: none; }
 
 .tab-btn {
-  min-width: 44px;
-  height: 38px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 110px;
+  height: 40px;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.14);
   background: rgba(30, 45, 30, 0.88);
@@ -142,31 +132,37 @@ body {
   font-size: 18px;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, flex 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  flex: 0 0 auto;
+  gap: 4px;
+  padding: 0 4px;
+  overflow: hidden;
 }
-.tab-btn-icon { font-size: 17px; line-height: 1; }
+.tab-btn-icon { font-size: 17px; line-height: 1; flex-shrink: 0; }
 .tab-btn-label {
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
   white-space: nowrap;
-  display: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: none;   /* shown by .show-labels class */
 }
+#tab-buttons.show-labels .tab-btn-label { display: block; }
+#tab-buttons.show-labels .tab-btn { max-width: 160px; gap: 5px; padding: 0 8px; }
 .tab-btn-alert {
   font-size: 11px;
   line-height: 1;
   color: #ff8a65;
+  flex-shrink: 0;
 }
 .tab-btn.active .tab-btn-alert { color: #633300; }
 
 .tab-btn-main {
-  padding: 0;
   justify-content: center;
 }
+.tab-btn[hidden] { display: none !important; }
 .tab-btn:hover {
   color: #ffffff;
   background: rgba(42, 60, 42, 0.96);
@@ -179,7 +175,9 @@ body {
 }
 
 .tab-more-btn {
+  flex: 0 0 auto;
   min-width: 38px;
+  max-width: 38px;
   font-size: 20px;
   line-height: 1;
 }
@@ -226,6 +224,9 @@ body {
 }
 .tab-notif-btn {
   position: relative;
+  flex: 0 0 auto;
+  min-width: 40px;
+  max-width: 40px;
 }
 .tab-notif-btn #notif-badge {
   position: absolute;
@@ -1690,6 +1691,107 @@ body {
   text-decoration: underline;
 }
 
+/* ── External species links (Wikipedia etc.) ─────────────── */
+.species-ext-link {
+  font-size: 10px;
+  color: #8ab4c8;
+  text-decoration: none;
+  opacity: 0.8;
+  margin-left: 4px;
+  transition: opacity 0.15s, color 0.15s;
+}
+.species-ext-link:hover {
+  color: #b0d4e8;
+  opacity: 1;
+  text-decoration: underline;
+}
+.wiki-link::before { content: '📖 '; font-size: 9px; }
+.easyscape-link { color: #c4a265 !important; }
+.easyscape-link:hover { color: #e0c888 !important; }
+.easyscape-link::before { content: '🌿 '; font-size: 9px; }
+
+/* ── IRL (Real Life) Garden Tracker ──────────────────────── */
+.irl-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed rgba(255,255,255,0.08);
+  font-size: 12px;
+}
+.irl-bar.irl-marked {
+  background: rgba(76, 175, 80, 0.08);
+  border-color: rgba(76, 175, 80, 0.25);
+}
+.irl-toggle-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 5px;
+  color: #bbb;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.irl-toggle-btn:hover {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.4);
+  color: #a5d6a7;
+}
+.irl-toggle-btn.active {
+  background: rgba(76, 175, 80, 0.18);
+  border-color: rgba(76, 175, 80, 0.45);
+  color: #a5d6a7;
+}
+.irl-date {
+  color: #888;
+  font-size: 11px;
+  font-style: italic;
+}
+.irl-hint {
+  color: #666;
+  font-size: 11px;
+  font-style: italic;
+}
+.irl-inat-btn {
+  display: inline-block;
+  background: rgba(116, 172, 68, 0.15);
+  border: 1px solid rgba(116, 172, 68, 0.35);
+  border-radius: 5px;
+  color: #8cc63f;
+  padding: 3px 8px;
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.irl-inat-btn:hover {
+  background: rgba(116, 172, 68, 0.25);
+  color: #a5d86a;
+  text-decoration: none;
+}
+.irl-summary {
+  background: rgba(76, 175, 80, 0.08);
+  border: 1px solid rgba(76, 175, 80, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #a5d6a7;
+}
+.irl-filter-btn {
+  border-color: rgba(76, 175, 80, 0.3) !important;
+  color: #8cc63f !important;
+}
+.irl-filter-btn.active {
+  background: rgba(76, 175, 80, 0.2) !important;
+  border-color: rgba(76, 175, 80, 0.5) !important;
+}
+
 /* ── Tab toggle bar ──────────────────────────────────────── */
 .tab-toggle-bar {
   display: flex;
@@ -2137,8 +2239,12 @@ body {
   .gold-amount { font-size: 15px; }
   .gps, .day-counter, .activity-badge { font-size: 12px; }
   .bio-header { font-size: 12px; padding: 2px 6px; }
-  /* Tab bar: smaller tap targets are fine since it now scrolls */
-  .tab-btn { min-width: 38px; height: 34px; font-size: 16px; }
+  /* Tab bar: smaller tap targets on small screens */
+  .tab-btn { height: 34px; font-size: 15px; border-radius: 10px; }
+  .tab-btn-icon { font-size: 15px; }
+  #tab-buttons { gap: 3px; padding: 6px calc(4px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(4px + env(safe-area-inset-left)); }
+  #tab-buttons.show-labels .tab-btn-label { font-size: 10px; }
+  .tab-notif-btn { min-width: 34px; max-width: 34px; }
 
   /* Content: tighter side padding */
   #content {
@@ -2341,7 +2447,406 @@ body {
 .land-buy-btn      { padding: 5px 14px; font-size: 13px; }
 .land-empty-note   { color: #666; font-size: 13px; font-style: italic; }
 
-/* Land tile grid */
+/* Farm canvas view */
+.farm-canvas-wrap {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #3a3a2a;
+  background: #1a1e16;
+  margin-bottom: 10px;
+  position: relative;  /* anchor for speech bubble + toolbar */
+}
+/* Map tab: canvas fills all available vertical space */
+#content.map-mode {
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+  padding-bottom: calc(62px + env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+#content.map-mode.map-mode-overview {
+  overflow-y: auto;
+}
+#content.map-mode .farm-canvas-wrap {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#content.map-mode #farm-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.farm-canvas-wrap:fullscreen {
+  background: #0a0e08;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0;
+}
+.farm-canvas-wrap:fullscreen #farm-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* Floating toolbar overlay */
+.map-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(10, 14, 10, 0.82);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 4px 6px;
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+.map-tool-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(30, 45, 30, 0.9);
+  color: #d0d0c8;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+  padding: 0;
+}
+.map-tool-btn:hover { background: rgba(60, 80, 60, 0.95); color: #fff; }
+.map-tool-btn:disabled { opacity: 0.35; cursor: default; }
+.map-zoom-label {
+  font-size: 12px;
+  color: #aaa;
+  min-width: 28px;
+  text-align: center;
+  user-select: none;
+}
+#farm-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ── Ecoregion overview map ────────────────────────────────── */
+.map-mode-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+.map-mode-btn {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 10px;
+  background: rgba(30, 45, 30, 0.88);
+  color: #c8d0c8;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: center;
+}
+.map-mode-btn:hover { background: rgba(42, 60, 42, 0.96); color: #fff; }
+.map-mode-btn.active {
+  background: var(--s-accent, #6abf69);
+  color: #101810;
+  border-color: var(--s-accent, #6abf69);
+}
+.eco-map-wrap {
+  position: relative;
+}
+#eco-leaflet-map {
+  width: 100%;
+  height: 500px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #1a2838;
+}
+#content.map-mode .eco-map-wrap {
+  flex: 0 0 auto;
+  min-height: 180px;
+}
+.eco-tooltip, .eco-leaflet-tooltip {
+  position: absolute;
+  z-index: 1000;
+  background: rgba(12, 16, 12, 0.94);
+  border: 1px solid #5a7a4a;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #d0d0c8;
+  pointer-events: none;
+  max-width: 200px;
+  line-height: 1.4;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.5);
+}
+.eco-tooltip[hidden] { display: none; }
+.eco-label-icon {
+  background: none !important;
+  border: none !important;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.3;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.7);
+  pointer-events: none;
+}
+.eco-stats-panel {
+  flex-shrink: 0;
+  background: rgba(20, 26, 20, 0.9);
+  border: 1px solid #3a3a2a;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 6px;
+}
+.eco-stats-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.eco-stats-icon { font-size: 20px; }
+.eco-stats-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffd700;
+}
+.eco-stats-desc {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+.eco-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.eco-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.eco-stat-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e0e0d8;
+}
+.eco-stat-lbl {
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.eco-stats-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #333;
+  margin-bottom: 4px;
+}
+.eco-stats-bar > div {
+  transition: width 0.3s;
+}
+.eco-stats-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: #888;
+  justify-content: center;
+}
+
+/* ── Prestige UI ─────────────────────────────────────────── */
+.eco-bp-badge {
+  margin-left: auto;
+  font-size: 12px;
+  background: rgba(255,215,0,0.15);
+  color: #ffd700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,215,0,0.3);
+}
+.eco-prestige-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.eco-prestige-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8eeee;
+  margin-bottom: 6px;
+}
+.eco-collection-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11px;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+.eco-prestige-bar-wrap {
+  margin-bottom: 6px;
+}
+.eco-prestige-bar {
+  position: relative;
+  height: 10px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 5px;
+  overflow: visible;
+}
+.eco-prestige-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4caf50, #8bc34a);
+  border-radius: 5px;
+  transition: width 0.3s;
+}
+.eco-prestige-threshold {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 16px;
+  background: #ffd700;
+  border-radius: 1px;
+  transform: translateX(-1px);
+}
+.eco-prestige-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #666;
+  margin-top: 2px;
+}
+.eco-prestige-ready {
+  color: #ffd700;
+  font-size: 12px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(255,215,0,0.08);
+  border: 1px solid rgba(255,215,0,0.2);
+  border-radius: 6px;
+}
+.eco-prestige-done {
+  color: #7dff7d;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.prestige-btn {
+  margin-top: 8px;
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  color: #1a1a1a;
+  font-weight: 700;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.prestige-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* Farm speech bubble */
+.farm-speech {
+  position: absolute;
+  z-index: 10;
+  max-width: 340px;
+  min-width: 220px;
+  background: rgba(16, 20, 14, 0.94);
+  border: 1px solid #5a7a4a;
+  border-radius: 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  animation: farmSpeechIn 0.3s ease-out;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  transition: left 0.3s ease-out, top 0.3s ease-out;
+  overflow: hidden;
+}
+.farm-speech[hidden] { display: none; }
+.farm-speech-arrow {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid #5a7a4a;
+}
+.farm-speech-photo {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+  border-bottom: 1px solid #3a5a2a;
+  background: #0a0e08;
+}
+.farm-speech-photo[hidden] { display: none; }
+.farm-speech-content {
+  padding: 8px 12px 8px;
+}
+.farm-speech-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.farm-speech-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.farm-speech-heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: #b8d8a0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.farm-speech-text {
+  font-size: 12px;
+  color: #d0d0c8;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.farm-speech-pager {
+  text-align: right;
+  font-size: 10px;
+  color: #666;
+}
+@keyframes farmSpeechIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Land tile grid (legacy, kept for reference) */
 .land-grid {
   display: flex;
   flex-wrap: wrap;

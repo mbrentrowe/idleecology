@@ -6,9 +6,16 @@ import { ECOREGIONS, WILDLIFE_TYPE_ICONS } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
 import { BIRDS, BIRD_LIST } from './birds.js';
 import { INVASIVES, INVASIVE_MAP, findInvasive } from './invasives.js';
+import { FarmView } from './farmview.js';
+import { ECOREGION_POLYGONS, US_BORDER, CODE_TO_GAME_ID } from './ecomap.js';
+import { getRegion, DEFAULT_REGION_ID } from './regions/registry.js';
+import { loadMeta, saveMeta, regionSaveKey, regionCollectionScore, checkPrestige, executePrestige, switchRegion, getStartingBonuses, bpGoldMultiplier } from './prestige.js';
 
 // Module-level cache for the full plant list (avoid repeated flatMap across renders)
 const ALL_PLANTS = ECOREGIONS.flatMap(e => e.plants);
+
+// ── Farm view canvas (Phase 1) ────────────────────────────────────────────────
+let currentFarmView = null;
 
 // ── Crop emoji map ────────────────────────────────────────────────────────────
 // Used only in <select> option text (HTML not supported there)
@@ -39,8 +46,24 @@ function cropIconHtml(gid, size = 24) {
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
-const engine = createEngine();
-const saved  = engine.loadSave();
+const meta = loadMeta();
+let currentRegionData = getRegion(meta.currentRegionId) ?? getRegion(DEFAULT_REGION_ID);
+let engine = createEngine(currentRegionData);
+
+// Load per-region save (or migrated legacy save)
+const _regionKey = regionSaveKey(meta.currentRegionId);
+const _savedRaw  = localStorage.getItem(_regionKey);
+let saved = null;
+if (_savedRaw) {
+  try { saved = JSON.parse(_savedRaw); } catch { /* start fresh */ }
+}
+// Fallback: check legacy key for backward compat (first load after migration)
+if (!saved) {
+  const _legacyRaw = localStorage.getItem('idle-ecologist-text-v1');
+  if (_legacyRaw) {
+    try { saved = JSON.parse(_legacyRaw); } catch { /* start fresh */ }
+  }
+}
 if (saved) {
   engine.applyState(saved);
   if (saved.savedAt) {
@@ -48,15 +71,23 @@ if (saved) {
     if (offSecs > 5) {
       const result = engine.simulateOffline(offSecs);
       showOfflineToast(result, offSecs);
-      // Render before the first tick fires so the paused state is visible immediately
-      // (deferred to after DOMContentLoaded / module evaluation completes)
       setTimeout(() => renderAll(), 0);
     }
   }
 }
 
+// Apply prestige gold multiplier from meta BP
+engine.setPrestigeGoldMult(bpGoldMultiplier(meta.totalBP));
+
+// Region-aware save: write to per-region key + meta
+function saveGame() {
+  const state = engine.getState();
+  localStorage.setItem(regionSaveKey(meta.currentRegionId), JSON.stringify(state));
+  saveMeta(meta);
+}
+
 setInterval(() => engine.tick(), 250);
-setInterval(() => engine.save(), 10000);
+setInterval(() => saveGame(), 10000);
 
 // ── iNaturalist photo cache ───────────────────────────────────────────────────
 const INAT_CACHE_KEY = 'inat-photo-cache-v2';
@@ -67,6 +98,11 @@ const inatPhotoCache = (() => {
 const INAT_DESC_CACHE_KEY = 'inat-desc-cache-v1';
 const inatDescCache = (() => {
   try { return JSON.parse(localStorage.getItem(INAT_DESC_CACHE_KEY) || '{}'); } catch { return {}; }
+})();
+
+const INAT_URL_CACHE_KEY = 'inat-url-cache-v1';
+const inatUrlCache = (() => {
+  try { return JSON.parse(localStorage.getItem(INAT_URL_CACHE_KEY) || '{}'); } catch { return {}; }
 })();
 const inatTaxonInFlight = new Map();
 
@@ -113,6 +149,7 @@ async function _fetchInatTaxon(sciName) {
     const taxon = data.results?.[0];
     const url   = taxon?.default_photo?.square_url ?? null;
     const desc  = taxon?.wikipedia_summary ?? null;
+    const taxonId = taxon?.id;
     if (url !== null) {
       inatPhotoCache[sciName] = url;
       localStorage.setItem(INAT_CACHE_KEY, JSON.stringify(inatPhotoCache));
@@ -120,6 +157,10 @@ async function _fetchInatTaxon(sciName) {
     if (desc !== null) {
       inatDescCache[sciName] = desc;
       localStorage.setItem(INAT_DESC_CACHE_KEY, JSON.stringify(inatDescCache));
+    }
+    if (taxonId) {
+      inatUrlCache[sciName] = `https://www.inaturalist.org/taxa/${taxonId}`;
+      localStorage.setItem(INAT_URL_CACHE_KEY, JSON.stringify(inatUrlCache));
     }
     return { photoUrl: url, desc };
   } catch {
@@ -196,15 +237,17 @@ async function acquireWakeLock() {
 let _resetting = false;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') acquireWakeLock();
-  else if (!_resetting) engine.save(); // save immediately when tab goes to background
+  else if (!_resetting) saveGame(); // save immediately when tab goes to background
 });
 acquireWakeLock();
 
 // ── Tab state ─────────────────────────────────────────────────────────────────
 const TABS = ENABLE_RANCH
-  ? ['crops', 'ranch', 'research', 'garden', 'land', 'collection', 'settings']
-  : ['crops', 'research', 'garden', 'land', 'collection', 'settings'];
-let activeTab = 'crops';
+  ? ['crops', 'ranch', 'research', 'garden', 'land', 'map', 'collection', 'settings']
+  : ['crops', 'research', 'garden', 'land', 'map', 'collection', 'settings'];
+const HOME_TAB_KEY = 'idle-ecologist-home-tab';
+const _savedHomeTab = localStorage.getItem(HOME_TAB_KEY);
+let activeTab = (_savedHomeTab && TABS.includes(_savedHomeTab)) ? _savedHomeTab : 'crops';
 let cropBuyQty = 1; // 1 | 5 | 10 | 25 | 'max'
 
 // ── In-game tutorial state ───────────────────────────────────────────────────
@@ -273,6 +316,51 @@ let hideLockedGarden      = localStorage.getItem('hideLockedGarden')      === 't
 let hideCompletedLand     = localStorage.getItem('hideCompletedLand')     === 'true';
 const collapsedGardenCards = new Set(); // plant IDs currently collapsed
 
+// ── IRL (Real Life) garden / sightings tracker ─────────────────────────────────
+const IRL_SAVE_KEY = 'idle-ecologist-irl-v1';
+const irlData = (() => {
+  try { return JSON.parse(localStorage.getItem(IRL_SAVE_KEY) || '{}'); } catch { return {}; }
+})();
+// irlData shape: { [key]: { date: ISO string, note?: string } }
+// keys: "plant:scarlet_strawberry", "crop:strawberry", "bird:american_robin",
+//       "creature:pearl_crescent", "invasive:kudzu", "ranch:chicken"
+let showIrlOnly = localStorage.getItem('showIrlOnly') === 'true';
+
+function irlKey(category, id) { return `${category}:${id}`; }
+function isIrl(category, id) { return irlKey(category, id) in irlData; }
+function toggleIrl(category, id) {
+  const key = irlKey(category, id);
+  if (key in irlData) { delete irlData[key]; }
+  else { irlData[key] = { date: new Date().toISOString() }; }
+  localStorage.setItem(IRL_SAVE_KEY, JSON.stringify(irlData));
+  renderAll();
+}
+function irlCount(category) {
+  let n = 0;
+  for (const k in irlData) if (k.startsWith(category + ':')) n++;
+  return n;
+}
+function irlTotalCount() { return Object.keys(irlData).length; }
+
+/** Build an iNaturalist observation upload URL pre-filled with species name. */
+function inatObsUrl(sci) {
+  return `https://www.inaturalist.org/observations/upload?taxon_name=${encodeURIComponent(sci)}`;
+}
+
+/** Build an IRL action bar for a collection card. */
+function irlBarHtml(category, id, sci, label) {
+  const marked = isIrl(category, id);
+  const dateStr = marked ? new Date(irlData[irlKey(category, id)].date).toLocaleDateString() : '';
+  return `<div class="irl-bar${marked ? ' irl-marked' : ''}">
+    <button class="irl-toggle-btn${marked ? ' active' : ''}" data-irl-cat="${category}" data-irl-id="${id}">
+      ${marked ? '✅' : '☐'} ${label}
+    </button>
+    ${marked ? `<span class="irl-date">since ${dateStr}</span>` : ''}
+    ${marked && sci ? `<a class="irl-inat-btn" href="${inatObsUrl(sci)}" target="_blank" rel="noopener noreferrer" title="Upload your photo to iNaturalist">📸 Log on iNaturalist</a>` : ''}
+    ${!marked && sci ? `<span class="irl-hint">Have you ${category === 'bird' || category === 'creature' ? 'spotted' : category === 'invasive' ? 'removed' : 'planted'} this in real life?</span>` : ''}
+  </div>`;
+}
+
 // ── UI Construction ───────────────────────────────────────────────────────────
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -307,6 +395,7 @@ const TAB_LABELS = {
   research: '🌱 Conservation',
   garden: '🌿 Native Garden',
   land: '🗺️ Land',
+  map: '🧑‍🌾 Map',
   collection: '📚 Collection',
   settings: '⚙️ Settings',
 };
@@ -316,6 +405,7 @@ const TAB_ICONS  = {
   research: '🌱',
   garden: '🌿',
   land: '🗺️',
+  map: '🧑‍🌾',
   collection: '📚',
   settings: '⚙️',
 };
@@ -325,8 +415,9 @@ const tabBarEl = document.getElementById('tab-bar');
 let fabOpen = false;
 
 const tabBtns = {};
-const COMPACT_TAB_MAX_WIDTH = 390;
-const COMPACT_TAB_PRIORITY = ['crops', 'research', 'garden', 'land'];
+const MIN_TAB_PX = 40;       // minimum icon-only tap target
+const LABEL_THRESHOLD_PX = 72; // per-tab width to start showing labels
+const COMPACT_TAB_PRIORITY = ['crops', 'research', 'garden', 'map'];
 
 const tabOverflowBtn = el('button', 'tab-btn tab-more-btn', '⋯');
 tabOverflowBtn.type = 'button';
@@ -379,24 +470,50 @@ function _renderOverflowTabs(tabs) {
 }
 
 function _syncTabLayout() {
-  const isCompact = window.matchMedia(`(max-width: ${COMPACT_TAB_MAX_WIDTH}px)`).matches;
-  tabButtonsEl.classList.toggle('compact', isCompact);
+  // Measure available width (subtract notif button + overflow button + padding)
+  const barStyle = getComputedStyle(tabButtonsEl);
+  const barPadL = parseFloat(barStyle.paddingLeft) || 0;
+  const barPadR = parseFloat(barStyle.paddingRight) || 0;
+  const gap = parseFloat(barStyle.gap) || 4;
+  const barWidth = tabButtonsEl.clientWidth - barPadL - barPadR;
+  // Reserve space for notification button (always shown) + gap
+  const notifW = (notifTabBtn?.offsetWidth || 40) + gap;
+  const overflowBtnW = 38 + gap; // width of ⋯ button + gap
+  let availableWidth = barWidth - notifW;
 
   const orderedTabs = [...TABS];
-  let visibleTabs = orderedTabs;
-  if (isCompact) {
-    visibleTabs = COMPACT_TAB_PRIORITY.filter(t => orderedTabs.includes(t)).slice(0, 4);
+  const totalTabs = orderedTabs.length;
+
+  // Calculate per-tab width if all tabs are visible (no overflow button needed)
+  const perTabAll = (availableWidth - gap * (totalTabs - 1)) / totalTabs;
+
+  let visibleTabs, overflowTabs;
+
+  if (perTabAll >= MIN_TAB_PX) {
+    // All tabs fit — no overflow needed
+    visibleTabs = orderedTabs;
+    overflowTabs = [];
+  } else {
+    // Need overflow — recalculate with overflow button
+    const reduced = availableWidth - overflowBtnW;
+    // Figure out how many tabs fit at min size
+    let maxFit = Math.floor((reduced + gap) / (MIN_TAB_PX + gap));
+    maxFit = Math.max(maxFit, 2); // always show at least 2
+
+    // Pick which tabs to show: priority tabs first, ensure active tab is visible
+    visibleTabs = COMPACT_TAB_PRIORITY.filter(t => orderedTabs.includes(t)).slice(0, maxFit);
     if (!visibleTabs.includes(activeTab) && orderedTabs.includes(activeTab)) {
-      if (visibleTabs.length === 0) visibleTabs.push(activeTab);
+      if (visibleTabs.length < maxFit) visibleTabs.push(activeTab);
       else visibleTabs[visibleTabs.length - 1] = activeTab;
     }
     visibleTabs = [...new Set(visibleTabs)];
+    overflowTabs = orderedTabs.filter(t => !visibleTabs.includes(t));
   }
 
-  const overflowTabs = orderedTabs.filter(t => !visibleTabs.includes(t));
+  // Show / hide tab buttons
   for (const tab of orderedTabs) tabBtns[tab].hidden = !visibleTabs.includes(tab);
 
-  const showOverflow = isCompact && overflowTabs.length > 0;
+  const showOverflow = overflowTabs.length > 0;
   tabOverflowBtn.hidden = !showOverflow;
   if (!showOverflow) {
     setFabOpen(false);
@@ -404,6 +521,11 @@ function _syncTabLayout() {
     _renderOverflowTabs(overflowTabs);
     tabOverflowBtn.classList.toggle('active', overflowTabs.includes(activeTab));
   }
+
+  // Show labels if per-visible-tab width is generous enough
+  const visibleCount = visibleTabs.length + (showOverflow ? 1 : 0); // +1 for overflow btn
+  const perTabVisible = (availableWidth - (showOverflow ? overflowBtnW : 0) - gap * Math.max(visibleCount - 1, 0)) / visibleTabs.length;
+  tabButtonsEl.classList.toggle('show-labels', perTabVisible >= LABEL_THRESHOLD_PX);
 }
 
 TABS.forEach(tab => {
@@ -507,6 +629,16 @@ document.addEventListener('touchend', (e) => {
 }, false);
 
 const content = document.getElementById('content');
+
+// ── IRL button delegation ──────────────────────────────────────────────────────
+content.addEventListener('click', e => {
+  const btn = e.target.closest('.irl-toggle-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  const cat = btn.dataset.irlCat;
+  const id  = btn.dataset.irlId;
+  if (cat && id) toggleIrl(cat, id);
+});
 
 function clearTutorialFocus() {
   document.querySelectorAll('.tutorial-focus').forEach(el => el.classList.remove('tutorial-focus'));
@@ -618,13 +750,18 @@ function renderAll() {
   _syncTabLayout();
   // Tab button active state
   tabButtonsEl.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+  // Clean up farm view canvas before wiping DOM
+  if (currentFarmView) { currentFarmView.stop(); currentFarmView = null; }
   content.innerHTML = '';
+  content.classList.remove('map-mode');
+  content.classList.remove('map-mode-overview');
   switch (activeTab) {
     case 'crops':    lastZonesFingerprint = zonesFingerprint(); renderCrops();    break;
     case 'ranch':    renderRanch();    break;
     case 'research':   renderResearch();   break;
     case 'garden':     renderGarden();     break;
     case 'land':       renderLand();       break;
+    case 'map':        renderMap();        break;
     case 'collection': {
       const collectionScrollTarget = _pendingScrollToCollection;
       if (collectionScrollTarget) collectionFilter = collectionScrollTarget.filter;
@@ -769,9 +906,33 @@ function nextSeasonFor(ct) {
   return null;
 }
 
-/** Generate an iNaturalist taxa-search URL for a scientific name. */
+/** Generate an iNaturalist taxa URL — uses cached direct link if available, else search. */
 function inatUrl(sci) {
+  if (sci in inatUrlCache) return inatUrlCache[sci];
   return `https://www.inaturalist.org/taxa/search?q=${encodeURIComponent(sci)}`;
+}
+
+/** Generate a Wikipedia URL for a scientific name. */
+function wikiUrl(sci) {
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(sci.replace(/ /g, '_'))}`;
+}
+
+/** Generate an EasyScape species page URL. */
+function easyscapeUrl(sci, name) {
+  const sciSlug = sci.replace(/ /g, '-');
+  const nameSlug = name.replace(/ /g, '-');
+  return `https://easyscape.com/species/${encodeURIComponent(sciSlug)}(${encodeURIComponent(nameSlug)})`;
+}
+
+/** Generate external reference links (iNaturalist + Wikipedia + EasyScape) for a scientific name. */
+function speciesLinksHtml(sci, name) {
+  if (!sci) return '';
+  let html = `<a class="garden-plant-sci inat-link" href="${inatUrl(sci)}" target="_blank" rel="noopener noreferrer" title="View on iNaturalist">${sci}</a>`
+    + ` <a class="species-ext-link wiki-link" href="${wikiUrl(sci)}" target="_blank" rel="noopener noreferrer" title="View on Wikipedia">Wiki ↗</a>`;
+  if (name) {
+    html += ` <a class="species-ext-link easyscape-link" href="${easyscapeUrl(sci, name)}" target="_blank" rel="noopener noreferrer" title="View on EasyScape — care info &amp; buy near you">EasyScape ↗</a>`;
+  }
+  return html;
 }
 
 // ── Time-to-afford helper ────────────────────────────────────────────────────
@@ -1192,7 +1353,7 @@ function renderRanch() {
       ${inatThumbHtml(animal.sci, 'ranch-thumb', animal.name)}
       <div class="ranch-animal-names">
         <span class="ranch-animal-name">${animal.name}</span>
-        <a class="ranch-animal-sci inat-link" href="${inatUrl(animal.sci)}" target="_blank" rel="noopener noreferrer">${animal.sci} ↗</a>
+        ${speciesLinksHtml(animal.sci)}
         <span class="ranch-product-label">📦 ${animal.product}</span>
       </div>
       <div class="ranch-gps">+${shortNumber(gps)}<span class="ranch-gps-unit">/s</span></div>
@@ -1655,7 +1816,7 @@ function renderGarden() {
               ${inatThumbHtml(plant.sci, 'garden-thumb', plant.name)}
               <div class="garden-plant-names">
                 <span class="garden-plant-name">${plant.name}</span>
-                <a class="garden-plant-sci inat-link" href="${inatUrl(plant.sci)}" target="_blank" rel="noopener noreferrer">${plant.sci} ↗</a>
+                ${speciesLinksHtml(plant.sci, plant.name)}
               </div>
               <div class="garden-badges">
                 <span class="garden-type-badge garden-type-${plant.type}">${plant.type}</span>
@@ -1677,7 +1838,7 @@ function renderGarden() {
           ${inatThumbHtml(plant.sci, 'garden-thumb', plant.name)}
           <div class="garden-plant-names">
             <span class="garden-plant-name">${plant.name}</span>
-            <a class="garden-plant-sci inat-link" href="${inatUrl(plant.sci)}" target="_blank" rel="noopener noreferrer">${plant.sci} ↗</a>
+            ${speciesLinksHtml(plant.sci, plant.name)}
           </div>
           <div class="garden-badges">
             <span class="garden-type-badge garden-type-${plant.type}">${plant.type}</span>
@@ -2022,92 +2183,430 @@ function renderLand() {
   }
   content.appendChild(invSect);
 
-  // ── Land grid (40×25 = 1000 cells) ──────────────────────────────────────────
-  const gridSect = el('div', 'land-section');
-  gridSect.innerHTML = '<h2 class="land-section-header">🗺️ Your Land</h2>';
-  const grid = el('div', 'land-grid');
+  // ── Link to Map tab ────────────────────────────────────────────────────────
+  const mapLink = el('div', 'land-section');
+  mapLink.innerHTML = '<h2 class="land-section-header">🧑‍🌾 Farm Map</h2>';
+  const goMapBtn = el('button', 'action-btn', '🧑‍🌾 Open Map View');
+  goMapBtn.addEventListener('click', () => { activeTab = 'map'; renderAll(); });
+  mapLink.appendChild(goMapBtn);
+  content.appendChild(mapLink);
+}
 
-  // Build cell data: invasive, crop, native, establishing, free
-  const cells = [];
+// ── MAP TAB ───────────────────────────────────────────────────────────────────
+let _mapMode = 'overview';  // 'overview' | 'farm'
 
-  // Invasive cells (by species, in descending tier order for visual impact)
-  const sortedInvasives = [...INVASIVES].sort((a, b) => b.tier - a.tier);
-  for (const inv of sortedInvasives) {
-    const count = engine.invasiveAcres.get(inv.id) ?? 0;
-    for (let i = 0; i < count; i++) cells.push({ type: 'invasive', inv });
-  }
-  // Removal queue cells
-  for (const job of removalQ) {
-    const inv = INVASIVE_MAP[job.invasiveId];
-    if (!inv) continue;
-    for (let i = 0; i < job.acresRemaining; i++) cells.push({ type: 'removing', inv });
-  }
-  // Crop zone cells
-  for (const [zoneName, acres] of engine.zoneAcres) {
-    const def = FARM_ZONE_DEFS.find(d => d.name === zoneName);
-    if (!def) continue;
-    const crop = CROPS[def.cropId];
-    for (let i = 0; i < acres; i++) cells.push({ type: 'crop', crop, zoneName });
-  }
-  // Native plant cells
-  for (const [plantId, acres] of engine.plantedSpeciesAcres) {
-    const result = engine.findPlant(plantId);
-    const plant = result?.plant;
-    for (let i = 0; i < acres; i++) cells.push({ type: 'native', plant });
-  }
-  // Queued native cells
-  for (const { plantId } of nativeQ) {
-    const result = engine.findPlant(plantId);
-    cells.push({ type: 'establishing', plant: result?.plant });
-  }
-  // Free cells
-  const freeCount = Math.max(0, totalAcres - cells.length);
-  for (let i = 0; i < freeCount; i++) cells.push({ type: 'free' });
+function renderMap() {
+  content.classList.add('map-mode');
+  if (_mapMode === 'overview') content.classList.add('map-mode-overview');
 
-  // Render cells (cap at 1000)
-  const maxCells = Math.min(cells.length, 1000);
-  for (let i = 0; i < maxCells; i++) {
-    const c = cells[i];
-    const tile = document.createElement('div');
-    tile.className = 'land-tile';
+  // ── Mode toggle bar ──────────────────────────────────────────────────────
+  const modeBar = el('div', 'map-mode-bar');
+  const overviewBtn = el('button', `map-mode-btn${_mapMode === 'overview' ? ' active' : ''}`, '🌎 Ecoregion Map');
+  const farmBtn     = el('button', `map-mode-btn${_mapMode === 'farm' ? ' active' : ''}`, '🧑‍🌾 Farm View');
+  overviewBtn.addEventListener('click', () => { _mapMode = 'overview'; renderAll(); });
+  farmBtn.addEventListener('click', () => { _mapMode = 'farm'; renderAll(); });
+  modeBar.appendChild(overviewBtn);
+  modeBar.appendChild(farmBtn);
+  content.appendChild(modeBar);
 
-    switch (c.type) {
-      case 'invasive':
-        tile.classList.add('land-tile-invasive', `land-tile-tier${c.inv.tier}`);
-        tile.title = `${c.inv.name} (invasive)`;
-        tile.textContent = c.inv.icon;
-        break;
-      case 'removing':
-        tile.classList.add('land-tile-invasive', 'land-tile-removing');
-        tile.title = `${c.inv.name} (removing…)`;
-        tile.textContent = '⏳';
-        break;
-      case 'crop':
-        tile.classList.add('land-tile-crop');
-        tile.title = c.crop?.name ?? c.zoneName;
-        tile.textContent = CROP_EMOJI[c.crop?.id] ?? '🌾';
-        break;
-      case 'native':
-        tile.classList.add('land-tile-native');
-        tile.title = c.plant?.name ?? '?';
-        tile.textContent = c.plant?.icon ?? '🌿';
-        break;
-      case 'establishing':
-        tile.classList.add('land-tile-native', 'land-tile-establishing');
-        tile.title = `${c.plant?.name ?? '?'} (establishing…)`;
-        tile.textContent = '⏳';
-        break;
-      case 'free':
-        tile.classList.add('land-tile-free');
-        tile.title = 'Free acre';
-        tile.textContent = '＋';
-        break;
+  if (_mapMode === 'overview') {
+    _renderEcoregionOverview();
+  } else {
+    _renderFarmView();
+  }
+}
+
+// ── Ecoregion Overview Map ────────────────────────────────────────────────────
+function _renderEcoregionOverview() {
+  const mapWrap = el('div', 'farm-canvas-wrap eco-map-wrap');
+  const mapDiv  = document.createElement('div');
+  mapDiv.id = 'eco-leaflet-map';
+  mapWrap.appendChild(mapDiv);
+  content.appendChild(mapWrap);
+
+  // ── Stats panel below map ────────────────────────────────────────────────
+  const statsPanel = el('div', 'eco-stats-panel');
+  const eco = currentRegionData; // current active ecoregion (from prestige meta)
+  const totalAcres   = engine.totalLandAcres;
+  const allocAcres   = engine.getAllocatedAcres();
+  const invadedAcres = engine.getTotalInvadedAcres();
+  const freeAcres    = engine.getFreeAcres();
+  const plantedCount = engine.plantedSpecies.size;
+  const totalPlants  = eco.plants.length;
+  const discovered   = engine.discoveredCreatures.size;
+
+  // ── Collection & prestige progress ───────────────────────────────────────
+  const collection = regionCollectionScore(engine);
+  const prestigeCheck = checkPrestige(meta, engine);
+  const pctComplete = Math.round(collection.fraction * 100);
+  const thresholdPct = Math.round(prestigeCheck.threshold * 100);
+  const bd = collection.breakdown;
+
+  statsPanel.innerHTML = `
+    <div class="eco-stats-header">
+      <span class="eco-stats-icon">${eco.icon}</span>
+      <span class="eco-stats-title">${eco.label}</span>
+      <span class="eco-bp-badge" title="Total Biosphere Points (prestige currency)">🌍 ${meta.totalBP} BP</span>
+    </div>
+    <div class="eco-stats-desc">${eco.desc}</div>
+    <div class="eco-stats-grid">
+      <div class="eco-stat"><span class="eco-stat-num">${totalAcres}</span><span class="eco-stat-lbl">Total Acres</span></div>
+      <div class="eco-stat"><span class="eco-stat-num">${allocAcres}</span><span class="eco-stat-lbl">In Use</span></div>
+      <div class="eco-stat"><span class="eco-stat-num">${invadedAcres}</span><span class="eco-stat-lbl">Invaded</span></div>
+      <div class="eco-stat"><span class="eco-stat-num">${freeAcres}</span><span class="eco-stat-lbl">Free</span></div>
+      <div class="eco-stat"><span class="eco-stat-num">${plantedCount}/${totalPlants}</span><span class="eco-stat-lbl">Native Species</span></div>
+      <div class="eco-stat"><span class="eco-stat-num">${discovered}</span><span class="eco-stat-lbl">Wildlife Found</span></div>
+    </div>
+    <div class="eco-stats-bar">
+      <div style="width:${totalAcres > 0 ? Math.round(allocAcres / totalAcres * 100) : 0}%;background:#4caf50"></div>
+      <div style="width:${totalAcres > 0 ? Math.round(freeAcres / totalAcres * 100) : 0}%;background:#78909c"></div>
+      <div style="width:${totalAcres > 0 ? Math.round(invadedAcres / totalAcres * 100) : 0}%;background:#e57373"></div>
+    </div>
+    <div class="eco-stats-legend">
+      <span>🟩 In Use</span><span>⬜ Free</span><span>🟥 Invaded</span>
+    </div>
+    <div class="eco-prestige-section">
+      <div class="eco-prestige-title">🏆 Region Collection — ${pctComplete}%</div>
+      <div class="eco-collection-grid">
+        <span>🌿 Plants: ${bd.plants.current}/${bd.plants.max}</span>
+        <span>🦋 Creatures: ${bd.creatures.current}/${bd.creatures.max}</span>
+        <span>🐦 Birds: ${bd.birds.current}/${bd.birds.max}</span>
+        <span>🔬 Research: ${bd.research.current}/${bd.research.max}</span>
+        <span>🛡️ Invasives Cleared: ${bd.invasives.current}/${bd.invasives.max}</span>
+      </div>
+      <div class="eco-prestige-bar-wrap">
+        <div class="eco-prestige-bar">
+          <div class="eco-prestige-fill" style="width:${Math.min(100, pctComplete)}%"></div>
+          <div class="eco-prestige-threshold" style="left:${thresholdPct}%" title="Prestige threshold: ${thresholdPct}%"></div>
+        </div>
+        <div class="eco-prestige-bar-labels">
+          <span>0%</span><span>${thresholdPct}% to prestige</span><span>100%</span>
+        </div>
+      </div>
+      ${prestigeCheck.canPrestige && !meta.prestiged[eco.id] ? `<div class="eco-prestige-ready">✨ Ready to prestige! ${eco.prestigeReward ?? ''}</div>` : ''}
+      ${meta.prestiged[eco.id] ? `<div class="eco-prestige-done">✅ Prestiged · ${meta.regionBP[eco.id] ?? 0} BP earned · Gold ×${bpGoldMultiplier(meta.totalBP).toFixed(1)}</div>` : ''}
+    </div>
+  `;
+
+  // Add prestige button if eligible
+  if (prestigeCheck.canPrestige && !meta.prestiged[eco.id]) {
+    const prestigeBtn = el('button', 'action-btn prestige-btn', `🌟 Prestige ${eco.name}`);
+    prestigeBtn.addEventListener('click', () => {
+      const result = executePrestige(meta, engine);
+      if (result.ok) {
+        // Apply updated BP multiplier to running engine
+        engine.setPrestigeGoldMult(bpGoldMultiplier(meta.totalBP));
+        saveGame();
+        renderAll();
+        // Show prestige toast
+        const mult = bpGoldMultiplier(meta.totalBP).toFixed(1);
+        showToast(`🌟 Prestiged! +${result.bpAwarded} BP earned. Gold multiplier now ${mult}×`
+          + (result.newRegions.length ? ` — ${result.newRegions.length} new region${result.newRegions.length > 1 ? 's' : ''} unlocked!` : ''));
+      }
+    });
+    statsPanel.querySelector('.eco-prestige-section').appendChild(prestigeBtn);
+  }
+
+  content.appendChild(statsPanel);
+
+  // ── Leaflet map with OSM tiles + ecoregion polygon overlays ───────────────
+  const activeCode = eco.code; // e.g. '8.3'
+  // Build set of unlocked ecoregion codes from prestige meta
+  const _unlockedCodes = new Set();
+  for (const rid of meta.unlockedRegionIds) {
+    const r = getRegion(rid);
+    if (r) _unlockedCodes.add(r.code);
+  }
+
+  const map = L.map(mapDiv, {
+    center: [45, -100],
+    zoom: 3,
+    minZoom: 2,
+    maxZoom: 10,
+    zoomControl: true,
+    attributionControl: true,
+  });
+
+  // Dark-themed OSM tiles (CartoDB Dark Matter)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // Tooltip element (reused for hover)
+  const tooltip = L.DomUtil.create('div', 'eco-tooltip eco-leaflet-tooltip', mapDiv);
+  tooltip.hidden = true;
+
+  // ── Draw ecoregion polygons ──────────────────────────────────────────────
+  const ecoLayers = {};
+
+  for (const ecoP of ECOREGION_POLYGONS) {
+    if (ecoP.code === '0.0') continue; // skip water features
+    const isActive   = ecoP.code === activeCode;
+    const isUnlocked = _unlockedCodes.has(ecoP.code);
+
+    // Convert [lon, lat] → [lat, lon] for Leaflet
+    const latLngs = ecoP.polygons
+      .filter(p => p.length >= 3)
+      .map(p => p.map(([lon, lat]) => [lat, lon]));
+
+    if (!latLngs.length) continue;
+
+    let style;
+    if (isActive) {
+      style = { color: '#ffd700', weight: 2.5, fillColor: ecoP.color, fillOpacity: 0.55 };
+    } else if (isUnlocked) {
+      style = { color: 'rgba(255,255,255,0.4)', weight: 1, fillColor: ecoP.color, fillOpacity: 0.45 };
+    } else {
+      style = { color: 'rgba(100,100,100,0.3)', weight: 0.5, fillColor: '#3c3c3c', fillOpacity: 0.35 };
     }
-    grid.appendChild(tile);
+
+    const layer = L.polygon(latLngs, style).addTo(map);
+
+    // Hover tooltip
+    layer.on('mouseover', (e) => {
+      tooltip.hidden = false;
+      const status = isActive ? '✅ Active'
+        : isUnlocked ? '🔓 Unlocked — click to switch'
+        : '🔒 Locked';
+      tooltip.innerHTML = `<strong>${ecoP.code} – ${ecoP.name}</strong><br>${status}`;
+      if (!isActive) {
+        layer.setStyle({ fillOpacity: isUnlocked ? 0.65 : 0.5, weight: 1.5 });
+      }
+    });
+    layer.on('mousemove', (e) => {
+      const pt = map.mouseEventToContainerPoint(e.originalEvent);
+      tooltip.style.left = Math.min(pt.x + 14, mapDiv.clientWidth - 180) + 'px';
+      tooltip.style.top  = Math.max(pt.y - 40, 4) + 'px';
+    });
+    layer.on('mouseout', () => {
+      tooltip.hidden = true;
+      layer.setStyle(style);
+    });
+
+    // Click — switch to farm view if active region, or switch region if unlocked
+    if (isActive) {
+      layer.on('click', () => {
+        _mapMode = 'farm';
+        renderAll();
+      });
+    } else if (isUnlocked) {
+      const _targetRegionId = CODE_TO_GAME_ID[ecoP.code];
+      if (_targetRegionId) {
+        layer.on('click', () => {
+          const result = switchRegion(meta, engine, _targetRegionId);
+          if (result.ok) {
+            currentRegionData = result.regionData;
+            engine = createEngine(currentRegionData);
+            engine.setPrestigeGoldMult(bpGoldMultiplier(meta.totalBP));
+            if (result.savedState) {
+              engine.applyState(result.savedState);
+            } else {
+              // New region — apply BP bonuses
+              const bonuses = getStartingBonuses(meta);
+              engine.gold.amount = bonuses.startingGold;
+            }
+            renderAll();
+          }
+        });
+      }
+    }
+
+    ecoLayers[ecoP.code] = layer;
   }
 
-  gridSect.appendChild(grid);
-  content.appendChild(gridSect);
+  // ── Draw US border polyline ──────────────────────────────────────────────
+  const usBorderLL = US_BORDER.map(([lon, lat]) => [lat, lon]);
+  L.polyline(usBorderLL, {
+    color: 'rgba(200,200,200,0.3)',
+    weight: 1.5,
+    dashArray: '6,4',
+    interactive: false,
+  }).addTo(map);
+
+  // ── Ecoregion labels (via markers with DivIcon) ──────────────────────────
+  function _polyCentroid(coords) {
+    let cx = 0, cy = 0;
+    for (const [lon, lat] of coords) { cx += lon; cy += lat; }
+    return [cy / coords.length, cx / coords.length]; // [lat, lon]
+  }
+
+  for (const ecoP of ECOREGION_POLYGONS) {
+    if (ecoP.code === '0.0') continue;
+    if (!ecoP.polygons.length || ecoP.polygons[0].length < 3) continue;
+    const center = _polyCentroid(ecoP.polygons[0]);
+    const isActive = ecoP.code === activeCode;
+    const labelHtml = isActive
+      ? `<span style="color:#ffd700;font-weight:bold">${ecoP.code}</span><br><span style="color:#fff;font-size:9px">${ecoP.name}</span>`
+      : `<span style="color:rgba(180,180,180,0.6)">${ecoP.code}</span>`;
+
+    L.marker(center, {
+      icon: L.divIcon({
+        className: 'eco-label-icon',
+        html: labelHtml,
+        iconSize: [100, 30],
+        iconAnchor: [50, 15],
+      }),
+      interactive: false,
+    }).addTo(map);
+  }
+
+  // Invalidate size after DOM is settled (Leaflet needs this)
+  requestAnimationFrame(() => map.invalidateSize());
+
+  // ── Cleanup on tab switch ────────────────────────────────────────────────
+  const _mo = new MutationObserver(() => {
+    if (!mapDiv.isConnected) {
+      map.remove();
+      _mo.disconnect();
+    }
+  });
+  _mo.observe(content, { childList: true });
+}
+
+function _pointInPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// ── Farm View (pixel-art canvas) ──────────────────────────────────────────────
+function _renderFarmView() {
+  const canvasWrap = el('div', 'farm-canvas-wrap');
+  const farmCanvas = document.createElement('canvas');
+  farmCanvas.id = 'farm-canvas';
+  canvasWrap.appendChild(farmCanvas);
+
+  // Floating toolbar overlay (zoom + fullscreen)
+  const toolbar = el('div', 'map-toolbar');
+  const zoomOutBtn = el('button', 'map-tool-btn', '−');
+  zoomOutBtn.title = 'Zoom out';
+  const zoomLabel  = el('span', 'map-zoom-label', '1×');
+  const zoomInBtn  = el('button', 'map-tool-btn', '+');
+  zoomInBtn.title = 'Zoom in';
+  const fsBtn = el('button', 'map-tool-btn', '⛶');
+  fsBtn.title = 'Fullscreen';
+  toolbar.appendChild(zoomOutBtn);
+  toolbar.appendChild(zoomLabel);
+  toolbar.appendChild(zoomInBtn);
+  toolbar.appendChild(fsBtn);
+  canvasWrap.appendChild(toolbar);
+
+  // Speech bubble overlay (positioned by farmer callback)
+  const speechBubble = el('div', 'farm-speech');
+  speechBubble.innerHTML = `
+    <div class="farm-speech-arrow"></div>
+    <img class="farm-speech-photo" src="${BLANK_GIF}" alt="" hidden>
+    <div class="farm-speech-content">
+      <div class="farm-speech-header">
+        <span class="farm-speech-icon"></span>
+        <span class="farm-speech-heading"></span>
+      </div>
+      <div class="farm-speech-text"></div>
+      <div class="farm-speech-pager"></div>
+    </div>
+  `;
+  speechBubble.hidden = true;
+  canvasWrap.appendChild(speechBubble);
+
+  content.appendChild(canvasWrap);
+
+  // Fullscreen toggle
+  fsBtn.addEventListener('click', () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      canvasWrap.requestFullscreen().catch(() => {});
+    }
+  });
+  const _onFsChange = () => {
+    fsBtn.title = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+  };
+  document.addEventListener('fullscreenchange', _onFsChange);
+
+  // Helper: look up best available photo URL for a scientific name
+  function _speechPhotoUrl(sci) {
+    if (!sci) return null;
+    const url = STATIC_INAT_PHOTOS[sci] || inatPhotoCache[sci] || null;
+    if (url) return url.replace('/square.', '/medium.');
+    return null;
+  }
+
+  // Start the pixel-art farm view
+  let _speechLastSci = null;
+  currentFarmView = new FarmView(farmCanvas, engine);
+
+  // Zoom controls
+  const ZOOM_STEPS = [1, 1.5, 2, 3, 4];
+  let zoomIdx = 0;
+  function _applyZoom() {
+    currentFarmView.setZoom(ZOOM_STEPS[zoomIdx]);
+    zoomLabel.textContent = `${ZOOM_STEPS[zoomIdx]}×`;
+    zoomOutBtn.disabled = zoomIdx <= 0;
+    zoomInBtn.disabled  = zoomIdx >= ZOOM_STEPS.length - 1;
+  }
+  zoomInBtn.addEventListener('click', () => {
+    if (zoomIdx < ZOOM_STEPS.length - 1) { zoomIdx++; _applyZoom(); }
+  });
+  zoomOutBtn.addEventListener('click', () => {
+    if (zoomIdx > 0) { zoomIdx--; _applyZoom(); }
+  });
+  _applyZoom();
+
+  // Clean up listeners when view stops
+  const _origStop = currentFarmView.stop.bind(currentFarmView);
+  currentFarmView.stop = () => {
+    document.removeEventListener('fullscreenchange', _onFsChange);
+    content.classList.remove('map-mode');
+    if (document.fullscreenElement && document.fullscreenElement.classList.contains('farm-canvas-wrap')) {
+      document.exitFullscreen().catch(() => {});
+    }
+    _origStop();
+  };
+  currentFarmView.onSpeechUpdate = (data) => {
+    if (!data) { speechBubble.hidden = true; _speechLastSci = null; return; }
+    speechBubble.hidden = false;
+    speechBubble.querySelector('.farm-speech-icon').textContent = data.icon || '';
+    speechBubble.querySelector('.farm-speech-heading').textContent = data.heading || '';
+    speechBubble.querySelector('.farm-speech-text').textContent = data.text || '';
+    speechBubble.querySelector('.farm-speech-pager').textContent =
+      data.factTotal > 1 ? `${data.factNum} / ${data.factTotal}` : '';
+
+    // Photo
+    const photoEl = speechBubble.querySelector('.farm-speech-photo');
+    const sci = data.sci || null;
+    if (sci !== _speechLastSci) {
+      _speechLastSci = sci;
+      const photoUrl = _speechPhotoUrl(sci);
+      if (photoUrl) {
+        photoEl.src = photoUrl;
+        photoEl.hidden = false;
+      } else {
+        photoEl.hidden = true;
+        photoEl.src = BLANK_GIF;
+        if (sci) _fetchInatTaxon(sci);
+      }
+    }
+
+    // Position bubble above farmer (clamped inside canvas wrapper)
+    const wrapRect = canvasWrap.getBoundingClientRect();
+    const bubbleW  = speechBubble.offsetWidth || 300;
+    const bubbleH  = speechBubble.offsetHeight || 120;
+    let left = data.farmerPx - bubbleW / 2 + 8;
+    left = Math.max(4, Math.min(left, wrapRect.width - bubbleW - 4));
+    let top  = data.farmerPy - bubbleH - 12;
+    if (top < 4) top = data.farmerPy + 24;
+    speechBubble.style.left = `${left}px`;
+    speechBubble.style.top  = `${top}px`;
+  };
+  currentFarmView.start();
 }
 
 // ── COLLECTION TAB ────────────────────────────────────────────────────────────
@@ -2128,8 +2627,13 @@ function renderCollection() {
       }
     }
   }
-  const totalCreatures  = creatureMap.size;
-  const discoveredCount = [...discovered].filter(k => creatureMap.has(k)).length;
+  // Separate bird-type creatures (they'll be shown in the Birds section)
+  const nonBirdCreatureMap = new Map([...creatureMap].filter(([, v]) => v.creature.type !== 'bird'));
+  const birdCreatureMap    = new Map([...creatureMap].filter(([, v]) => v.creature.type === 'bird'));
+  const totalCreatures  = nonBirdCreatureMap.size;
+  const discoveredCount = [...discovered].filter(k => nonBirdCreatureMap.has(k)).length;
+  const totalBirdCreatures    = birdCreatureMap.size;
+  const discoveredBirdCreatures = [...discovered].filter(k => birdCreatureMap.has(k)).length;
   const unlockedCrops        = Object.values(CROPS).filter(ct => ct.isUnlocked(engine.cropStats));
   const unlockedRanchAnimals = engine.unlockedRanchAnimals;
 
@@ -2141,7 +2645,7 @@ function renderCollection() {
   const maxGardenBio     = ALL_PLANTS.reduce((s, p) => s + (p.biosphereBonus ?? 0), 0);
   const birdBio          = engine.discoveredBirds.size;
   const totalBio         = researchBio + gardenBio + creatureBio + birdBio;
-  const maxTotal         = maxResearchBio + maxGardenBio + totalCreatures + BIRD_LIST.length;
+  const maxTotal         = maxResearchBio + maxGardenBio + totalCreatures + totalBirdCreatures + BIRD_LIST.length;
   const goldMult         = engine.getGoldMultiplier();
   const bioPct           = maxTotal > 0 ? Math.round(totalBio / maxTotal * 100) : 0;
   const completedResearchCount = engine.completedResearch.size;
@@ -2160,7 +2664,7 @@ function renderCollection() {
       <span>🌱 Conservation: <strong>${completedResearchCount}</strong> / ${totalResearchCount}</span>
       <span>🌿 Plants: <strong>${plantedCount}</strong> / ${totalPlantCount}</span>
       <span>🦋 Creatures: <strong>${discoveredCount}</strong> / ${totalCreatures}</span>
-      <span>🐦 Birds: <strong>${engine.discoveredBirds.size}</strong> / ${BIRD_LIST.length}</span>
+      <span>🐦 Birds: <strong>${engine.discoveredBirds.size + discoveredBirdCreatures}</strong> / ${BIRD_LIST.length + totalBirdCreatures}</span>
       <span>💰 Gold Bonus: <strong>${goldMult.toFixed(2)}×</strong></span>
     </div>
   `;
@@ -2178,16 +2682,17 @@ function renderCollection() {
   const researchedInvasiveCount = researchedInvasives.length;
 
   // ── Filter bar ──────────────────────────────────────────────────────────────
+  const totalHistoryCount = discoveredCount + discoveredBirdCreatures + engine.discoveredBirds.size;
   const filterBar = el('div', 'collection-filter-bar');
   const filterDefs = [
     { key: 'all',       label: 'All'                                                                              },
     { key: 'crops',     label: `🌾 Crops (${unlockedCrops.length} / ${Object.keys(CROPS).length})`              },
     { key: 'plants',    label: `🌿 Native Plants (${planted.size} / ${totalPlantCount})`                         },
     { key: 'creatures', label: `🦋 Creatures (${discoveredCount} / ${totalCreatures})`                           },
-    { key: 'birds',     label: `🐦 Birds (${engine.discoveredBirds.size} / ${BIRD_LIST.length})`                 },
+    { key: 'birds',     label: `🐦 Birds (${engine.discoveredBirds.size + discoveredBirdCreatures} / ${BIRD_LIST.length + totalBirdCreatures})`                 },
     { key: 'invasives', label: `🛡️ Invasives (${researchedInvasiveCount} / ${INVASIVES.length})`                  },
     ...(ENABLE_RANCH ? [{ key: 'ranch', label: `🐄 Ranch Animals (${unlockedRanchAnimals.size} / ${RANCH_ANIMAL_LIST.length})` }] : []),
-    { key: 'history',   label: `📊 History (${discoveredCount} / ${totalCreatures})` },
+    { key: 'history',   label: `📊 History (${totalHistoryCount})` },
   ];
   for (const fd of filterDefs) {
     const btn = el('button', `collection-filter-btn${collectionFilter === fd.key ? ' active' : ''}`, fd.label);
@@ -2210,7 +2715,45 @@ function renderCollection() {
     filterBar.appendChild(toggleAllBtn);
   }
 
+  // Show undiscovered toggle
+  if (showCreatures || showBirds || (collectionFilter === 'all')) {
+    const undiscBtn = el('button', `collection-filter-btn tab-toggle-btn${showUndiscoveredCollection ? ' active' : ''}`,
+      showUndiscoveredCollection ? '👁 Hide locked' : '🔒 Show locked');
+    undiscBtn.addEventListener('click', () => {
+      showUndiscoveredCollection = !showUndiscoveredCollection;
+      localStorage.setItem('showUndiscoveredCollection', showUndiscoveredCollection);
+      renderAll();
+    });
+    filterBar.appendChild(undiscBtn);
+  }
+
+  // IRL filter toggle
+  const irlTotal = irlTotalCount();
+  const irlBtn = el('button', `collection-filter-btn tab-toggle-btn irl-filter-btn${showIrlOnly ? ' active' : ''}`,
+    showIrlOnly ? `🌱 Show all (${irlTotal} IRL)` : `🌱 My Real Garden (${irlTotal})`);
+  irlBtn.addEventListener('click', () => {
+    showIrlOnly = !showIrlOnly;
+    localStorage.setItem('showIrlOnly', showIrlOnly);
+    renderAll();
+  });
+  filterBar.appendChild(irlBtn);
+
   content.appendChild(filterBar);
+
+  // IRL summary banner
+  if (irlTotal > 0) {
+    const irlSummary = el('div', 'irl-summary');
+    const pc = irlCount('plant'), cc = irlCount('creature'), bc = irlCount('bird'), ic = irlCount('invasive'), crc = irlCount('crop'), rc = irlCount('ranch');
+    const parts = [];
+    if (pc > 0) parts.push(`🌿 ${pc} planted`);
+    if (cc > 0) parts.push(`🦋 ${cc} spotted`);
+    if (bc > 0) parts.push(`🐦 ${bc} spotted`);
+    if (ic > 0) parts.push(`🛡️ ${ic} invasives`);
+    if (crc > 0) parts.push(`🌾 ${crc} crops`);
+    if (rc > 0) parts.push(`🐄 ${rc} ranch`);
+    irlSummary.innerHTML = `<strong>🌱 My Real Garden:</strong> ${irlTotal} species tracked · ${parts.join(' · ')}`;
+    content.appendChild(irlSummary);
+  }
 
   // ── Crops ───────────────────────────────────────────────────────────────────
   if (showCrops) {
@@ -2219,6 +2762,7 @@ function renderCollection() {
       content.appendChild(el('p', 'research-idle-note', '— Sell crops in the 🌾 Crops tab to unlock new varieties. —'));
     }
     for (const ct of unlockedCrops) {
+      if (showIrlOnly && !isIrl('crop', ct.id)) continue;
       const stats = engine.cropStats.get(ct.id) ?? { grown: 0, sold: 0, lifetimeSales: 0 };
       const card = el('div', 'collection-crop-card');
       card.dataset.collectionid = ct.id;
@@ -2231,7 +2775,7 @@ function renderCollection() {
         ${ct.sciName ? inatThumbHtml(ct.sciName, 'collection-crop-thumb', ct.name) : ''}
         <div class="collection-crop-names">
           <span class="collection-plant-name">${ct.name}</span>
-          ${ct.sciName ? `<a class="garden-plant-sci inat-link" href="${inatUrl(ct.sciName)}" target="_blank" rel="noopener noreferrer">${ct.sciName} ↗</a>` : ''}
+          ${speciesLinksHtml(ct.sciName, ct.name)}
           <div class="collection-crop-seasons">${seasonHtml}</div>
         </div>
         <div class="collection-crop-stats">
@@ -2249,6 +2793,10 @@ function renderCollection() {
         }
         card.appendChild(descEl);
       }
+      // IRL bar
+      const cropIrlEl = el('div', '');
+      cropIrlEl.innerHTML = irlBarHtml('crop', ct.id, ct.sciName, 'Grown IRL');
+      card.appendChild(cropIrlEl.firstElementChild);
       content.appendChild(card);
     }
   }
@@ -2261,6 +2809,7 @@ function renderCollection() {
     }
     for (const animal of RANCH_ANIMAL_LIST) {
       if (!unlockedRanchAnimals.has(animal.id)) continue;
+      if (showIrlOnly && !isIrl('ranch', animal.id)) continue;
       const stats = engine.ranchStats.get(animal.id) ?? { produced: 0, sold: 0, lifetimeSales: 0 };
       const card = el('div', 'collection-crop-card');
       card.dataset.collectionid = animal.id;
@@ -2269,7 +2818,7 @@ function renderCollection() {
         ${animal.sci ? inatThumbHtml(animal.sci, 'collection-crop-thumb', animal.name) : `<span style="font-size:48px;flex-shrink:0">${animal.icon}</span>`}
         <div class="collection-crop-names">
           <span class="collection-plant-name">${animal.name}</span>
-          ${animal.sci ? `<a class="garden-plant-sci inat-link" href="${inatUrl(animal.sci)}" target="_blank" rel="noopener noreferrer">${animal.sci} ↗</a>` : ''}
+          ${speciesLinksHtml(animal.sci)}
           <span style="font-size:12px;color:#aaa;display:block;margin-top:4px">Product: ${animal.product}</span>
         </div>
         <div class="collection-crop-stats">
@@ -2281,6 +2830,10 @@ function renderCollection() {
       card.appendChild(cardHead);
       const careP = el('p', 'ranch-care', animal.care);
       card.appendChild(careP);
+      // IRL bar
+      const ranchIrlEl = el('div', '');
+      ranchIrlEl.innerHTML = irlBarHtml('ranch', animal.id, animal.sci, 'Raised IRL');
+      card.appendChild(ranchIrlEl.firstElementChild);
       content.appendChild(card);
     }
   }
@@ -2296,6 +2849,7 @@ function renderCollection() {
     for (const eco of ECOREGIONS) {
       for (const plant of eco.plants) {
         if (!planted.has(plant.id)) continue;
+        if (showIrlOnly && !isIrl('plant', plant.id)) continue;
 
         const plantCreatures  = plant.insectsHosted ?? [];
         const discoveredHere  = plantCreatures.filter(c => discovered.has(engine.creatureKey(c.name))).length;
@@ -2311,7 +2865,7 @@ function renderCollection() {
           ${inatThumbHtml(plant.sci, 'collection-plant-thumb', plant.name)}
           <div class="collection-plant-names">
             <span class="collection-plant-name">${plant.name}</span>
-            <a class="garden-plant-sci inat-link" href="${inatUrl(plant.sci)}" target="_blank" rel="noopener noreferrer">${plant.sci} ↗</a>
+            ${speciesLinksHtml(plant.sci, plant.name)}
             <span class="collection-plant-meta">↕️ ${plant.height ?? '—'} · 🌱 ${plant.seasonOfInterest ?? '—'}${plant.caterpillarSpp ? ` · 🐦 ${plant.caterpillarSpp}+ species` : ''}</span>
           </div>
           <div class="collection-plant-badges">
@@ -2386,37 +2940,48 @@ function renderCollection() {
         }
 
         card.appendChild(creatureList);
+        // IRL bar
+        const plantIrlEl = el('div', '');
+        plantIrlEl.innerHTML = irlBarHtml('plant', plant.id, plant.sci, 'Planted IRL');
+        card.appendChild(plantIrlEl.firstElementChild);
         content.appendChild(card);
       }
     }
   }
 
-  // ── Discovered creatures index ──────────────────────────────────────────────
+  // ── Creatures index (excludes bird-type — those are in Birds section) ─────
   if (showCreatures) {
-    if (discoveredCount > 0) {
-      content.appendChild(el('h2', 'section-header', `🦋 Observed Creatures — ${discoveredCount} of ${totalCreatures}`));
+    content.appendChild(el('h2', 'section-header', `🦋 Observed Creatures — ${discoveredCount} of ${totalCreatures}`));
 
-      const byType = new Map();
-      for (const ckey of discovered) {
-        const entry = creatureMap.get(ckey);
-        if (!entry) continue;
-        const { creature } = entry;
-        if (!byType.has(creature.type)) byType.set(creature.type, []);
-        byType.get(creature.type).push({ ckey, ...entry });
-      }
+    if (discoveredCount === 0 && !showUndiscoveredCollection) {
+      content.appendChild(el('p', 'research-idle-note', '— Establish native plants to attract insects and wildlife. —'));
+    }
 
-      const typeOrder = ['butterfly', 'moth', 'bee', 'wasp', 'fly', 'beetle', 'bird', 'mammal'];
-      for (const type of typeOrder) {
-        if (!byType.has(type)) continue;
-        const entries  = byType.get(type);
-        const typeInfo = CREATURE_TYPE_META[type] ?? { label: type, icon: '🐞', plural: type };
+    const byType = new Map();
+    // Always iterate through the full map to group by type
+    for (const [ckey, entry] of nonBirdCreatureMap) {
+      const { creature } = entry;
+      const isDisc = discovered.has(ckey);
+      if (!isDisc && !showUndiscoveredCollection) continue;
+      if (!byType.has(creature.type)) byType.set(creature.type, []);
+      byType.get(creature.type).push({ ckey, ...entry, isDiscovered: isDisc });
+    }
 
-        content.appendChild(el('h3', 'collection-type-header', `${typeInfo.icon} ${typeInfo.plural} (${entries.length})`));
+    const typeOrder = ['butterfly', 'moth', 'bee', 'wasp', 'fly', 'beetle', 'mammal'];
+    for (const type of typeOrder) {
+      if (!byType.has(type)) continue;
+      const entries  = byType.get(type);
+      const typeInfo = CREATURE_TYPE_META[type] ?? { label: type, icon: '🐞', plural: type };
+      const discInType = entries.filter(e => e.isDiscovered).length;
 
-        const grid = el('div', 'collection-creature-grid');
-        for (const { creature, hostPlants } of entries) {
-          const hostNames = hostPlants.map(h => h.plant.name).join(', ');
-          const ccard = el('div', 'collection-creature-card');
+      content.appendChild(el('h3', 'collection-type-header', `${typeInfo.icon} ${typeInfo.plural} (${discInType} / ${entries.length})`));
+
+      const grid = el('div', 'collection-creature-grid');
+      for (const { creature, hostPlants, isDiscovered } of entries) {
+        if (showIrlOnly && !isIrl('creature', engine.creatureKey(creature.name))) continue;
+        const hostNames = hostPlants.map(h => h.plant.name).join(', ');
+        const ccard = el('div', `collection-creature-card${isDiscovered ? '' : ' collection-bird-locked'}`);
+        if (isDiscovered) {
           ccard.innerHTML = `
             ${creature.sci ? inatThumbHtml(creature.sci, 'collection-creature-card-thumb', creature.name) : `<span class="collection-creature-card-thumb-icon">${typeInfo.icon}</span>`}
             <div class="collection-creature-card-body">
@@ -2424,34 +2989,107 @@ function renderCollection() {
                 <span class="collection-creature-name">${creature.name}</span>
                 <span class="collection-creature-type-badge type-${type}">${typeInfo.icon}</span>
               </div>
-              ${creature.sci ? `<a class="garden-plant-sci inat-link" href="${inatUrl(creature.sci)}" target="_blank" rel="noopener noreferrer">${creature.sci} ↗</a>` : ''}
+              ${speciesLinksHtml(creature.sci)}
               <span class="collection-host-label">Host: <strong>${hostNames}</strong></span>
               <span class="collection-creature-role">${creature.role}</span>
               <p class="collection-creature-note">${creature.note}</p>
               <span class="collection-creature-bp">+1 🌍 BP</span>
+              ${irlBarHtml('creature', engine.creatureKey(creature.name), creature.sci, 'Spotted IRL')}
             </div>
           `;
-          grid.appendChild(ccard);
+        } else {
+          const pity = pityMap.get(engine.creatureKey(creature.name)) ?? 0;
+          const pityPct = Math.min(100, Math.round((pity / PITY_DAYS) * 100));
+          ccard.innerHTML = `
+            <span class="collection-creature-card-thumb-icon">${typeInfo.icon}</span>
+            <div class="collection-creature-card-body">
+              <div class="collection-creature-head">
+                <span class="collection-creature-name undiscovered-name">❓ ${creature.name}</span>
+                <span class="collection-creature-type-badge type-${type}">${typeInfo.icon}</span>
+              </div>
+              <span class="collection-host-label">Host: <strong>${hostNames}</strong></span>
+              <span class="collection-creature-role">${pity > 0 ? `${pity} day${pity !== 1 ? 's' : ''} scouted · ${pityPct}%` : 'Not yet scouted — plant host species to begin'}</span>
+              <div class="collection-pity-bar-track"><div class="collection-pity-bar-fill" style="width:${pityPct}%"></div></div>
+            </div>
+          `;
         }
-        content.appendChild(grid);
+        grid.appendChild(ccard);
       }
-    } else {
-      content.appendChild(el('h2', 'section-header', '🦋 Observed Creatures — none yet'));
-      content.appendChild(el('p', 'research-idle-note', '— Establish native plants to attract insects and wildlife. —'));
+      content.appendChild(grid);
     }
   }
 
-  // ── Attracted birds ─────────────────────────────────────────────────────────
+  // ── Birds (merged: plant-hosted bird creatures + BIRD_LIST attracted birds) ─
   if (showBirds) {
     const attractedBirds = engine.discoveredBirds;
     const birdMetrics    = engine.getBirdMetrics();
-    content.appendChild(el('h2', 'section-header', `🐦 Birds Attracted — ${attractedBirds.size} of ${BIRD_LIST.length}`));
-    if (attractedBirds.size === 0) {
+    const totalBirds     = BIRD_LIST.length + totalBirdCreatures;
+    const foundBirds     = attractedBirds.size + discoveredBirdCreatures;
+    content.appendChild(el('h2', 'section-header', `🐦 Birds — ${foundBirds} of ${totalBirds}`));
+
+    // ── Plant-hosted birds (creature discovery system) ──
+    if (totalBirdCreatures > 0) {
+      const hostBirdEntries = [];
+      for (const [ckey, entry] of birdCreatureMap) {
+        const isDisc = discovered.has(ckey);
+        if (!isDisc && !showUndiscoveredCollection) continue;
+        hostBirdEntries.push({ ckey, ...entry, isDiscovered: isDisc });
+      }
+      if (hostBirdEntries.length > 0) {
+        content.appendChild(el('h3', 'collection-type-header', `🪺 Host-Plant Birds (${discoveredBirdCreatures} / ${totalBirdCreatures})`));
+        const hostGrid = el('div', 'collection-creature-grid');
+        for (const { creature, hostPlants, isDiscovered } of hostBirdEntries) {
+          if (showIrlOnly && !isIrl('creature', engine.creatureKey(creature.name))) continue;
+          const hostNames = hostPlants.map(h => h.plant.name).join(', ');
+          const ccard = el('div', `collection-creature-card${isDiscovered ? '' : ' collection-bird-locked'}`);
+          if (isDiscovered) {
+            ccard.innerHTML = `
+              ${creature.sci ? inatThumbHtml(creature.sci, 'collection-creature-card-thumb', creature.name) : '<span class="collection-creature-card-thumb-icon">🐦</span>'}
+              <div class="collection-creature-card-body">
+                <div class="collection-creature-head">
+                  <span class="collection-creature-name">${creature.name}</span>
+                  <span class="collection-creature-type-badge type-bird">🐦</span>
+                </div>
+                ${speciesLinksHtml(creature.sci)}
+                <span class="collection-host-label">Host: <strong>${hostNames}</strong></span>
+                <span class="collection-creature-role">${creature.role}</span>
+                <p class="collection-creature-note">${creature.note}</p>
+                <span class="collection-creature-bp">+1 🌍 BP</span>
+                ${irlBarHtml('creature', engine.creatureKey(creature.name), creature.sci, 'Spotted IRL')}
+              </div>
+            `;
+          } else {
+            const pity = pityMap.get(engine.creatureKey(creature.name)) ?? 0;
+            const pityPct = Math.min(100, Math.round((pity / PITY_DAYS) * 100));
+            ccard.innerHTML = `
+              <span class="collection-creature-card-thumb-icon">🐦</span>
+              <div class="collection-creature-card-body">
+                <div class="collection-creature-head">
+                  <span class="collection-creature-name undiscovered-name">❓ ${creature.name}</span>
+                  <span class="collection-creature-type-badge type-bird">🐦</span>
+                </div>
+                <span class="collection-host-label">Host: <strong>${hostNames}</strong></span>
+                <span class="collection-creature-role">${pity > 0 ? `${pity} day${pity !== 1 ? 's' : ''} scouted · ${pityPct}%` : 'Not yet scouted — plant host species to begin'}</span>
+                <div class="collection-pity-bar-track"><div class="collection-pity-bar-fill" style="width:${pityPct}%"></div></div>
+              </div>
+            `;
+          }
+          hostGrid.appendChild(ccard);
+        }
+        content.appendChild(hostGrid);
+      }
+    }
+
+    // ── Attracted birds (BIRD_LIST criteria system) ──
+    content.appendChild(el('h3', 'collection-type-header', `🌳 Attracted Birds (${attractedBirds.size} / ${BIRD_LIST.length})`));
+    if (attractedBirds.size === 0 && !showUndiscoveredCollection) {
       content.appendChild(el('p', 'research-idle-note', '— Build insect diversity and establish fruiting native plants to attract native bird visitors. —'));
     }
     const birdGrid = el('div', 'collection-creature-grid');
     for (const bird of BIRD_LIST) {
       const isAttracted = attractedBirds.has(bird.id);
+      if (!isAttracted && !showUndiscoveredCollection) continue;
+      if (showIrlOnly && !isIrl('bird', bird.id)) continue;
       const card = el('div', `collection-creature-card${isAttracted ? '' : ' collection-bird-locked'}`);
       if (isAttracted) {
         card.innerHTML = `
@@ -2461,11 +3099,12 @@ function renderCollection() {
               <span class="collection-creature-name">${bird.name}</span>
               <span class="collection-creature-type-badge type-bird">🐦</span>
             </div>
-            <a class="garden-plant-sci inat-link" href="${inatUrl(bird.sci)}" target="_blank" rel="noopener noreferrer">${bird.sci} ↗</a>
+            ${speciesLinksHtml(bird.sci)}
             <span class="collection-creature-role">${bird.role}</span>
             <p class="collection-creature-note">${bird.note}</p>
             <div class="collection-host-label">Attracted by: <strong>${bird.attractedBy}</strong></div>
             <span class="collection-creature-bp">+1 🌍 BP</span>
+            ${irlBarHtml('bird', bird.id, bird.sci, 'Spotted IRL')}
           </div>
         `;
         const thumbImg = card.querySelector('.collection-creature-card-thumb');
@@ -2526,6 +3165,7 @@ function renderCollection() {
       const grid = el('div', 'collection-creature-grid');
       for (const inv of tierInvasives) {
         const isResearched = engine.completedResearch.has(inv.requiredResearch);
+        if (showIrlOnly && !isIrl('invasive', inv.id)) continue;
         const card = el('div', `collection-creature-card${isResearched ? '' : ' collection-bird-locked'}`);
         const currentAcres = engine.invasiveAcres.get(inv.id) ?? 0;
         const pctRemoved = inv.baseAcres > 0 ? Math.round((1 - currentAcres / inv.baseAcres) * 100) : 100;
@@ -2537,11 +3177,12 @@ function renderCollection() {
                 <span class="collection-creature-name">${inv.icon} ${inv.name}</span>
                 <span class="collection-creature-type-badge type-${inv.type}">${inv.type === 'plant' ? '🌿' : '🐾'} ${inv.type}</span>
               </div>
-              ${inv.sci ? `<a class="garden-plant-sci inat-link" href="${inatUrl(inv.sci)}" target="_blank" rel="noopener noreferrer">${inv.sci} ↗</a>` : ''}
+              ${speciesLinksHtml(inv.sci)}
               <span class="collection-creature-role">${inv.desc}</span>
               <p class="collection-creature-note"><strong>Ecological damage:</strong> ${inv.damage}</p>
               <p class="collection-creature-note"><strong>Control method:</strong> ${inv.controlMethod}</p>
               <div class="collection-host-label">🏕️ ${currentAcres > 0 ? `${currentAcres} / ${inv.baseAcres} acres remaining — ${pctRemoved}% cleared` : `Fully eradicated! (was ${inv.baseAcres} acres)`}</div>
+              ${irlBarHtml('invasive', inv.id, inv.sci, 'Spotted / Removed IRL')}
             </div>
           `;
           const thumbImg = card.querySelector('.collection-creature-card-thumb');
@@ -2571,38 +3212,75 @@ function renderCollection() {
     }
   }
 
-  // ── Discovery history ──────────────────────────────────────────────
+  // ── Discovery history (all types) ───────────────────────────────────
   if (showHistory) {
+    content.appendChild(el('h2', 'section-header', `📊 Discovery Log — ${totalHistoryCount} total`));
 
-    content.appendChild(el('h2', 'section-header', `📊 Discovery Log — ${discoveredCount} creature${discoveredCount !== 1 ? 's' : ''} observed`));
-
-    if (discoveredCount === 0) {
+    if (totalHistoryCount === 0) {
       content.appendChild(el('p', 'research-idle-note', '— No discoveries yet. Establish native plants in the 🌿 Garden tab to begin. —'));
     } else {
-      // Build sorted entries: ascending by discovery day
-      const discoveryLog = engine.creatureDiscoveryLog;
+      // Build unified timeline from all discovery sources
       const historyEntries = [];
+      const discoveryLog = engine.creatureDiscoveryLog;
+
+      // Creatures (non-bird)
       for (const ckey of discovered) {
-        const entry = creatureMap.get(ckey);
+        const entry = nonBirdCreatureMap.get(ckey);
         if (!entry) continue;
-        historyEntries.push({ ckey, ...entry, day: discoveryLog.get(ckey) ?? 0 });
+        const typeInfo = CREATURE_TYPE_META[entry.creature.type] ?? { label: entry.creature.type, icon: '🐞' };
+        historyEntries.push({
+          day: discoveryLog.get(ckey) ?? 0,
+          icon: typeInfo.icon,
+          name: entry.creature.name,
+          sci: entry.creature.sci,
+          detail: `Host: ${entry.hostPlants.map(h => h.plant.name).join(', ')}`,
+          category: 'creature',
+        });
       }
+
+      // Bird-type creatures
+      for (const ckey of discovered) {
+        const entry = birdCreatureMap.get(ckey);
+        if (!entry) continue;
+        historyEntries.push({
+          day: discoveryLog.get(ckey) ?? 0,
+          icon: '🐦',
+          name: entry.creature.name,
+          sci: entry.creature.sci,
+          detail: `Host: ${entry.hostPlants.map(h => h.plant.name).join(', ')}`,
+          category: 'bird',
+        });
+      }
+
+      // Attracted birds (BIRD_LIST)
+      const birdLog = engine.birdDiscoveryLog;
+      for (const birdId of engine.discoveredBirds) {
+        const bird = BIRD_LIST.find(b => b.id === birdId);
+        if (!bird) continue;
+        historyEntries.push({
+          day: birdLog.get(birdId) ?? 0,
+          icon: '🐦',
+          name: bird.name,
+          sci: bird.sci,
+          detail: `Attracted by: ${bird.attractedBy}`,
+          category: 'bird',
+        });
+      }
+
       historyEntries.sort((a, b) => a.day - b.day);
 
       const historyList = el('ol', 'discovery-history-list');
-      historyEntries.forEach(({ creature, hostPlants, day }, idx) => {
-        const typeInfo = CREATURE_TYPE_META[creature.type] ?? { label: creature.type, icon: '🐞' };
-        const hostNames = hostPlants.map(h => h.plant.name).join(', ');
+      historyEntries.forEach(({ icon, name, sci, detail, day, category }, idx) => {
         const cal = day > 0 ? calendarDate(day) : null;
         const dateStr = cal ? `${cal.month.abbr} ${cal.day}, Year ${cal.year}` : 'Year 1 (legacy)';
         const row = el('li', 'discovery-history-row');
         row.innerHTML = `
           <span class="dh-num">${idx + 1}</span>
-          <span class="dh-icon">${typeInfo.icon}</span>
+          <span class="dh-icon">${icon}</span>
           <div class="dh-details">
-            <span class="dh-name">${creature.name}</span>
-            ${creature.sci ? `<span class="dh-sci">${creature.sci}</span>` : ''}
-            <span class="dh-host">Host: ${hostNames}</span>
+            <span class="dh-name">${name}</span>
+            ${sci ? `<span class="dh-sci">${sci}</span>` : ''}
+            <span class="dh-host">${detail}</span>
           </div>
           <span class="dh-date">${dateStr}</span>
         `;
@@ -2828,6 +3506,27 @@ function renderSettings() {
   screenSection.appendChild(screenBtnRow);
   content.appendChild(screenSection);
 
+  // Home Page
+  const homeSection = el('div', 'settings-section');
+  homeSection.appendChild(el('div', 'settings-label', '🏠 Home Page'));
+  homeSection.appendChild(el('p', 'settings-desc', 'Choose which tab opens when you start the game.'));
+  const homeRow = el('div', 'btn-row');
+  const homeChoices = [
+    { id: 'crops', label: '🌾 Crops' },
+    { id: 'map',   label: '🧑‍🌾 Map' },
+  ];
+  const currentHome = localStorage.getItem(HOME_TAB_KEY) || 'crops';
+  for (const h of homeChoices) {
+    const hBtn = el('button', `speed-btn${currentHome === h.id ? ' active' : ''}`, h.label);
+    hBtn.addEventListener('click', () => {
+      localStorage.setItem(HOME_TAB_KEY, h.id);
+      renderAll();
+    });
+    homeRow.appendChild(hBtn);
+  }
+  homeSection.appendChild(homeRow);
+  content.appendChild(homeSection);
+
   // Tutorial
   const tutorialSection = el('div', 'settings-section');
   tutorialSection.appendChild(el('div', 'settings-label', '🎓 Tutorial'));
@@ -2843,10 +3542,11 @@ function renderSettings() {
   saveSection.appendChild(el('div', 'settings-label', 'Save Data'));
   const saveBtn  = el('button', 'action-btn', '💾 Save Now');
   const resetBtn = el('button', 'action-btn danger', '🗑 Reset Game');
-  saveBtn.addEventListener('click', () => { engine.save(); saveBtn.textContent = '✅ Saved!'; setTimeout(() => { saveBtn.textContent = '💾 Save Now'; }, 1500); });
+  saveBtn.addEventListener('click', () => { saveGame(); saveBtn.textContent = '✅ Saved!'; setTimeout(() => { saveBtn.textContent = '💾 Save Now'; }, 1500); });
   resetBtn.addEventListener('click', () => {
     if (confirm('Reset all progress? This cannot be undone.')) {
       _resetting = true;
+      localStorage.removeItem(regionSaveKey(meta.currentRegionId));
       engine.clearSave();
       location.reload();
     }
@@ -2914,6 +3614,16 @@ function renderSettings() {
 }
 
 // ── Offline toast ─────────────────────────────────────────────────────────────
+// ── Generic toast for prestige / misc notifications ──────────────────────────
+function showToast(msg, durationMs = 6000) {
+  const toast = el('div', 'offline-toast');
+  toast.style.cursor = 'pointer';
+  toast.innerHTML = `<div style="padding:14px 18px;font-size:14px;">${msg}</div>`;
+  toast.addEventListener('click', () => toast.remove());
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), durationMs);
+}
+
 function showOfflineToast(result, realSecs) {
   const fmt = s => s >= 3600 ? `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`
                  : s >= 60   ? `${Math.floor(s/60)}m ${s%60}s`
@@ -2959,6 +3669,7 @@ let lastLandFingerprint       = '';
 let collectionFilter = 'all'; // 'all' | 'crops' | 'plants' | 'creatures' | 'birds' | 'invasives' | 'history'
 let collectionCreaturesCollapsed = new Set(); // plant IDs whose creature list is collapsed
 let collectionAllCollapsed = false;
+let showUndiscoveredCollection = localStorage.getItem('showUndiscoveredCollection') === 'true';
 
 // ── Notification log ─────────────────────────────────────────────
 let _knownDiscovered      = null;  // null = not yet initialised; synced silently on first tick
@@ -3114,7 +3825,7 @@ function _buildNotifList() {
       badgeClass = type === 'discovery' ? 'notif-badge-discovery' : 'notif-badge-extirpated';
       badgeLabel = type === 'discovery' ? '🔍 New Discovery' : '⚠️ Extirpated';
       nameHtml = `<div class="notif-entry-name">${creature.name}</div>`
-        + (creature.sci ? `<a class="garden-plant-sci inat-link" href="${inatUrl(creature.sci)}" target="_blank" rel="noopener noreferrer">${creature.sci} ↗</a>` : '');
+        + speciesLinksHtml(creature.sci);
       subHtml = `
         <div class="notif-entry-host">${type === 'discovery' ? 'Host' : 'Host removed'}: <strong>${hostNames}</strong></div>
         <div class="notif-entry-host">Type: <strong>${typeInfo.label}</strong></div>
@@ -3153,7 +3864,7 @@ function _buildNotifList() {
       badgeClass = 'notif-badge-crop';
       badgeLabel = '🌾 Crop Unlocked';
       nameHtml = `<div class="notif-entry-name">${cropType.name}</div>`
-        + (cropType.sciName ? `<a class="garden-plant-sci inat-link" href="${inatUrl(cropType.sciName)}" target="_blank" rel="noopener noreferrer">${cropType.sciName} ↗</a>` : '');
+        + speciesLinksHtml(cropType.sciName, cropType.name);
       const _cropDescCached = cropType.sciName ? (inatDescCache[cropType.sciName] ?? null) : null;
       subHtml = `
         <div class="notif-entry-host">Now available in 🌾 Crops</div>
@@ -3180,7 +3891,7 @@ function _buildNotifList() {
       badgeClass = 'notif-badge-ranch';
       badgeLabel = '🐄 Animal Unlocked';
       nameHtml = `<div class="notif-entry-name">${animal.name}</div>`
-        + (animal.sci ? `<a class="garden-plant-sci inat-link" href="${inatUrl(animal.sci)}" target="_blank" rel="noopener noreferrer">${animal.sci} ↗</a>` : '');
+        + speciesLinksHtml(animal.sci);
       subHtml = `
         <div class="notif-entry-host">Product: <strong>${animal.product}</strong></div>
         <div class="notif-entry-host">🐄 Cycles: <strong>${shortNumber(ranchStatsRow.produced)}</strong> · 💰 Sold: <strong>${shortNumber(ranchStatsRow.sold)}</strong> · 🪙 Earned: <strong>${shortNumber(ranchStatsRow.lifetimeSales)}g</strong></div>
@@ -3210,7 +3921,7 @@ function _buildNotifList() {
       badgeClass = 'notif-badge-plant';
       badgeLabel = '🌿 Plant Established';
       nameHtml = `<div class="notif-entry-name">${plant.name}</div>`
-        + `<a class="garden-plant-sci inat-link" href="${inatUrl(plant.sci)}" target="_blank" rel="noopener noreferrer">${plant.sci} ↗</a>`;
+        + speciesLinksHtml(plant.sci, plant.name);
       subHtml = `
         <div class="notif-entry-host">Hosts <strong>${totalHere}</strong> species · Observed <strong>${discoveredHere}/${totalHere}</strong></div>
         <div class="notif-entry-host">Type: <strong>${plant.type}</strong>${plant.height ? ` · Height: <strong>${plant.height}</strong>` : ''}${plant.seasonOfInterest ? ` · Focus: <strong>${plant.seasonOfInterest}</strong>` : ''}</div>
@@ -3253,7 +3964,7 @@ function _buildNotifList() {
       badgeClass = 'notif-badge-bird';
       badgeLabel = '🐦 Bird Attracted';
       nameHtml = `<div class="notif-entry-name">${bird.name}</div>`
-        + `<a class="garden-plant-sci inat-link" href="${inatUrl(bird.sci)}" target="_blank" rel="noopener noreferrer">${bird.sci} ↗</a>`;
+        + speciesLinksHtml(bird.sci);
       subHtml = `
         <div class="notif-entry-host">Attracted by: <strong>${bird.attractedBy}</strong></div>
         <div class="notif-entry-host">Role: <strong>${bird.role}</strong></div>

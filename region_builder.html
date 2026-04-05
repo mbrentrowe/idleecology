@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Idle Ecologist — Region Builder Pipeline</title>
+<style>
+  :root { --bg:#1a1a2e; --card:#16213e; --accent:#0f3460; --hi:#e94560; --ok:#4ecca3; --txt:#eee; --dim:#999; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--txt); padding:24px; line-height:1.5; }
+  h1 { color:var(--hi); margin-bottom:8px; }
+  h2 { color:var(--ok); margin:20px 0 8px; font-size:1.1em; }
+  .subtitle { color:var(--dim); margin-bottom:20px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  label { display:block; color:var(--dim); font-size:.85em; margin-bottom:3px; }
+  input, select, textarea { width:100%; padding:8px 10px; border:1px solid var(--accent); border-radius:6px;
+    background:#0d1b2a; color:var(--txt); font-size:.95em; }
+  input:focus, textarea:focus { outline:none; border-color:var(--hi); }
+  textarea { font-family:'Fira Code',monospace; font-size:.82em; resize:vertical; }
+  button { padding:10px 20px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:.95em; margin:4px; }
+  .btn-primary { background:var(--hi); color:#fff; }
+  .btn-primary:disabled { opacity:.4; cursor:not-allowed; }
+  .btn-secondary { background:var(--accent); color:var(--txt); }
+  .btn-ok { background:var(--ok); color:#111; }
+  .status { padding:6px 12px; border-radius:4px; margin:4px 0; font-size:.9em; }
+  .status.info { background:#0f3460; }
+  .status.ok { background:#1b4332; }
+  .status.err { background:#641220; }
+  .log { max-height:200px; overflow-y:auto; background:#0d1b2a; border:1px solid var(--accent);
+    border-radius:6px; padding:8px; font-size:.82em; font-family:monospace; margin-bottom:12px; }
+  .output-box { background:#0d1b2a; border:1px solid var(--accent); border-radius:6px; padding:12px;
+    margin:8px 0; max-height:500px; overflow:auto; }
+  .tabs { display:flex; gap:4px; margin-bottom:8px; }
+  .tab { padding:6px 16px; border:1px solid var(--accent); border-radius:6px 6px 0 0;
+    background:transparent; color:var(--dim); cursor:pointer; }
+  .tab.active { background:var(--accent); color:var(--txt); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+  .count { color:var(--ok); font-weight:bold; }
+  .bird-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:8px; }
+  .bird-card { background:var(--accent); border-radius:6px; padding:8px; font-size:.85em; }
+  .bird-card .name { font-weight:bold; color:var(--ok); }
+  .bird-card .sci { color:var(--dim); font-style:italic; }
+  .plant-card { background:var(--accent); border-radius:6px; padding:8px; font-size:.85em; margin:4px 0; }
+  .plant-card .name { font-weight:bold; color:var(--hi); }
+  section { background:var(--card); border-radius:8px; padding:16px; margin-bottom:16px; }
+  .help { font-size:.82em; color:var(--dim); margin-top:4px; }
+  .copy-btn { font-size:.8em; padding:4px 10px; }
+  .curl-box { background:#0a0f1a; border:1px solid var(--accent); border-radius:6px; padding:10px;
+    font-family:'Fira Code',monospace; font-size:.8em; word-break:break-all; margin:6px 0;
+    position:relative; white-space:pre-wrap; }
+  .curl-box .copy-curl { position:absolute; top:4px; right:4px; font-size:.75em; padding:3px 8px; }
+  .step-group { border-left:3px solid var(--accent); padding-left:12px; margin:10px 0; }
+  .step-label { color:var(--hi); font-weight:bold; font-size:.9em; margin-bottom:4px; }
+</style>
+</head>
+<body>
+
+<h1>🌿 Idle Ecologist — Region Builder</h1>
+<p class="subtitle">API-driven pipeline for generating new ecoregion data bundles.<br>
+Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste results here.</p>
+
+<!-- ── Step 1: Configuration ─────────────────────────────────────────── -->
+<section>
+  <h2>① API Keys</h2>
+  <div class="grid">
+    <div>
+      <label>Flora API Key</label>
+      <input id="floraKey" type="text" placeholder="pk_..." />
+      <p class="help">From <a href="https://floraapi.com" target="_blank" style="color:var(--hi)">floraapi.com</a></p>
+    </div>
+    <div>
+      <label>eBird API Token</label>
+      <input id="ebirdKey" type="text" placeholder="eBird API token..." />
+      <p class="help">Register at <a href="https://ebird.org/api/keygen" target="_blank" style="color:var(--hi)">ebird.org/api/keygen</a></p>
+    </div>
+  </div>
+
+  <h2>② Region Settings</h2>
+  <div class="grid">
+    <div>
+      <label>Region ID (snake_case)</label>
+      <input id="regionId" type="text" placeholder="ozark_appalachian" />
+    </div>
+    <div>
+      <label>EPA Level II Code</label>
+      <input id="epaCode" type="text" placeholder="8.4" />
+    </div>
+    <div>
+      <label>Region Name</label>
+      <input id="regionName" type="text" placeholder="Ozark/Ouachita-Appalachian Forests" />
+    </div>
+    <div>
+      <label>Region Label</label>
+      <input id="regionLabel" type="text" placeholder="8.4 – Ozark/Ouachita-Appalachian Forests" />
+    </div>
+    <div>
+      <label>Icon (emoji)</label>
+      <input id="regionIcon" type="text" value="🌲" />
+    </div>
+    <div>
+      <label>HNP URL</label>
+      <input id="hnpUrl" type="text" placeholder="https://homegrownnationalpark.org/keystone-plants/?..." />
+    </div>
+  </div>
+  <div>
+    <label>Description</label>
+    <textarea id="regionDesc" rows="2" placeholder="Rich mixed-oak forests and Ozark woodlands..."></textarea>
+  </div>
+
+  <h2>③ Data Sources</h2>
+  <div class="grid">
+    <div>
+      <label>Flora API — US State Code</label>
+      <input id="floraState" type="text" placeholder="MO" maxlength="2" style="text-transform:uppercase;" />
+      <p class="help">Two-letter state code for native plant search</p>
+    </div>
+    <div>
+      <label>eBird — Region Code</label>
+      <input id="ebirdRegion" type="text" placeholder="US-MO" />
+      <p class="help">Country (US), State (US-MO), or County (US-MO-019)</p>
+    </div>
+  </div>
+  <div class="grid">
+    <div>
+      <label>Max plants to fetch</label>
+      <input id="maxPlants" type="number" value="30" min="5" max="200" />
+    </div>
+    <div>
+      <label>Max birds to include</label>
+      <input id="maxBirds" type="number" value="30" min="5" max="300" />
+    </div>
+  </div>
+</section>
+
+<!-- ── Step 2: Fetch via curl ────────────────────────────────────────── -->
+<section>
+  <h2>④ Fetch Data (curl + paste)</h2>
+  <p class="help" style="margin-bottom:12px;">
+    Click a button to generate the curl command, run it in your terminal, then paste the JSON output below.
+  </p>
+
+  <!-- Plants -->
+  <div class="step-group">
+    <div class="step-label">🌱 Plants (Flora API)</div>
+    <button class="btn-primary" onclick="genPlantCurl()">Generate curl command</button>
+    <div id="plantCurlBox" style="display:none;"></div>
+    <label style="margin-top:8px;">Paste the JSON response here:</label>
+    <textarea id="plantPaste" rows="6" placeholder='Paste the JSON array from the curl output here...'></textarea>
+    <button class="btn-secondary" onclick="loadPlants()">📥 Load Plants</button>
+  </div>
+
+  <!-- Birds: Species List -->
+  <div class="step-group" style="margin-top:16px;">
+    <div class="step-label">🐦 Birds — Step A: Species List (eBird)</div>
+    <button class="btn-primary" onclick="genBirdSppCurl()">Generate curl command</button>
+    <div id="birdSppCurlBox" style="display:none;"></div>
+    <label style="margin-top:8px;">Paste the species code array here:</label>
+    <textarea id="birdSppPaste" rows="4" placeholder='Paste the JSON array of species codes, e.g. ["amecro","amerob",...]'></textarea>
+    <button class="btn-secondary" onclick="loadBirdSpp()">📥 Load Species Codes</button>
+    <span id="sppStatus" style="font-size:.85em; margin-left:8px;"></span>
+  </div>
+
+  <!-- Birds: Taxonomy -->
+  <div class="step-group" style="margin-top:16px;">
+    <div class="step-label">🐦 Birds — Step B: Taxonomy Details (eBird)</div>
+    <p class="help">After loading species codes, generate the taxonomy curl. This fetches names and family info.</p>
+    <button class="btn-primary" onclick="genBirdTaxCurl()">Generate curl command(s)</button>
+    <div id="birdTaxCurlBox" style="display:none;"></div>
+    <label style="margin-top:8px;">Paste the taxonomy JSON here:</label>
+    <textarea id="birdTaxPaste" rows="6" placeholder='Paste the JSON array from the taxonomy curl output...'></textarea>
+    <button class="btn-secondary" onclick="loadBirdTax()">📥 Load Taxonomy</button>
+  </div>
+
+  <!-- Birds: Recent observations (optional) -->
+  <div class="step-group" style="margin-top:16px;">
+    <div class="step-label">🐦 Birds — Step C: Recent Observations (optional)</div>
+    <p class="help">Optional — helps prioritize recently-active birds. Skip to use all-time species only.</p>
+    <button class="btn-primary" onclick="genBirdRecentCurl()">Generate curl command</button>
+    <div id="birdRecentCurlBox" style="display:none;"></div>
+    <label style="margin-top:8px;">Paste the recent observations JSON here:</label>
+    <textarea id="birdRecentPaste" rows="4" placeholder='Paste the JSON array from the recent observations curl...'></textarea>
+    <button class="btn-secondary" onclick="loadBirdRecent()">📥 Load Recent &amp; Finalize Birds</button>
+  </div>
+
+  <div id="fetchLog" class="log" style="margin-top:12px;"></div>
+</section>
+
+<!-- ── Step 3: Review ────────────────────────────────────────────────── -->
+<section>
+  <h2>⑤ Review Fetched Data</h2>
+  <div class="tabs" id="reviewTabs">
+    <div class="tab active" onclick="switchTab(this,'plants')">Plants (<span id="plantCount">0</span>)</div>
+    <div class="tab" onclick="switchTab(this,'birds')">Birds (<span id="birdCount">0</span>)</div>
+  </div>
+  <div id="tab-plants" class="tab-content active">
+    <div id="plantList" class="output-box"><em>No plants loaded yet</em></div>
+  </div>
+  <div id="tab-birds" class="tab-content">
+    <div id="birdList" class="output-box"><em>No birds loaded yet</em></div>
+  </div>
+</section>
+
+<!-- ── Step 4: Generate ──────────────────────────────────────────────── -->
+<section>
+  <h2>⑥ Generate Code</h2>
+  <p class="help" style="margin-bottom:8px;">
+    Generates game-ready JS modules. Plants include placeholder insectsHosted arrays
+    (fill in manually or via a second AI pass). Birds include unlock criteria scaled by position.
+  </p>
+  <button class="btn-ok" onclick="generateCode()">⚙️ Generate Region Bundle</button>
+
+  <div id="codeOutputContainer" style="display:none; margin-top:12px;">
+    <div class="tabs" id="codeTabs">
+      <div class="tab active" onclick="switchCodeTab(this,'ecoregion')">ecoregions_NEW.js</div>
+      <div class="tab" onclick="switchCodeTab(this,'birds')">birds_NEW.js</div>
+      <div class="tab" onclick="switchCodeTab(this,'bundle')">region_bundle.js</div>
+    </div>
+    <div id="codetab-ecoregion" class="tab-content active">
+      <button class="btn-secondary copy-btn" onclick="copyCode('codeEcoregion')">📋 Copy</button>
+      <textarea id="codeEcoregion" rows="25" readonly></textarea>
+    </div>
+    <div id="codetab-birds" class="tab-content">
+      <button class="btn-secondary copy-btn" onclick="copyCode('codeBirds')">📋 Copy</button>
+      <textarea id="codeBirds" rows="25" readonly></textarea>
+    </div>
+    <div id="codetab-bundle" class="tab-content">
+      <button class="btn-secondary copy-btn" onclick="copyCode('codeBundle')">📋 Copy</button>
+      <textarea id="codeBundle" rows="25" readonly></textarea>
+    </div>
+  </div>
+</section>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let fetchedPlants = [];
+let fetchedBirds  = [];
+let birdSpeciesCodes = [];
+let birdTaxonomy = [];
+
+// ── Logging ────────────────────────────────────────────────────────────
+function log(msg, type = 'info') {
+  const el = document.getElementById('fetchLog');
+  const ts = new Date().toLocaleTimeString();
+  el.innerHTML += `<div class="status ${type}">[${ts}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────
+function switchTab(clicked, name) {
+  const section = clicked.closest('section');
+  section.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  section.querySelectorAll('[id^="tab-"]').forEach(c => c.classList.remove('active'));
+  clicked.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+function switchCodeTab(clicked, name) {
+  const container = document.getElementById('codeOutputContainer');
+  container.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  container.querySelectorAll('[id^="codetab-"]').forEach(c => c.classList.remove('active'));
+  clicked.classList.add('active');
+  document.getElementById('codetab-' + name).classList.add('active');
+}
+
+function copyCode(id) {
+  const ta = document.getElementById(id);
+  ta.select();
+  navigator.clipboard.writeText(ta.value);
+  log('Copied to clipboard!', 'ok');
+}
+
+// ── Curl-box helper ────────────────────────────────────────────────────
+function showCurl(boxId, curlCmd) {
+  const box = document.getElementById(boxId);
+  box.style.display = 'block';
+  box.innerHTML = `<div class="curl-box"><button class="btn-secondary copy-curl" onclick="copyCurl(this)">📋 Copy</button>${escHtml(curlCmd)}</div>`;
+}
+function copyCurl(btn) {
+  const text = btn.parentElement.textContent.replace('📋 Copy', '').trim();
+  navigator.clipboard.writeText(text);
+  btn.textContent = '✅ Copied';
+  setTimeout(() => btn.textContent = '📋 Copy', 1500);
+}
+
+// ── Safely parse JSON from paste box ───────────────────────────────────
+function safeParse(textareaId, label) {
+  const raw = document.getElementById(textareaId).value.trim();
+  if (!raw) { log(`${label}: paste box is empty`, 'err'); return null; }
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    log(`${label}: invalid JSON — ${e.message}`, 'err');
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PLANTS (Flora API) — curl + paste
+// ═══════════════════════════════════════════════════════════════════════
+function genPlantCurl() {
+  const key   = document.getElementById('floraKey').value.trim();
+  const state = document.getElementById('floraState').value.trim().toUpperCase();
+  const max   = document.getElementById('maxPlants').value || '30';
+  if (!key)   return log('Flora API key is required', 'err');
+  if (!state) return log('State code is required', 'err');
+
+  const cmd = `curl -s "https://api.floraapi.com/v1/search?state=${state}&native_only=true&limit=${max}" -H "Authorization: Bearer ${key}"`;
+  showCurl('plantCurlBox', cmd);
+  log('Plant curl generated — run it in your terminal, paste the JSON response below', 'info');
+}
+
+function loadPlants() {
+  const data = safeParse('plantPaste', 'Plants');
+  if (!data) return;
+
+  const arr = data.results || data.data || (Array.isArray(data) ? data : []);
+  if (!arr.length) { log('Plants: parsed JSON but found 0 items — check the response shape', 'err'); return; }
+
+  const max = parseInt(document.getElementById('maxPlants').value) || 30;
+  fetchedPlants = arr.slice(0, max);
+  log(`Loaded ${fetchedPlants.length} plants`, 'ok');
+  renderPlants();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BIRDS — Step A: Species list
+// ═══════════════════════════════════════════════════════════════════════
+function genBirdSppCurl() {
+  const key    = document.getElementById('ebirdKey').value.trim();
+  const region = document.getElementById('ebirdRegion').value.trim();
+  if (!key)    return log('eBird API token is required', 'err');
+  if (!region) return log('eBird region code is required', 'err');
+
+  const cmd = `curl -s "https://api.ebird.org/v2/product/spplist/${region}" -H "X-eBirdApiToken: ${key}"`;
+  showCurl('birdSppCurlBox', cmd);
+  log('Species list curl generated — run it, paste the array of codes', 'info');
+}
+
+function loadBirdSpp() {
+  const data = safeParse('birdSppPaste', 'Species list');
+  if (!data) return;
+  if (!Array.isArray(data)) { log('Species list should be a JSON array of strings', 'err'); return; }
+
+  birdSpeciesCodes = data;
+  document.getElementById('sppStatus').textContent = `✅ ${data.length} species codes loaded`;
+  log(`Loaded ${data.length} species codes`, 'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BIRDS — Step B: Taxonomy
+// ═══════════════════════════════════════════════════════════════════════
+function genBirdTaxCurl() {
+  const key = document.getElementById('ebirdKey').value.trim();
+  if (!key) return log('eBird API token is required', 'err');
+  if (!birdSpeciesCodes.length) return log('Load species codes first (Step A)', 'err');
+
+  // Batch into URL-safe chunks (~500 codes per request)
+  const batchSize = 500;
+  const batches = [];
+  for (let i = 0; i < birdSpeciesCodes.length; i += batchSize) {
+    batches.push(birdSpeciesCodes.slice(i, i + batchSize));
+  }
+
+  const cmds = batches.map(batch =>
+    `curl -s "https://api.ebird.org/v2/ref/taxonomy/ebird?species=${batch.join(',')}&fmt=json" -H "X-eBirdApiToken: ${key}"`
+  );
+
+  const box = document.getElementById('birdTaxCurlBox');
+  box.style.display = 'block';
+  if (cmds.length === 1) {
+    box.innerHTML = `<div class="curl-box"><button class="btn-secondary copy-curl" onclick="copyCurl(this)">📋 Copy</button>${escHtml(cmds[0])}</div>`;
+    log(`Taxonomy curl generated (1 request for ${birdSpeciesCodes.length} species)`, 'info');
+  } else {
+    box.innerHTML = cmds.map((cmd, i) =>
+      `<p style="color:var(--dim);font-size:.82em;margin:4px 0;">Batch ${i+1}/${cmds.length}:</p>
+       <div class="curl-box"><button class="btn-secondary copy-curl" onclick="copyCurl(this)">📋 Copy</button>${escHtml(cmd)}</div>`
+    ).join('');
+    log(`${cmds.length} taxonomy curls generated — run each, combine the JSON arrays into one, then paste`, 'info');
+  }
+}
+
+function loadBirdTax() {
+  const data = safeParse('birdTaxPaste', 'Taxonomy');
+  if (!data) return;
+  if (!Array.isArray(data)) { log('Taxonomy should be a JSON array', 'err'); return; }
+
+  birdTaxonomy = data;
+  log(`Loaded taxonomy for ${data.length} species`, 'ok');
+  finalizeBirds(new Set());
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BIRDS — Step C: Recent observations (optional)
+// ═══════════════════════════════════════════════════════════════════════
+function genBirdRecentCurl() {
+  const key    = document.getElementById('ebirdKey').value.trim();
+  const region = document.getElementById('ebirdRegion').value.trim();
+  if (!key)    return log('eBird API token is required', 'err');
+  if (!region) return log('eBird region code is required', 'err');
+
+  const cmd = `curl -s "https://api.ebird.org/v2/data/obs/${region}/recent?back=30" -H "X-eBirdApiToken: ${key}"`;
+  showCurl('birdRecentCurlBox', cmd);
+  log('Recent observations curl generated', 'info');
+}
+
+function loadBirdRecent() {
+  if (!birdTaxonomy.length) { log('Load taxonomy first (Step B)', 'err'); return; }
+
+  const raw = document.getElementById('birdRecentPaste').value.trim();
+  let recentCodes = new Set();
+
+  if (raw) {
+    const data = safeParse('birdRecentPaste', 'Recent obs');
+    if (data && Array.isArray(data)) {
+      data.forEach(r => { if (r.speciesCode) recentCodes.add(r.speciesCode); });
+      log(`${recentCodes.size} recently-seen species identified`, 'ok');
+    }
+  } else {
+    log('No recent data pasted — all species treated equally', 'info');
+  }
+
+  finalizeBirds(recentCodes);
+}
+
+function finalizeBirds(recentCodes) {
+  const max = parseInt(document.getElementById('maxBirds').value) || 30;
+
+  const species = birdTaxonomy
+    .filter(t => t.category === 'species')
+    .map(t => ({
+      speciesCode:   t.speciesCode,
+      comName:       t.comName,
+      sciName:       t.sciName,
+      familyComName: t.familyComName || '',
+      familyCode:    t.familyCode || '',
+      order:         t.order || '',
+      recentlySeen:  recentCodes.has(t.speciesCode),
+    }))
+    .sort((a, b) => {
+      if (a.recentlySeen !== b.recentlySeen) return b.recentlySeen ? 1 : -1;
+      return a.comName.localeCompare(b.comName);
+    })
+    .slice(0, max);
+
+  fetchedBirds = species;
+  log(`Finalized ${fetchedBirds.length} birds (${recentCodes.size} recently active)`, 'ok');
+  renderBirds();
+}
+
+// ── Renderers ──────────────────────────────────────────────────────────
+function renderPlants() {
+  const el = document.getElementById('plantList');
+  document.getElementById('plantCount').textContent = fetchedPlants.length;
+  if (!fetchedPlants.length) { el.innerHTML = '<em>No plants loaded yet</em>'; return; }
+
+  el.innerHTML = fetchedPlants.map((p, i) => {
+    const name = p.common_name || p.name || p.comName || `Plant ${i+1}`;
+    const sci  = p.scientific_name || p.sci || p.sciName || '';
+    const type = guessPlantType(p);
+    const fruit = type === 'tree' || (p.edible_parts && p.edible_parts.length > 0);
+    return `<div class="plant-card">
+      <span class="name">${escHtml(name)}</span>
+      <span class="sci"> — ${escHtml(sci)}</span>
+      <br/>Type: <strong>${type}</strong> ${fruit ? '🍎 has fruit' : ''}
+      ${p.height ? `| Height: ${escHtml(String(p.height))}` : ''}
+      ${p.bloom_time ? `| Bloom: ${escHtml(String(p.bloom_time))}` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderBirds() {
+  const el = document.getElementById('birdList');
+  document.getElementById('birdCount').textContent = fetchedBirds.length;
+  if (!fetchedBirds.length) { el.innerHTML = '<em>No birds loaded yet</em>'; return; }
+
+  el.innerHTML = '<div class="bird-grid">' + fetchedBirds.map(b =>
+    `<div class="bird-card">
+      <div class="name">🐦 ${escHtml(b.comName)}</div>
+      <div class="sci">${escHtml(b.sciName)}</div>
+      <div style="color:var(--dim);font-size:.8em">${escHtml(b.familyComName)} · ${b.recentlySeen ? '✅ Recent' : '⬜ Historical'}</div>
+    </div>`
+  ).join('') + '</div>';
+}
+
+// ── Code Generation ────────────────────────────────────────────────────
+function generateCode() {
+  if (!fetchedPlants.length && !fetchedBirds.length) {
+    log('No data loaded yet — load plants and/or birds first', 'err');
+    return;
+  }
+
+  const regionId   = document.getElementById('regionId').value.trim() || 'new_region';
+  const epaCode    = document.getElementById('epaCode').value.trim() || '0.0';
+  const regionName = document.getElementById('regionName').value.trim() || 'New Region';
+  const regionLabel = document.getElementById('regionLabel').value.trim() || `${epaCode} – ${regionName}`;
+  const regionIcon = document.getElementById('regionIcon').value.trim() || '🌲';
+  const regionDesc = document.getElementById('regionDesc').value.trim() || '';
+  const hnpUrl     = document.getElementById('hnpUrl').value.trim() || '';
+
+  // ── Generate ecoregions entry ───────────────────────────────────────
+  const plantsJs = fetchedPlants.map((p, i) => {
+    const name = p.common_name || p.name || `Plant ${i+1}`;
+    const sci  = p.scientific_name || p.sci || '';
+    const type = guessPlantType(p);
+    const icon = typeIcon(type, p);
+    const hasFruit = type === 'tree' || !!(p.edible_parts && p.edible_parts.length);
+    const id   = toSnakeCase(name);
+    const height = p.height || p.mature_height || '1–3 ft';
+    const season = p.bloom_time || p.bloom_period || 'Spring';
+    const desc = p.description || p.desc || `A native ${type} of the region.`;
+
+    return `      {
+        id:               '${id}',
+        requiresResearch: [],
+        name:             ${JSON.stringify(name)},
+        sci:              ${JSON.stringify(sci)},
+        icon:             '${icon}',
+        type:             '${type}',${hasFruit ? "\n        hasFruit:         true," : ''}
+        desc:             ${JSON.stringify(truncate(desc, 250))},
+        height:           ${JSON.stringify(String(height))},
+        seasonOfInterest: ${JSON.stringify(String(season))},
+        insectsHosted: [
+          // TODO: Fill in with region-specific insect data
+          // Use Doug Tallamy's data or NWF Native Plant Finder
+          // Shape: { name, sci, type: 'butterfly'|'moth'|'bee'|'fly'|'beetle'|'wasp', role, note }
+        ],
+        wildlifeNote:     'TODO: Wildlife that depends on this plant',
+        caterpillarSpp:   ${Math.floor(Math.random() * 20) + 5},
+        biosphereBonus:   ${[5, 8, 10, 12, 15][Math.floor(i / (fetchedPlants.length / 5))] || 5},
+        cost:             ${computePlantCost(i, type)},
+        duration:         ${computePlantDuration(type)},
+      }`;
+  }).join(',\n\n');
+
+  const ecoregionCode = `// ecoregion entry for ${regionName}
+// Add this to the ECOREGIONS array in ecoregions.js
+
+  {
+    id:    '${regionId}',
+    code:  '${epaCode}',
+    name:  '${regionName}',
+    label: ${JSON.stringify(regionLabel)},
+    icon:  '${regionIcon}',
+    desc:  ${JSON.stringify(regionDesc)},
+    hnpUrl: ${JSON.stringify(hnpUrl)},
+    prestigeRequires: 'se_usa_plains', // previous region id
+    prestigeReward:   'Unlocks next region · +10% conservation point generation',
+
+    invasiveIds: [
+      // TODO: Add invasive species IDs for this region
+    ],
+
+    plants: [
+
+      // ══ FLOWERS ════════════════════════════════════════════════════════
+${plantsJs}
+    ],
+  },
+`;
+
+  // ── Generate birds module ───────────────────────────────────────────
+  const birdsEntries = fetchedBirds.map((b, i) => {
+    const id = toSnakeCase(b.comName);
+    const tier = Math.floor(i / (fetchedBirds.length / 5));
+    const criteria = generateBirdCriteria(i, fetchedBirds.length);
+
+    return `  ${id}: {
+    id:   '${id}',
+    name: ${JSON.stringify(b.comName)},
+    sci:  ${JSON.stringify(b.sciName)},
+    icon: '🐦',
+    role: '${guessBirdRole(b)}',
+    note: 'TODO: Add ecological note about this species.',
+    desc: 'TODO: Add description of this bird and its relationship to native plants.',
+    attractedBy: '${guessBirdAttractedBy(b)}',
+    unlockCriteria: ${JSON.stringify(criteria)},
+  }`;
+  }).join(',\n\n');
+
+  const birdsCode = `// birds_${regionId}.js — Bird visitors for ${regionName}
+// Generated from eBird API data for region ${document.getElementById('ebirdRegion').value.trim()}
+// ${fetchedBirds.length} species selected
+
+export const BIRDS_${regionId.toUpperCase()} = {
+
+${birdsEntries}
+};
+
+export const BIRD_LIST_${regionId.toUpperCase()} = Object.values(BIRDS_${regionId.toUpperCase()});
+`;
+
+  // ── Generate region bundle ──────────────────────────────────────────
+  const bundleCode = `// regions/${regionId}.js — Region data bundle for ${regionName} (${epaCode})
+// Aggregates all data modules that define this ecoregion's gameplay content.
+
+import { CROPS }                                       from '../crops.js';
+import { RESEARCH }                                    from '../research.js';
+import { ECOREGIONS }                                  from '../ecoregions.js';
+import { RANCH_ANIMALS, RANCH_ANIMAL_LIST }            from '../ranch.js';
+import { BIRD_LIST_${regionId.toUpperCase()} }         from '../birds_${regionId}.js';
+import { INVASIVES, INVASIVE_MAP, TOTAL_INVADED_ACRES } from '../invasives.js';
+
+// Find this ecoregion by id
+const eco = ECOREGIONS.find(e => e.id === '${regionId}');
+
+/** @type {import('./registry.js').RegionData} */
+export default {
+  // ── Identity ──────────────────────────────────────────────────────────
+  id:               eco.id,
+  code:             eco.code,
+  name:             eco.name,
+  label:            eco.label,
+  icon:             eco.icon,
+  desc:             eco.desc,
+  hnpUrl:           eco.hnpUrl,
+  prestigeRequires: eco.prestigeRequires,
+  prestigeReward:   eco.prestigeReward,
+  invasiveIds:      eco.invasiveIds,
+
+  // ── Per-region datasets ───────────────────────────────────────────────
+  plants:                eco.plants,
+  invasives:             INVASIVES,       // TODO: region-specific invasives
+  invasiveMap:           INVASIVE_MAP,    // TODO: region-specific invasive map
+  totalInvadedAcresBase: TOTAL_INVADED_ACRES,
+  birdList:              BIRD_LIST_${regionId.toUpperCase()},
+  crops:                 CROPS,           // TODO: region-specific crops
+  research:              RESEARCH,        // TODO: region-specific research
+  ranchAnimals:          RANCH_ANIMALS,
+  ranchAnimalList:       RANCH_ANIMAL_LIST,
+
+  // Farm zone definitions — region-specific
+  farmZoneDefs: [
+    { name: 'Berry Patch',        cropId: 'strawberry',  cost:          0 },
+    { name: 'Onion Row',          cropId: 'greenOnion',  cost:      10000 },
+    { name: 'Root Beds',          cropId: 'potato',      cost:      20000 },
+    { name: 'Pepper Row',         cropId: 'onion',       cost:      30000 },
+    { name: 'Bean Bottom',        cropId: 'carrot',      cost:      50000 },
+    { name: 'Berry Thicket',      cropId: 'blueberry',   cost:      70000 },
+    { name: 'Fruit Orchard',      cropId: 'parsnip',     cost:     100000 },
+    { name: 'Greens Glade',       cropId: 'lettuce',     cost:     150000 },
+    { name: 'Brassica Patch',     cropId: 'cauliflower', cost:     200000 },
+    { name: 'Grain Paddies',      cropId: 'rice',        cost:     300000 },
+    { name: 'Winter Beds',        cropId: 'broccoli',    cost:     500000 },
+    { name: 'Summer Hill',        cropId: 'asparagus',   cost:     750000 },
+  ],
+};
+`;
+
+  // Show output
+  document.getElementById('codeEcoregion').value = ecoregionCode;
+  document.getElementById('codeBirds').value = birdsCode;
+  document.getElementById('codeBundle').value = bundleCode;
+  document.getElementById('codeOutputContainer').style.display = 'block';
+  log(`Generated code for ${fetchedPlants.length} plants + ${fetchedBirds.length} birds`, 'ok');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toSnakeCase(s) {
+  return s.toLowerCase()
+    .replace(/['']/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+}
+
+function truncate(s, len) {
+  return s.length > len ? s.slice(0, len - 3) + '...' : s;
+}
+
+function guessPlantType(p) {
+  const growth = (p.growth_habit || p.type || p.plant_type || '').toLowerCase();
+  if (growth.includes('tree'))  return 'tree';
+  if (growth.includes('shrub')) return 'shrub';
+  if (growth.includes('herb') || growth.includes('forb') || growth.includes('flower')) return 'flower';
+  // Guess by height
+  const h = parseFloat(p.height || p.mature_height || 0);
+  if (h > 20 || h > 15) return 'tree';
+  if (h > 4)  return 'shrub';
+  return 'flower';
+}
+
+function typeIcon(type, p) {
+  if (p.edible_parts && p.edible_parts.length) return '🍎';
+  switch (type) {
+    case 'tree':   return '🌳';
+    case 'shrub':  return '🌿';
+    case 'flower': return '🌼';
+    default:       return '🌱';
+  }
+}
+
+function computePlantCost(index, type) {
+  const base = type === 'tree' ? 200 : type === 'shrub' ? 100 : 20;
+  return base + Math.floor(index * 30);
+}
+
+function computePlantDuration(type) {
+  return type === 'tree' ? 30 : type === 'shrub' ? 18 : 7;
+}
+
+function generateBirdCriteria(index, total) {
+  const frac = index / total;
+  const criteria = {};
+  criteria.insectsDiscovered = Math.floor(3 + frac * 25);
+  if (frac > 0.15) criteria.plantsEstablished = Math.floor(2 + frac * 10);
+  if (frac > 0.3)  criteria.fruitingPlants = Math.floor(1 + frac * 5);
+  if (frac > 0.5)  {
+    const types = ['flower', 'shrub', 'tree'];
+    criteria.hasPlantType = types[Math.floor(frac * 3) % 3];
+  }
+  return criteria;
+}
+
+function guessBirdRole(bird) {
+  const family = (bird.familyComName || '').toLowerCase();
+  if (family.includes('hawk') || family.includes('eagle') || family.includes('falcon')) return 'Raptor';
+  if (family.includes('heron') || family.includes('crane')) return 'Wading bird';
+  if (family.includes('duck') || family.includes('goose')) return 'Waterfowl';
+  if (family.includes('woodpecker')) return 'Bark forager; cavity nester';
+  if (family.includes('wren'))   return 'Insectivore; ground & shrub forager';
+  if (family.includes('warbler')) return 'Canopy insectivore; migratory';
+  if (family.includes('thrush')) return 'Frugivore & insectivore';
+  if (family.includes('sparrow') || family.includes('bunting')) return 'Seed & insect consumer';
+  if (family.includes('swallow')) return 'Aerial insectivore';
+  if (family.includes('flycatcher') || family.includes('kingbird')) return 'Aerial insectivore';
+  if (family.includes('vireo')) return 'Canopy insectivore';
+  if (family.includes('owl')) return 'Nocturnal predator; cavity nester';
+  if (family.includes('hummingbird')) return 'Pollinator; nectar feeder';
+  return 'Insect & seed consumer';
+}
+
+function guessBirdAttractedBy(bird) {
+  const family = (bird.familyComName || '').toLowerCase();
+  if (family.includes('hawk') || family.includes('eagle')) return 'Healthy prey populations in diverse habitat';
+  if (family.includes('woodpecker')) return 'Dead wood snags and bark-dwelling insects';
+  if (family.includes('wren'))   return 'Dense native shrubs and leaf litter';
+  if (family.includes('warbler')) return 'Caterpillar-rich native trees and shrubs';
+  if (family.includes('thrush')) return 'Fruiting native plants and an insect-rich ground layer';
+  if (family.includes('hummingbird')) return 'Native tubular flowers providing nectar';
+  if (family.includes('swallow') || family.includes('flycatcher')) return 'Abundant flying insects over open habitat';
+  return 'Native plant diversity providing caterpillars and seeds';
+}
+</script>
+</body>
+</html>

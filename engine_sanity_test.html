@@ -19,7 +19,9 @@
 
   <script type="module">
     import { createEngine, FARM_ZONE_DEFS } from './game.js';
+    import { getRegion, DEFAULT_REGION_ID } from './regions/registry.js';
 
+    const _regionData = getRegion(DEFAULT_REGION_ID);
     const resultsEl = document.getElementById('results');
 
     function addResult(name, pass, details = '') {
@@ -39,7 +41,7 @@
     }
 
     run('applyState ignores invalid zone acreage keys/values', () => {
-      const engine = createEngine();
+      const engine = createEngine(_regionData);
       const state = engine.getState();
       const starter = FARM_ZONE_DEFS[0].name;
 
@@ -64,7 +66,7 @@
     });
 
     run('save/apply round-trip keeps land allocation non-negative', () => {
-      const engine = createEngine();
+      const engine = createEngine(_regionData);
       const state = engine.getState();
       state.totalLandAcres = 1;
       engine.applyState(state);
