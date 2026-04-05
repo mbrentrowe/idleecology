@@ -1,6 +1,5 @@
 ﻿// main.js — UI layer and entry point for Idle Ecologist Text UI
-import { createEngine, shortNumber, FARM_ZONE_DEFS, DAY_REAL_SECS, YEAR_REAL_SECS, CALENDAR_MONTHS, SEASONS, calendarDate, acreUpgradeCost, workerUpgradeCost, workerMultiplier, STARTING_LAND_ACRES, ESTABLISH_DAYS, LAND_MARKET_INTERVAL_DAYS, ENABLE_RANCH, TOTAL_LAND_ACRES } from './game.js';
-import { CROPS } from './crops.js';
+import { createEngine, shortNumber, DAY_REAL_SECS, YEAR_REAL_SECS, CALENDAR_MONTHS, SEASONS, calendarDate, acreUpgradeCost, workerUpgradeCost, workerMultiplier, STARTING_LAND_ACRES, ESTABLISH_DAYS, LAND_MARKET_INTERVAL_DAYS, ENABLE_RANCH, TOTAL_LAND_ACRES } from './game.js';
 import { RESEARCH, RESEARCH_CATEGORIES } from './research.js';
 import { ECOREGIONS, WILDLIFE_TYPE_ICONS } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
@@ -17,21 +16,6 @@ const ALL_PLANTS = ECOREGIONS.flatMap(e => e.plants);
 // ── Farm view canvas (Phase 1) ────────────────────────────────────────────────
 let currentFarmView = null;
 
-// ── Crop emoji map ────────────────────────────────────────────────────────────
-// Used only in <select> option text (HTML not supported there)
-const CROP_EMOJI = {
-  strawberry:  '🍓', greenOnion: '🌿', potato:     '🥔', onion:      '🧅',
-  carrot:      '🥕', blueberry:  '🫐', parsnip:    '🟤', lettuce:    '🥬',
-  cauliflower: '🥦', rice:       '🍚', broccoli:   '🌾', asparagus:  '🌱',
-};
-
-// Tileset GIDs → CSS sprite icons (marketIconGID from canvas crops.js)
-// Sheet: 125 cols × 16 px tiles, 2000 × 1568 px
-const CROP_ICON_GID = {
-  strawberry:  4486, greenOnion: 4736, potato:     4986, onion:      5236,
-  carrot:      5486, blueberry:  5736, parsnip:    5986, lettuce:    6236,
-  cauliflower: 6486, rice:       6736, broccoli:   6986, asparagus:  7236,
-};
 const _SHEET = { cols: 125, tile: 16, w: 2000, h: 1568 };
 function cropIconHtml(gid, size = 24) {
   if (!gid) return '<span class="crop-icon-fallback">?</span>';
@@ -49,6 +33,35 @@ function cropIconHtml(gid, size = 24) {
 const meta = loadMeta();
 let currentRegionData = getRegion(meta.currentRegionId) ?? getRegion(DEFAULT_REGION_ID);
 let engine = createEngine(currentRegionData);
+
+function getCropCatalog() {
+  return engine.CROPS;
+}
+
+function getCrop(cropId) {
+  return getCropCatalog()[cropId] ?? null;
+}
+
+function getFarmZoneDefs() {
+  return engine.FARM_ZONE_DEFS;
+}
+
+function getFarmZoneDef(zoneName) {
+  return engine.getFarmZoneDef(zoneName);
+}
+
+function getUnlockedCrops() {
+  return Object.values(getCropCatalog()).filter(ct => ct.isUnlocked(engine.cropStats));
+}
+
+function resetRegionDerivedState() {
+  lastZonesFingerprint = '';
+  lastRanchFingerprint = '';
+  _knownDiscovered = null;
+  _knownUnlockedCrops = null;
+  _knownUnlockedRanch = null;
+  _knownPlantedSpecies = null;
+}
 
 // Load per-region save (or migrated legacy save)
 const _regionKey = regionSaveKey(meta.currentRegionId);
@@ -999,10 +1012,10 @@ function renderCrops() {
 
   // Sort: active (unlocked + in-season) first, dormant second, locked last
   const _cur = engine.currentSeasonName;
-  const _sortedDefs = [...FARM_ZONE_DEFS].sort((a, b) => {
+  const _sortedDefs = [...getFarmZoneDefs()].sort((a, b) => {
     const rank = d => {
       if (!engine.unlockedFarmZones.has(d.name)) return 2;          // locked
-      if (!CROPS[d.cropId]?.isInSeason(_cur))    return 1;          // dormant
+      if (!getCrop(d.cropId)?.isInSeason(_cur))  return 1;          // dormant
       return 0;                                                      // active
     };
     return rank(a) - rank(b);
@@ -1011,7 +1024,7 @@ function renderCrops() {
   _sortedDefs.forEach(def => {
     const unlocked = engine.unlockedFarmZones.has(def.name);
     if (unlocked) {
-      const _ct = CROPS[def.cropId];
+      const _ct = getCrop(def.cropId);
       if (_ct && !_ct.isInSeason(engine.currentSeasonName)) {
         // ── Compact dormant card with acre controls ──
         const dormCard = el('div', 'zone-card dormant-zone');
@@ -1065,7 +1078,7 @@ function renderCrops() {
     card.dataset.zone = def.name;
 
     if (!unlocked) {
-      const boundCrop = CROPS[def.cropId];
+      const boundCrop = getCrop(def.cropId);
       const lockRow = el('div', 'lock-row');
       lockRow.innerHTML = `
         <span class="lock-icon">🔒</span>
@@ -2399,6 +2412,7 @@ function _renderEcoregionOverview() {
           if (result.ok) {
             currentRegionData = result.regionData;
             engine = createEngine(currentRegionData);
+            resetRegionDerivedState();
             engine.setPrestigeGoldMult(bpGoldMultiplier(meta.totalBP));
             if (result.savedState) {
               engine.applyState(result.savedState);
@@ -2634,7 +2648,7 @@ function renderCollection() {
   const discoveredCount = [...discovered].filter(k => nonBirdCreatureMap.has(k)).length;
   const totalBirdCreatures    = birdCreatureMap.size;
   const discoveredBirdCreatures = [...discovered].filter(k => birdCreatureMap.has(k)).length;
-  const unlockedCrops        = Object.values(CROPS).filter(ct => ct.isUnlocked(engine.cropStats));
+  const unlockedCrops        = getUnlockedCrops();
   const unlockedRanchAnimals = engine.unlockedRanchAnimals;
 
   // ── Biosphere banner ────────────────────────────────────────────────────────
@@ -2686,7 +2700,7 @@ function renderCollection() {
   const filterBar = el('div', 'collection-filter-bar');
   const filterDefs = [
     { key: 'all',       label: 'All'                                                                              },
-    { key: 'crops',     label: `🌾 Crops (${unlockedCrops.length} / ${Object.keys(CROPS).length})`              },
+    { key: 'crops',     label: `🌾 Crops (${unlockedCrops.length} / ${Object.keys(getCropCatalog()).length})`   },
     { key: 'plants',    label: `🌿 Native Plants (${planted.size} / ${totalPlantCount})`                         },
     { key: 'creatures', label: `🦋 Creatures (${discoveredCount} / ${totalCreatures})`                           },
     { key: 'birds',     label: `🐦 Birds (${engine.discoveredBirds.size + discoveredBirdCreatures} / ${BIRD_LIST.length + totalBirdCreatures})`                 },
@@ -2757,7 +2771,7 @@ function renderCollection() {
 
   // ── Crops ───────────────────────────────────────────────────────────────────
   if (showCrops) {
-    content.appendChild(el('h2', 'section-header', `🌾 Crops — ${unlockedCrops.length} of ${Object.keys(CROPS).length} unlocked`));
+    content.appendChild(el('h2', 'section-header', `🌾 Crops — ${unlockedCrops.length} of ${Object.keys(getCropCatalog()).length} unlocked`));
     if (unlockedCrops.length === 0) {
       content.appendChild(el('p', 'research-idle-note', '— Sell crops in the 🌾 Crops tab to unlock new varieties. —'));
     }
@@ -3302,7 +3316,7 @@ function _getLoadoutKey(season, slot) {
 
 function saveLoadout(season, slot) {
   const loadout = {};
-  for (const def of FARM_ZONE_DEFS) {
+  for (const def of getFarmZoneDefs()) {
     const acres = engine.zoneAcres.get(def.name) ?? 0;
     if (acres > 0) {
       loadout[def.name] = acres;
@@ -3338,7 +3352,7 @@ function loadLoadout(season, slot) {
 
   // Calculate total acres needed
   let totalNeeded = 0;
-  for (const def of FARM_ZONE_DEFS) {
+  for (const def of getFarmZoneDefs()) {
     totalNeeded += loadout[def.name] ?? 0;
   }
 
@@ -3369,10 +3383,10 @@ function loadLoadout(season, slot) {
 function _removeAcresToMakeRoom(acresNeeded) {
   // Build a list of all crops with acres, sorted by yield (lowest cost first)
   const crops = [];
-  for (const def of FARM_ZONE_DEFS) {
+  for (const def of getFarmZoneDefs()) {
     const acres = engine.zoneAcres.get(def.name) ?? 0;
     if (acres > 0) {
-      const cropType = CROPS[def.cropId];
+      const cropType = getCrop(def.cropId);
       crops.push({
         zoneName: def.name,
         acres: acres,
@@ -3398,7 +3412,7 @@ function _removeAcresToMakeRoom(acresNeeded) {
 
 function _applyLoadout(loadout) {
   // First clear all current crop acres
-  for (const def of FARM_ZONE_DEFS) {
+  for (const def of getFarmZoneDefs()) {
     const currentAcres = engine.zoneAcres.get(def.name) ?? 0;
     for (let i = 0; i < currentAcres; i++) {
       engine.deallocateCropAcre(def.name);
@@ -3711,7 +3725,7 @@ function _loadNotifs() {
         const { creature, hostPlants } = _resolveCreature(n.ckey);
         if (creature) extra = { ckey: n.ckey, creature, hostPlants };
       } else if (n.type === 'crop') {
-        const cropType = CROPS[n.cropId];
+        const cropType = getCrop(n.cropId);
         if (cropType) extra = { cropId: n.cropId, cropType };
       } else if (n.type === 'ranch') {
         const animal = RANCH_ANIMAL_LIST.find(a => a.id === n.animalId);
@@ -4049,7 +4063,7 @@ function _queueDiscovery(ckey) { _pushCreatureNotif('discovery', ckey); }
 
 function zonesFingerprint() {
   const lifetimeGold = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.lifetimeSales, 0);
-  const farmParts = FARM_ZONE_DEFS
+  const farmParts = getFarmZoneDefs()
     .filter(d => engine.unlockedFarmZones.has(d.name))
     .map(d => `${d.name}:${engine.zoneAcres.get(d.name) ?? 1}:${engine.zoneWorkers.get(d.name) ?? 1}`).join(',');
   // Sample sold/gold (bucketed) so locked-card criteria bars re-render as progress advances
@@ -4118,9 +4132,9 @@ function liveUpdate() {
 
   // ── Detect newly unlocked crops ────────────────────────────────────────────
   if (_knownUnlockedCrops === null) {
-    _knownUnlockedCrops = new Set(Object.keys(CROPS).filter(id => CROPS[id].isUnlocked(engine.cropStats)));
+    _knownUnlockedCrops = new Set(Object.keys(getCropCatalog()).filter(id => getCrop(id)?.isUnlocked(engine.cropStats)));
   } else {
-    for (const [id, ct] of Object.entries(CROPS)) {
+    for (const [id, ct] of Object.entries(getCropCatalog())) {
       if (!_knownUnlockedCrops.has(id) && ct.isUnlocked(engine.cropStats)) {
         _knownUnlockedCrops.add(id);
         _pushNotif({ type: 'crop', cropId: id, cropType: ct });
@@ -4178,13 +4192,13 @@ function liveUpdate() {
       updateZoneProgressBars();
       // Patch upgrade button disabled states as gold changes
       content.querySelectorAll('.acre-btn[data-zone-name]').forEach(btn => {
-        const def = FARM_ZONE_DEFS.find(d => d.name === btn.dataset.zoneName);
+        const def = getFarmZoneDef(btn.dataset.zoneName);
         if (!def) return;
         const cur = engine.zoneAcres.get(def.name) ?? 1;
         btn.disabled = engine.gold.amount < acreUpgradeCost(def, cur);
       });
       content.querySelectorAll('.worker-btn[data-zone-name-w]').forEach(btn => {
-        const def = FARM_ZONE_DEFS.find(d => d.name === btn.dataset.zoneNameW);
+        const def = getFarmZoneDef(btn.dataset.zoneNameW);
         if (!def) return;
         const cur = engine.zoneWorkers.get(def.name) ?? 1;
         const workerCostFn = n => workerUpgradeCost(def, n);
@@ -4264,7 +4278,7 @@ function updateZoneProgressBars() {
     if (!bar || !pctEl) return;
 
     if (activeTab === 'crops') {
-      const zoneDef  = FARM_ZONE_DEFS.find(d => d.name === card.dataset.zone);
+      const zoneDef  = getFarmZoneDef(card.dataset.zone);
       if (!zoneDef) return;
       const instance = engine.zoneCrops.get(zoneDef.name);
       if (!instance)  return;

@@ -130,6 +130,74 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
       <input id="maxBirds" type="number" value="30" min="5" max="300" />
     </div>
   </div>
+
+  <h2>④ Crop Contract</h2>
+  <div class="grid">
+    <div>
+      <label>Region Crop Catalog JSON</label>
+      <textarea id="cropPlanJson" rows="14" placeholder='{
+  "strawberry": {
+    "id": "strawberry",
+    "name": "Regional Strawberry",
+    "sciName": "Fragaria × ananassa",
+    "growthPhaseGIDs": [4479, 4480, 4481, 4482, 4483, 4484],
+    "growthPhaseNames": ["Seeded", "Sprouting", "Leafing out", "Flowering", "Fruiting"],
+    "growthTimePerPhase": 10,
+    "yieldGold": 30,
+    "marketIconGID": 4486,
+    "unlockCriteria": null,
+    "seasons": ["Spring"]
+  }
+}'></textarea>
+      <p class="help">This is the region-owned <strong>crops</strong> catalog. Start from the built-in templates, then edit the region’s crops directly here. Remove an entry to omit that crop from the region.</p>
+      <button class="btn-secondary" onclick="resetCropPlanDefaults()">Load default crop catalog</button>
+  <button class="btn-secondary" onclick="importJsonTextarea('cropPlanJson')">Import JSON</button>
+  <button class="btn-secondary" onclick="exportJsonTextarea('cropPlanJson')">Export JSON</button>
+    </div>
+    <div>
+      <label>Farm Zone Overrides JSON (optional)</label>
+      <textarea id="farmZoneDefsJson" rows="14" placeholder='[
+  { "name": "Berry Patch", "cropId": "strawberry", "cost": 0 },
+  { "name": "Greens Row", "cropId": "lettuce", "cost": 150000 }
+]'></textarea>
+      <p class="help">Leave blank to auto-generate <strong>farmZoneDefs</strong> from the effective crop lineup. If provided, each entry must reference an enabled crop.</p>
+      <button class="btn-secondary" onclick="clearFarmZoneOverrides()">Use auto-generated farm zones</button>
+  <button class="btn-secondary" onclick="importJsonTextarea('farmZoneDefsJson')">Import JSON</button>
+  <button class="btn-secondary" onclick="exportJsonTextarea('farmZoneDefsJson')">Export JSON</button>
+    </div>
+  </div>
+
+  <h2>⑤ Hosted Fauna Lookup</h2>
+  <div>
+    <label>Hosted Fauna Lookup JSON</label>
+    <textarea id="hostedFaunaJson" rows="16" placeholder='{
+  "species": {
+    "fragaria virginiana": {
+      "hosted": [
+        { "name": "Gray Hairstreak", "sci": "Strymon melinus", "type": "butterfly", "role": "Larval host plant", "note": "Larvae use flowers and developing fruit." }
+      ],
+      "confidence": "species",
+      "reviewed": true,
+      "source": "Curated host data"
+    }
+  },
+  "genus": {},
+  "family": {},
+  "fallback": {
+    "flower": {
+      "hosted": [],
+      "confidence": "fallback",
+      "reviewed": false,
+      "source": "Use only for draft output"
+    }
+  }
+}'></textarea>
+    <p class="help">Lookup order is <strong>species → genus → family → fallback</strong>. Final generated <strong>insectsHosted</strong> records use the hosted arrays only; confidence and source fields stay in the builder for review and validation.</p>
+    <button class="btn-secondary" onclick="loadHostedFaunaTemplate()">Load lookup template</button>
+    <button class="btn-secondary" onclick="clearHostedFaunaLookup()">Clear hosted fauna lookup</button>
+      <button class="btn-secondary" onclick="importJsonTextarea('hostedFaunaJson')">Import JSON</button>
+      <button class="btn-secondary" onclick="exportJsonTextarea('hostedFaunaJson')">Export JSON</button>
+  </div>
 </section>
 
 <!-- ── Step 2: Fetch via curl ────────────────────────────────────────── -->
@@ -204,10 +272,16 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
 <section>
   <h2>⑥ Generate Code</h2>
   <p class="help" style="margin-bottom:8px;">
-    Generates game-ready JS modules. Plants include placeholder insectsHosted arrays
-    (fill in manually or via a second AI pass). Birds include unlock criteria scaled by position.
+    Generates contract-aware JS modules. Crop settings now flow into region-owned <strong>crops</strong>
+    and <strong>farmZoneDefs</strong>. <strong>Validate &amp; Generate</strong> requires hosted-fauna-complete plants. <strong>Generate Draft</strong> allows missing fauna coverage but marks the region as incomplete.
   </p>
-  <button class="btn-ok" onclick="generateCode()">⚙️ Generate Region Bundle</button>
+  <button class="btn-primary" onclick="generateCode()">✅ Validate &amp; Generate</button>
+  <button class="btn-ok" onclick="generateCode({ allowDraft: true })">⚙️ Generate Draft</button>
+  <button class="btn-secondary" onclick="loadGoldenFixture()">🧪 Load Golden Fixture</button>
+  <button class="btn-secondary" onclick="runGoldenFixtureCompare()">🔍 Run Golden Suite</button>
+
+  <div id="validationOutput" class="output-box" style="display:none; margin-top:12px;"></div>
+  <div id="fixtureCompareOutput" class="output-box" style="display:none; margin-top:12px;"></div>
 
   <div id="codeOutputContainer" style="display:none; margin-top:12px;">
     <div class="tabs" id="codeTabs">
@@ -236,6 +310,306 @@ let fetchedPlants = [];
 let fetchedBirds  = [];
 let birdSpeciesCodes = [];
 let birdTaxonomy = [];
+
+const VALID_SEASONS = ['Spring', 'Summer', 'Fall', 'Winter'];
+const ALLOWED_CROP_PROFILE_FIELDS = new Set([
+  'name',
+  'sciName',
+  'growthTimePerPhase',
+  'yieldGold',
+  'marketIconGID',
+  'unlockCriteria',
+  'seasons',
+]);
+const BASE_CROP_PHASES = {
+  strawberry: {
+    growthPhaseGIDs: [4479, 4480, 4481, 4482, 4483, 4484],
+    growthPhaseNames: ['Seeded', 'Sprouting', 'Leafing out', 'Flowering', 'Fruiting'],
+  },
+  greenOnion: {
+    growthPhaseGIDs: [4729, 4730, 4731, 4732, 4733, 4734],
+    growthPhaseNames: ['Seeds sown', 'Germinating', 'Sprouting', 'Bulbing', 'Maturing'],
+  },
+  potato: {
+    growthPhaseGIDs: [4978, 4979, 4980, 4981, 4982, 4983, 4984],
+    growthPhaseNames: ['Slips planted', 'Rooting', 'Vining', 'Spreading', 'Tuber forming', 'Curing'],
+  },
+  onion: {
+    growthPhaseGIDs: [5228, 5229, 5230, 5231, 5232, 5233, 5234],
+    growthPhaseNames: ['Seeds sown', 'Germinating', 'Seedling', 'Growing', 'Budding', 'Podding'],
+  },
+  carrot: {
+    growthPhaseGIDs: [5479, 5480, 5481, 5482, 5483, 5484],
+    growthPhaseNames: ['Planted', 'Germinating', 'Seedling', 'Flowering', 'Pegging'],
+  },
+  blueberry: {
+    growthPhaseGIDs: [5729, 5730, 5731, 5732, 5733, 5734],
+    growthPhaseNames: ['Planted', 'Leafing', 'Budding', 'Flowering', 'Fruiting'],
+  },
+  parsnip: {
+    growthPhaseGIDs: [5979, 5980, 5981, 5982, 5983],
+    growthPhaseNames: ['Dormant', 'Budding', 'Flowering', 'Fruiting'],
+  },
+  lettuce: {
+    growthPhaseGIDs: [6229, 6230, 6231, 6232, 6233, 6234, 6235],
+    growthPhaseNames: ['Seeded', 'Germinating', 'Seedling', 'Leafing', 'Heading', 'Maturing'],
+  },
+  cauliflower: {
+    growthPhaseGIDs: [6479, 6480, 6481, 6482, 6483, 6484],
+    growthPhaseNames: ['Seeded', 'Germinating', 'Seedling', 'Leafing', 'Maturing'],
+  },
+  rice: {
+    growthPhaseGIDs: [6729, 6730, 6731, 6732, 6733, 6734],
+    growthPhaseNames: ['Flooded', 'Seedling', 'Tillering', 'Heading', 'Ripening'],
+  },
+  broccoli: {
+    growthPhaseGIDs: [6979, 6980, 6981, 6982, 6983],
+    growthPhaseNames: ['Transplanted', 'Vegetative', 'Budding', 'Heading'],
+  },
+  asparagus: {
+    growthPhaseGIDs: [7229, 7230, 7231, 7232, 7233],
+    growthPhaseNames: ['Transplanted', 'Flowering', 'Setting fruit', 'Ripening'],
+  },
+};
+const BASE_CROP_LIBRARY = [
+  { id: 'strawberry',  name: 'Strawberry',         sciName: 'Fragaria × ananassa',            growthTimePerPhase: 10,  yieldGold: 25,    marketIconGID: 4486, unlockCriteria: null,                   seasons: ['Spring'],                   defaultZoneName: 'Strawberry Patch',  defaultZoneCost: 0 },
+  { id: 'greenOnion', name: 'Scallion',           sciName: 'Allium fistulosum',              growthTimePerPhase: 14,  yieldGold: 45,    marketIconGID: 4736, unlockCriteria: { totalSold: 500 },    seasons: ['Spring', 'Fall'],           defaultZoneName: 'Scallion Row',      defaultZoneCost: 10000 },
+  { id: 'potato',     name: 'Sweet Potato',       sciName: 'Ipomoea batatas',                growthTimePerPhase: 18,  yieldGold: 85,    marketIconGID: 4986, unlockCriteria: { totalSold: 2000 },   seasons: ['Summer', 'Fall'],           defaultZoneName: 'Sweet Potato Beds', defaultZoneCost: 20000 },
+  { id: 'onion',      name: 'Okra',               sciName: 'Abelmoschus esculentus',         growthTimePerPhase: 22,  yieldGold: 160,   marketIconGID: 5236, unlockCriteria: { totalSold: 6000 },   seasons: ['Summer'],                   defaultZoneName: 'Okra Row',          defaultZoneCost: 30000 },
+  { id: 'carrot',     name: 'Peanut',             sciName: 'Arachis hypogaea',               growthTimePerPhase: 28,  yieldGold: 300,   marketIconGID: 5486, unlockCriteria: { totalSold: 15000 },  seasons: ['Summer', 'Fall'],           defaultZoneName: 'Peanut Bottom',     defaultZoneCost: 50000 },
+  { id: 'blueberry',  name: 'Blueberry',          sciName: 'Vaccinium virgatum',             growthTimePerPhase: 35,  yieldGold: 600,   marketIconGID: 5736, unlockCriteria: { totalSold: 30000 },  seasons: ['Summer'],                   defaultZoneName: 'Berry Thicket',     defaultZoneCost: 70000 },
+  { id: 'parsnip',    name: 'Peach',              sciName: 'Prunus persica',                 growthTimePerPhase: 45,  yieldGold: 1200,  marketIconGID: 5986, unlockCriteria: { totalSold: 55000 },  seasons: ['Summer'],                   defaultZoneName: 'Fruit Orchard',     defaultZoneCost: 100000 },
+  { id: 'lettuce',    name: 'Lettuce',            sciName: 'Lactuca sativa',                 growthTimePerPhase: 55,  yieldGold: 2500,  marketIconGID: 6236, unlockCriteria: { totalSold: 8000 },   seasons: ['Spring', 'Fall', 'Winter'], defaultZoneName: 'Greens Glade',      defaultZoneCost: 150000 },
+  { id: 'cauliflower',name: 'Collard Greens',     sciName: 'Brassica oleracea var. acephala',growthTimePerPhase: 70,  yieldGold: 5500,  marketIconGID: 6486, unlockCriteria: { totalSold: 140000 }, seasons: ['Fall', 'Winter', 'Spring'], defaultZoneName: 'Brassica Patch',    defaultZoneCost: 200000 },
+  { id: 'rice',       name: 'Carolina Gold Rice', sciName: 'Oryza sativa',                   growthTimePerPhase: 90,  yieldGold: 12000, marketIconGID: 6736, unlockCriteria: { totalSold: 210000 }, seasons: ['Summer'],                   defaultZoneName: 'Grain Paddies',     defaultZoneCost: 300000 },
+  { id: 'broccoli',   name: 'Broccoli',           sciName: 'Brassica oleracea var. italica', growthTimePerPhase: 110, yieldGold: 28000, marketIconGID: 6986, unlockCriteria: { totalSold: 310000 }, seasons: ['Spring', 'Fall'],           defaultZoneName: 'Broccoli Field',    defaultZoneCost: 500000 },
+  { id: 'asparagus',  name: 'Tomato',             sciName: 'Solanum lycopersicum',           growthTimePerPhase: 130, yieldGold: 65000, marketIconGID: 7236, unlockCriteria: { totalSold: 450000 }, seasons: ['Spring', 'Summer'],         defaultZoneName: 'Tomato Hill',       defaultZoneCost: 750000 },
+].map(crop => ({ ...crop, ...BASE_CROP_PHASES[crop.id] }));
+const BASE_CROP_MAP = Object.fromEntries(BASE_CROP_LIBRARY.map(crop => [crop.id, crop]));
+const VALID_WILDLIFE_TYPES = ['butterfly', 'moth', 'bee', 'fly', 'beetle', 'wasp', 'bird', 'mammal'];
+const BUILDER_JSON_TEXTAREAS = {
+  cropPlanJson: { label: 'Region crop catalog JSON', fileName: 'region-crops.json' },
+  farmZoneDefsJson: { label: 'Farm zone overrides JSON', fileName: 'farm-zone-defs.json' },
+  hostedFaunaJson: { label: 'Hosted fauna lookup JSON', fileName: 'hosted-fauna-lookup.json' },
+};
+const GOLDEN_FIXTURE_MODULE = './assets/region_builder_golden_fixture.js';
+
+let cachedGoldenFixtureSuite = null;
+
+function defaultHostedFaunaTemplate() {
+  return {
+    species: {},
+    genus: {},
+    family: {},
+    fallback: {
+      flower: { hosted: [], confidence: 'fallback', reviewed: false, source: 'General fallback; review required' },
+      shrub:  { hosted: [], confidence: 'fallback', reviewed: false, source: 'General fallback; review required' },
+      tree:   { hosted: [], confidence: 'fallback', reviewed: false, source: 'General fallback; review required' },
+    },
+  };
+}
+
+function emptyHostedFaunaLookup() {
+  return {
+    species: {},
+    genus: {},
+    family: {},
+    fallback: {},
+  };
+}
+
+function defaultCropCatalog() {
+  return Object.fromEntries(BASE_CROP_LIBRARY.map(crop => [crop.id, {
+    id: crop.id,
+    name: crop.name,
+    sciName: crop.sciName,
+    growthPhaseGIDs: [...crop.growthPhaseGIDs],
+    growthPhaseNames: crop.growthPhaseNames ? [...crop.growthPhaseNames] : null,
+    growthTimePerPhase: crop.growthTimePerPhase,
+    yieldGold: crop.yieldGold,
+    marketIconGID: crop.marketIconGID,
+    unlockCriteria: crop.unlockCriteria ? { ...crop.unlockCriteria } : null,
+    seasons: [...crop.seasons],
+  }]));
+}
+
+function buildEmbeddedGoldenFixtureSuite() {
+  const baseCatalog = defaultCropCatalog();
+  const cropCatalog = {
+    strawberry: { ...baseCatalog.strawberry, name: 'Fixture Strawberry', yieldGold: 31 },
+    parsnip: { ...baseCatalog.parsnip },
+  };
+  const playableScenario = {
+    id: 'playable-hosted-fauna',
+    label: 'Playable hosted-fauna fixture',
+    inputs: {
+      region: {
+        id: 'golden_hosted_fauna_fixture',
+        code: '0.0-fixture',
+        name: 'Golden Hosted Fauna Fixture',
+        label: '0.0 Fixture - Golden Hosted Fauna',
+        icon: 'G',
+        desc: 'Builder fixture for hosted fauna coverage.',
+        hnpUrl: 'https://example.test/fixture',
+      },
+      ebirdRegion: 'US-FIX',
+      plants: [
+        {
+          common_name: 'Wild Strawberry',
+          scientific_name: 'Fragaria virginiana',
+          growth_habit: 'Forb',
+          edible_parts: ['fruit'],
+          height: '0.5',
+          bloom_time: 'Spring',
+          description: 'Low native groundcover with edible fruit.',
+        },
+        {
+          common_name: 'Black Cherry',
+          scientific_name: 'Prunus serotina',
+          growth_habit: 'Tree',
+          edible_parts: ['fruit'],
+          height: '35',
+          bloom_time: 'Spring',
+          description: 'Native tree supporting many insects and birds.',
+        },
+      ],
+      birds: [
+        {
+          comName: 'Carolina Wren',
+          sciName: 'Thryothorus ludovicianus',
+          familyComName: 'Wrens',
+        },
+        {
+          comName: 'Ruby-throated Hummingbird',
+          sciName: 'Archilochus colubris',
+          familyComName: 'Hummingbirds',
+        },
+      ],
+      cropCatalog,
+      farmZoneDefs: [
+        { name: 'Fixture Strawberry Patch', cropId: 'strawberry', cost: 0 },
+        { name: 'Fixture Orchard', cropId: 'parsnip', cost: 100000 },
+      ],
+      hostedFauna: {
+        species: {
+          'fragaria virginiana': {
+            hosted: [
+              {
+                name: 'Gray Hairstreak',
+                sci: 'Strymon melinus',
+                type: 'butterfly',
+                role: 'Larval host plant',
+                note: 'Uses flowers and developing fruit.',
+              },
+              {
+                name: 'Strawberry Root Weevil',
+                sci: 'Otiorhynchus ovatus',
+                type: 'beetle',
+                role: 'Root herbivore',
+                note: 'Feeds on roots and crowns.',
+              },
+            ],
+            confidence: 'species',
+            reviewed: true,
+            source: 'Curated fixture species match',
+          },
+        },
+        genus: {
+          prunus: {
+            hosted: [
+              {
+                name: 'Eastern Tiger Swallowtail',
+                sci: 'Papilio glaucus',
+                type: 'butterfly',
+                role: 'Larval host plant',
+                note: 'Caterpillars feed on black cherry foliage.',
+              },
+              {
+                name: 'Cherry Gall Azure',
+                sci: 'Celastrina serotina',
+                type: 'butterfly',
+                role: 'Larval host plant',
+                note: 'Uses cherry flower buds and blossoms.',
+              },
+              {
+                name: 'Cecropia Moth',
+                sci: 'Hyalophora cecropia',
+                type: 'moth',
+                role: 'Larval host plant',
+                note: 'Uses a wide range of native trees including Prunus.',
+              },
+            ],
+            confidence: 'genus',
+            reviewed: true,
+            source: 'Curated fixture genus match',
+          },
+        },
+        family: {},
+        fallback: {},
+      },
+    },
+    expected: {
+      generation: {
+        allowDraft: false,
+        validation: {
+          hostedCoverage: 2,
+          warningsIncludes: ['Enabled crop lineup does not cover: Fall, Winter.'],
+        },
+      },
+    },
+  };
+
+  return {
+    defaultScenarioId: playableScenario.id,
+    scenarios: [
+      playableScenario,
+      {
+        id: 'draft-only-hosted-fauna-gap',
+        label: 'Draft-only hosted-fauna gap fixture',
+        inputs: {
+          ...playableScenario.inputs,
+          region: {
+            id: 'draft_only_hosted_fauna_fixture',
+            code: '0.1-fixture',
+            name: 'Draft Only Hosted Fauna Fixture',
+            label: '0.1 Fixture - Draft Hosted Fauna Gap',
+            icon: 'D',
+            desc: 'Builder fixture for draft-only hosted fauna coverage.',
+            hnpUrl: 'https://example.test/draft-fixture',
+          },
+          ebirdRegion: 'US-DRAFT',
+          hostedFauna: {
+            species: {
+              'fragaria virginiana': playableScenario.inputs.hostedFauna.species['fragaria virginiana'],
+            },
+            genus: {},
+            family: {},
+            fallback: {},
+          },
+        },
+        expected: {
+          strictValidation: {
+            hostedCoverage: 1,
+            errorsIncludes: ['Plant Black Cherry (Prunus serotina) has no hosted-fauna lookup match.'],
+            warningsIncludes: ['Enabled crop lineup does not cover: Fall, Winter.'],
+          },
+          generation: {
+            allowDraft: true,
+            validation: {
+              hostedCoverage: 1,
+              warningsIncludes: [
+                'Plant Black Cherry (Prunus serotina) has no hosted-fauna lookup match.',
+                'Enabled crop lineup does not cover: Fall, Winter.',
+              ],
+            },
+          },
+        },
+      },
+    ],
+  };
+}
+
+const EMBEDDED_GOLDEN_FIXTURE_SUITE = buildEmbeddedGoldenFixtureSuite();
 
 // ── Logging ────────────────────────────────────────────────────────────
 function log(msg, type = 'info') {
@@ -266,6 +640,91 @@ function copyCode(id) {
   ta.select();
   navigator.clipboard.writeText(ta.value);
   log('Copied to clipboard!', 'ok');
+}
+
+function downloadTextFile(fileName, text, mimeType = 'text/plain;charset=utf-8') {
+  const blob = new Blob([text], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importJsonTextarea(textareaId) {
+  const config = BUILDER_JSON_TEXTAREAS[textareaId];
+  if (!config) {
+    log(`Unknown JSON textarea target: ${textareaId}`, 'err');
+    return;
+  }
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = async () => {
+    const [file] = input.files || [];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      document.getElementById(textareaId).value = JSON.stringify(parsed, null, 2);
+      log(`Loaded ${config.label} from ${file.name}`, 'ok');
+    } catch (error) {
+      log(`${config.label}: ${error.message}`, 'err');
+    }
+  };
+  input.click();
+}
+
+function exportJsonTextarea(textareaId) {
+  const config = BUILDER_JSON_TEXTAREAS[textareaId];
+  if (!config) {
+    log(`Unknown JSON textarea target: ${textareaId}`, 'err');
+    return;
+  }
+
+  const raw = document.getElementById(textareaId).value.trim();
+  if (!raw) {
+    log(`${config.label} is empty; nothing to export.`, 'err');
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    downloadTextFile(config.fileName, JSON.stringify(parsed, null, 2), 'application/json;charset=utf-8');
+    log(`Exported ${config.label}`, 'ok');
+  } catch (error) {
+    log(`${config.label}: ${error.message}`, 'err');
+  }
+}
+
+function setJsonTextarea(textareaId, value) {
+  document.getElementById(textareaId).value = value == null ? '' : JSON.stringify(value, null, 2);
+}
+
+function clearGeneratedOutputs() {
+  document.getElementById('codeOutputContainer').style.display = 'none';
+  document.getElementById('fixtureCompareOutput').style.display = 'none';
+}
+
+function renderFixtureCompare(result) {
+  const output = document.getElementById('fixtureCompareOutput');
+  output.style.display = 'block';
+  const statusClass = result.ok ? 'ok' : 'err';
+  const details = result.comparisons.map(item => {
+    if (item.match) {
+      return `<li><strong>${escHtml(item.label)}:</strong> exact match</li>`;
+    }
+    const diff = item.diff;
+    return `<li><strong>${escHtml(item.label)}:</strong> mismatch at line ${diff.lineNumber}<br/>Expected: <code>${escHtml(diff.expectedLine)}</code><br/>Actual: <code>${escHtml(diff.actualLine)}</code></li>`;
+  }).join('');
+  output.innerHTML = `
+    <div class="status ${statusClass}">${result.ok ? 'Golden fixture compare passed.' : 'Golden fixture compare failed.'}</div>
+    <ul>${details}</ul>
+  `;
 }
 
 // ── Curl-box helper ────────────────────────────────────────────────────
@@ -481,10 +940,670 @@ function renderBirds() {
   ).join('') + '</div>';
 }
 
+function resetCropPlanDefaults(silent = false) {
+  document.getElementById('cropPlanJson').value = JSON.stringify(defaultCropCatalog(), null, 2);
+  if (!silent) log('Loaded default crop catalog', 'info');
+}
+
+function clearFarmZoneOverrides() {
+  document.getElementById('farmZoneDefsJson').value = '';
+  log('Farm zone overrides cleared; builder will auto-generate farm zones', 'info');
+}
+
+function loadHostedFaunaTemplate() {
+  document.getElementById('hostedFaunaJson').value = JSON.stringify(defaultHostedFaunaTemplate(), null, 2);
+  log('Loaded hosted-fauna lookup template', 'info');
+}
+
+function clearHostedFaunaLookup() {
+  document.getElementById('hostedFaunaJson').value = '';
+  log('Hosted-fauna lookup cleared', 'info');
+}
+
+async function fetchGoldenFixture() {
+  if (cachedGoldenFixtureSuite) return cachedGoldenFixtureSuite;
+  try {
+    const module = await import(`${GOLDEN_FIXTURE_MODULE}?cacheBust=${Date.now()}`);
+    cachedGoldenFixtureSuite = module.default;
+  } catch (error) {
+    cachedGoldenFixtureSuite = EMBEDDED_GOLDEN_FIXTURE_SUITE;
+    log('Using embedded golden fixture fallback because the external fixture module could not be loaded.', 'info');
+  }
+  return cachedGoldenFixtureSuite;
+}
+
+function getDefaultGoldenFixture(fixtureSuite) {
+  const defaultId = fixtureSuite.defaultScenarioId;
+  return fixtureSuite.scenarios.find(scenario => scenario.id === defaultId) || fixtureSuite.scenarios[0];
+}
+
+function applyGoldenFixture(fixture) {
+  const { region, plants, birds, cropCatalog, farmZoneDefs, hostedFauna } = fixture.inputs;
+
+  document.getElementById('regionId').value = region.id;
+  document.getElementById('epaCode').value = region.code;
+  document.getElementById('regionName').value = region.name;
+  document.getElementById('regionLabel').value = region.label;
+  document.getElementById('regionIcon').value = region.icon;
+  document.getElementById('regionDesc').value = region.desc;
+  document.getElementById('hnpUrl').value = region.hnpUrl;
+  document.getElementById('ebirdRegion').value = fixture.inputs.ebirdRegion || '';
+  document.getElementById('maxPlants').value = String(Math.max(plants.length, 1));
+  document.getElementById('maxBirds').value = String(Math.max(birds.length, 1));
+
+  setJsonTextarea('cropPlanJson', cropCatalog);
+  setJsonTextarea('farmZoneDefsJson', farmZoneDefs);
+  setJsonTextarea('hostedFaunaJson', hostedFauna);
+
+  fetchedPlants = plants.map(plant => ({ ...plant }));
+  fetchedBirds = birds.map(bird => ({ ...bird }));
+  birdSpeciesCodes = [];
+  birdTaxonomy = [];
+
+  renderPlants();
+  renderBirds();
+  clearGeneratedOutputs();
+  document.getElementById('validationOutput').style.display = 'none';
+  log(`Loaded golden fixture ${fixture.label || fixture.id} with ${plants.length} plants and ${birds.length} birds`, 'ok');
+}
+
+async function loadGoldenFixture() {
+  try {
+    const fixtureSuite = await fetchGoldenFixture();
+    const fixture = getDefaultGoldenFixture(fixtureSuite);
+    applyGoldenFixture(fixture);
+  } catch (error) {
+    log(`Failed to load golden fixture: ${error.message}`, 'err');
+  }
+}
+
+function normalizeCompareText(text) {
+  return String(text || '').replace(/\r\n/g, '\n').trim();
+}
+
+function firstDiffLine(expected, actual) {
+  const expectedLines = normalizeCompareText(expected).split('\n');
+  const actualLines = normalizeCompareText(actual).split('\n');
+  const maxLines = Math.max(expectedLines.length, actualLines.length);
+  for (let index = 0; index < maxLines; index += 1) {
+    const expectedLine = expectedLines[index] ?? '';
+    const actualLine = actualLines[index] ?? '';
+    if (expectedLine !== actualLine) {
+      return { lineNumber: index + 1, expectedLine, actualLine };
+    }
+  }
+  return { lineNumber: 1, expectedLine: '', actualLine: '' };
+}
+
+async function runGoldenFixtureCompare() {
+  try {
+    const fixtureSuite = await fetchGoldenFixture();
+    const comparisons = [];
+
+    for (const fixture of fixtureSuite.scenarios) {
+      applyGoldenFixture(fixture);
+
+      if (fixture.expected.strictValidation) {
+        const strictValidation = validateBuilderState({ allowDraft: false });
+        comparisons.push(...compareFixtureValidation(`${fixture.label} strict validation`, strictValidation, fixture.expected.strictValidation));
+      }
+
+      if (fixture.expected.generation) {
+        const generationExpectation = fixture.expected.generation;
+        const result = generateCode({ allowDraft: !!generationExpectation.allowDraft });
+        if (!result) {
+          comparisons.push({
+            label: `${fixture.label} generation`,
+            match: false,
+            diff: { lineNumber: 1, expectedLine: 'generation should succeed', actualLine: 'generation failed' },
+          });
+          continue;
+        }
+
+        comparisons.push(...compareFixtureValidation(`${fixture.label} generation`, result.validation, generationExpectation.validation));
+        if (generationExpectation.outputs) {
+          comparisons.push(...[
+            { key: 'ecoregionCode', label: 'Ecoregion module' },
+            { key: 'birdsCode', label: 'Bird module' },
+            { key: 'bundleCode', label: 'Region bundle' },
+          ].map(item => {
+            const expected = normalizeCompareText(generationExpectation.outputs[item.key]);
+            const actual = normalizeCompareText(result[item.key]);
+            const match = expected === actual;
+            return {
+              label: `${fixture.label} ${item.label}`,
+              match,
+              diff: match ? null : firstDiffLine(expected, actual),
+            };
+          }));
+        }
+      }
+    }
+
+    const ok = comparisons.every(item => item.match);
+    renderFixtureCompare({ ok, comparisons });
+    log(ok ? 'Golden fixture suite passed' : 'Golden fixture suite found mismatches', ok ? 'ok' : 'err');
+  } catch (error) {
+    log(`Golden fixture compare failed: ${error.message}`, 'err');
+  }
+}
+
+function compareFixtureValidation(prefix, actualValidation, expectedValidation) {
+  const comparisons = [];
+  if (typeof expectedValidation.hostedCoverage === 'number') {
+    const actualCoverage = actualValidation.hostedCoverage;
+    comparisons.push({
+      label: `${prefix} hosted coverage`,
+      match: actualCoverage === expectedValidation.hostedCoverage,
+      diff: actualCoverage === expectedValidation.hostedCoverage
+        ? null
+        : {
+            lineNumber: 1,
+            expectedLine: String(expectedValidation.hostedCoverage),
+            actualLine: String(actualCoverage),
+          },
+    });
+  }
+  for (const expectedMessage of expectedValidation.errorsIncludes || []) {
+    const match = actualValidation.errors.some(message => message.includes(expectedMessage));
+    comparisons.push({
+      label: `${prefix} error contains`,
+      match,
+      diff: match
+        ? null
+        : {
+            lineNumber: 1,
+            expectedLine: expectedMessage,
+            actualLine: actualValidation.errors.join(' | '),
+          },
+    });
+  }
+  for (const expectedMessage of expectedValidation.warningsIncludes || []) {
+    const match = actualValidation.warnings.some(message => message.includes(expectedMessage));
+    comparisons.push({
+      label: `${prefix} warning contains`,
+      match,
+      diff: match
+        ? null
+        : {
+            lineNumber: 1,
+            expectedLine: expectedMessage,
+            actualLine: actualValidation.warnings.join(' | '),
+          },
+    });
+  }
+  return comparisons;
+}
+
+function parseBuilderJson(textareaId, label, fallbackValue) {
+  const raw = document.getElementById(textareaId).value.trim();
+  if (!raw) return fallbackValue;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`${label}: ${error.message}`);
+  }
+}
+
+function normalizeLookupKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getPlantScientificName(plant) {
+  return plant.scientific_name || plant.sci || plant.sciName || '';
+}
+
+function getPlantFamily(plant) {
+  return plant.family || plant.family_name || plant.familyName || '';
+}
+
+function getPlantGenus(plant) {
+  const sciName = getPlantScientificName(plant).trim();
+  return sciName ? sciName.split(/\s+/)[0] : '';
+}
+
+function validateHostedCreatureEntry(entry, path, errors) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    errors.push(`${path} must be an object.`);
+    return;
+  }
+  for (const field of ['name', 'sci', 'type', 'role', 'note']) {
+    if (!entry[field] || typeof entry[field] !== 'string') {
+      errors.push(`${path}.${field} must be a non-empty string.`);
+    }
+  }
+  if (entry.type && !VALID_WILDLIFE_TYPES.includes(entry.type)) {
+    errors.push(`${path}.type must be one of: ${VALID_WILDLIFE_TYPES.join(', ')}.`);
+  }
+}
+
+function normalizeHostedEntries(entries, path, errors) {
+  if (!Array.isArray(entries)) {
+    errors.push(`${path} must be an array.`);
+    return [];
+  }
+
+  const seenNames = new Set();
+  const normalized = [];
+  entries.forEach((entry, index) => {
+    const entryPath = `${path}[${index}]`;
+    validateHostedCreatureEntry(entry, entryPath, errors);
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
+    const normalizedName = normalizeLookupKey(entry.name || entry.sci);
+    if (normalizedName) {
+      if (seenNames.has(normalizedName)) {
+        errors.push(`${entryPath}.name duplicates another hosted-creature entry in the same bucket.`);
+        return;
+      }
+      seenNames.add(normalizedName);
+    }
+    normalized.push({
+      name: entry.name.trim(),
+      sci: entry.sci.trim(),
+      type: entry.type.trim(),
+      role: entry.role.trim(),
+      note: entry.note.trim(),
+    });
+  });
+  return normalized;
+}
+
+function validateHostedLookupBucket(bucket, path, errors, warnings) {
+  if (!bucket || typeof bucket !== 'object' || Array.isArray(bucket)) {
+    errors.push(`${path} must be an object.`);
+    return null;
+  }
+  if (!Array.isArray(bucket.hosted)) {
+    errors.push(`${path}.hosted must be an array.`);
+    return null;
+  }
+  const normalizedHosted = normalizeHostedEntries(bucket.hosted, `${path}.hosted`, errors);
+  if (!bucket.reviewed) {
+    warnings.push(`${path} is not marked reviewed.`);
+  }
+  return {
+    hosted: normalizedHosted,
+    confidence: typeof bucket.confidence === 'string' ? bucket.confidence : '',
+    reviewed: !!bucket.reviewed,
+    source: typeof bucket.source === 'string' ? bucket.source : '',
+  };
+}
+
+function parseHostedFaunaLookup(errors, warnings) {
+  let rawLookup;
+  try {
+    rawLookup = parseBuilderJson('hostedFaunaJson', 'Hosted fauna lookup JSON', emptyHostedFaunaLookup());
+  } catch (error) {
+    errors.push(error.message);
+    return { lookup: emptyHostedFaunaLookup(), stats: { bucketCount: 0, hostedCount: 0 } };
+  }
+
+  if (!rawLookup || typeof rawLookup !== 'object' || Array.isArray(rawLookup)) {
+    errors.push('Hosted fauna lookup JSON must be an object.');
+    return { lookup: emptyHostedFaunaLookup(), stats: { bucketCount: 0, hostedCount: 0 } };
+  }
+
+  const lookup = emptyHostedFaunaLookup();
+  let bucketCount = 0;
+  let hostedCount = 0;
+
+  for (const bucketName of ['species', 'genus', 'family']) {
+    const sourceBucket = rawLookup[bucketName];
+    if (sourceBucket == null) continue;
+    if (!sourceBucket || typeof sourceBucket !== 'object' || Array.isArray(sourceBucket)) {
+      errors.push(`hostedFauna.${bucketName} must be an object.`);
+      continue;
+    }
+    for (const [rawKey, bucket] of Object.entries(sourceBucket)) {
+      const key = normalizeLookupKey(rawKey);
+      if (!key) {
+        errors.push(`hostedFauna.${bucketName} contains an empty lookup key.`);
+        continue;
+      }
+      const normalizedBucket = validateHostedLookupBucket(bucket, `hostedFauna.${bucketName}.${rawKey}`, errors, warnings);
+      if (!normalizedBucket) continue;
+      lookup[bucketName][key] = normalizedBucket;
+      bucketCount += 1;
+      hostedCount += normalizedBucket.hosted.length;
+    }
+  }
+
+  const fallbackBucket = rawLookup.fallback;
+  if (fallbackBucket != null) {
+    if (!fallbackBucket || typeof fallbackBucket !== 'object' || Array.isArray(fallbackBucket)) {
+      errors.push('hostedFauna.fallback must be an object.');
+    } else {
+      for (const [rawKey, bucket] of Object.entries(fallbackBucket)) {
+        const key = normalizeLookupKey(rawKey);
+        if (!key) {
+          errors.push('hostedFauna.fallback contains an empty lookup key.');
+          continue;
+        }
+        if (!['flower', 'shrub', 'tree', 'default'].includes(key)) {
+          warnings.push(`hostedFauna.fallback.${rawKey} is not a standard plant-type key.`);
+        }
+        const normalizedBucket = validateHostedLookupBucket(bucket, `hostedFauna.fallback.${rawKey}`, errors, warnings);
+        if (!normalizedBucket) continue;
+        lookup.fallback[key] = normalizedBucket;
+        bucketCount += 1;
+        hostedCount += normalizedBucket.hosted.length;
+      }
+    }
+  }
+
+  return { lookup, stats: { bucketCount, hostedCount } };
+}
+
+function resolveHostedFaunaForPlant(plant, plantType, lookup) {
+  const sciName = normalizeLookupKey(getPlantScientificName(plant));
+  const genus = normalizeLookupKey(getPlantGenus(plant));
+  const family = normalizeLookupKey(getPlantFamily(plant));
+
+  const speciesBucket = sciName ? lookup.species?.[sciName] : null;
+  if (speciesBucket) return { matchType: 'species', bucket: speciesBucket, hosted: speciesBucket.hosted || [] };
+
+  const genusBucket = genus ? lookup.genus?.[genus] : null;
+  if (genusBucket) return { matchType: 'genus', bucket: genusBucket, hosted: genusBucket.hosted || [] };
+
+  const familyBucket = family ? lookup.family?.[family] : null;
+  if (familyBucket) return { matchType: 'family', bucket: familyBucket, hosted: familyBucket.hosted || [] };
+
+  const fallbackBucket = lookup.fallback?.[plantType] || lookup.fallback?.default || null;
+  if (fallbackBucket) return { matchType: 'fallback', bucket: fallbackBucket, hosted: fallbackBucket.hosted || [] };
+
+  return { matchType: null, bucket: null, hosted: [] };
+}
+
+function buildPlantGenerationData(lookup, errors, warnings, allowDraft) {
+  const plants = fetchedPlants.map((plant, index) => {
+    const name = plant.common_name || plant.name || plant.comName || `Plant ${index + 1}`;
+    const sci = getPlantScientificName(plant);
+    const type = guessPlantType(plant);
+    const hostedResolution = resolveHostedFaunaForPlant(plant, type, lookup);
+    const faunaNames = new Set();
+    const hostedEntries = [];
+
+    hostedResolution.hosted.forEach((entry, hostedIndex) => {
+      const normalizedName = normalizeLookupKey(entry.name || entry.sci || `${name}-${hostedIndex}`);
+      if (faunaNames.has(normalizedName)) {
+        errors.push(`Hosted fauna for plant ${name} contains duplicate creature name: ${entry.name}.`);
+        return;
+      }
+      faunaNames.add(normalizedName);
+      hostedEntries.push(entry);
+    });
+
+    const missingHostedFauna = hostedEntries.length === 0;
+    if (missingHostedFauna) {
+      const message = `Plant ${name} (${sci || 'no scientific name'}) has no hosted-fauna lookup match.`;
+      if (allowDraft) warnings.push(message);
+      else errors.push(message);
+    }
+
+    return {
+      plant,
+      name,
+      sci,
+      type,
+      hostedEntries,
+      hostedMatchType: hostedResolution.matchType,
+      hostedBucket: hostedResolution.bucket,
+      missingHostedFauna,
+    };
+  });
+
+  return {
+    plants,
+    coveredPlants: plants.filter(plant => !plant.missingHostedFauna).length,
+  };
+}
+
+function formatHostedEntriesCode(hostedEntries) {
+  if (!hostedEntries.length) return '[]';
+  return `[
+${hostedEntries.map(entry => `          ${JSON.stringify(entry)}`).join(',\n')}
+        ]`;
+}
+
+function mergeCropProfile(baseCrop, cropProfile) {
+  const merged = {
+    id: baseCrop.id,
+    name: baseCrop.name,
+    sciName: baseCrop.sciName,
+    growthPhaseGIDs: [...baseCrop.growthPhaseGIDs],
+    growthPhaseNames: baseCrop.growthPhaseNames ? [...baseCrop.growthPhaseNames] : null,
+    growthTimePerPhase: baseCrop.growthTimePerPhase,
+    yieldGold: baseCrop.yieldGold,
+    marketIconGID: baseCrop.marketIconGID,
+    unlockCriteria: baseCrop.unlockCriteria ? { ...baseCrop.unlockCriteria } : null,
+    seasons: [...baseCrop.seasons],
+  };
+  if (!cropProfile || typeof cropProfile !== 'object') return merged;
+  for (const field of Object.keys(cropProfile)) {
+    if (!ALLOWED_CROP_PROFILE_FIELDS.has(field)) continue;
+    if (field === 'unlockCriteria' && cropProfile.unlockCriteria && typeof cropProfile.unlockCriteria === 'object') {
+      merged.unlockCriteria = { ...cropProfile.unlockCriteria };
+    } else if (field === 'seasons' && Array.isArray(cropProfile.seasons)) {
+      merged.seasons = [...cropProfile.seasons];
+    } else {
+      merged[field] = cropProfile[field];
+    }
+  }
+  return merged;
+}
+
+function autoFarmZoneName(crop, index) {
+  if (BASE_CROP_MAP[crop.id]?.defaultZoneName) return BASE_CROP_MAP[crop.id].defaultZoneName;
+  const suffixes = ['Patch', 'Row', 'Beds', 'Field', 'Glade', 'Orchard', 'Hill', 'Paddock'];
+  return `${crop.name} ${suffixes[index % suffixes.length]}`;
+}
+
+function buildAutoFarmZoneDefs(effectiveCrops) {
+  return effectiveCrops.map((crop, index) => ({
+    name: autoFarmZoneName(crop, index),
+    cropId: crop.id,
+    cost: BASE_CROP_MAP[crop.id]?.defaultZoneCost ?? Math.max(0, index * 50000),
+  }));
+}
+
+function validateBuilderState(options = {}) {
+  const { allowDraft = false } = options;
+  const errors = [];
+  const warnings = [];
+  let rawCropCatalog;
+  let rawFarmZoneDefs;
+  const hostedFaunaState = parseHostedFaunaLookup(errors, warnings);
+
+  try {
+    rawCropCatalog = parseBuilderJson('cropPlanJson', 'Region crop catalog JSON', defaultCropCatalog());
+  } catch (error) {
+    errors.push(error.message);
+    return { errors, warnings, effectiveCrops: [], cropOverrides: {}, farmZoneDefs: [], hostedFaunaStats: hostedFaunaState.stats, generatedPlants: [], hostedCoverage: 0 };
+  }
+
+  try {
+    rawFarmZoneDefs = parseBuilderJson('farmZoneDefsJson', 'Farm zone overrides JSON', null);
+  } catch (error) {
+    errors.push(error.message);
+    return { errors, warnings, effectiveCrops: [], cropOverrides: {}, farmZoneDefs: [], hostedFaunaStats: hostedFaunaState.stats, generatedPlants: [], hostedCoverage: 0 };
+  }
+
+  if (!rawCropCatalog || typeof rawCropCatalog !== 'object' || Array.isArray(rawCropCatalog)) {
+    errors.push('Region crop catalog JSON must be an object keyed by crop id.');
+    return { errors, warnings, effectiveCrops: [], cropOverrides: {}, farmZoneDefs: [], hostedFaunaStats: hostedFaunaState.stats, generatedPlants: [], hostedCoverage: 0 };
+  }
+
+  const cropEntries = Object.entries(rawCropCatalog);
+  if (!cropEntries.length) errors.push('Region crop catalog must define at least one crop.');
+
+  const effectiveCrops = [];
+  for (const [cropId, cropDef] of cropEntries) {
+    if (!cropDef || typeof cropDef !== 'object' || Array.isArray(cropDef)) {
+      errors.push(`crops.${cropId} must be an object.`);
+      continue;
+    }
+    const merged = mergeCropProfile({
+      id: cropDef.id ?? cropId,
+      name: cropDef.name,
+      sciName: cropDef.sciName,
+      growthPhaseGIDs: cropDef.growthPhaseGIDs,
+      growthPhaseNames: cropDef.growthPhaseNames,
+      growthTimePerPhase: cropDef.growthTimePerPhase,
+      yieldGold: cropDef.yieldGold,
+      marketIconGID: cropDef.marketIconGID,
+      unlockCriteria: cropDef.unlockCriteria,
+      seasons: cropDef.seasons,
+    }, null);
+
+    if (merged.id !== cropId) {
+      errors.push(`crops.${cropId}.id must match its object key.`);
+    }
+    if (!merged.name || typeof merged.name !== 'string') {
+      errors.push(`crops.${cropId}.name must be a non-empty string.`);
+    }
+    if (!Array.isArray(merged.growthPhaseGIDs) || merged.growthPhaseGIDs.length < 2 || merged.growthPhaseGIDs.some(gid => !Number.isFinite(gid))) {
+      errors.push(`crops.${cropId}.growthPhaseGIDs must be an array of at least 2 numbers.`);
+    }
+    if (merged.growthPhaseNames != null) {
+      if (!Array.isArray(merged.growthPhaseNames) || merged.growthPhaseNames.some(name => typeof name !== 'string')) {
+        errors.push(`crops.${cropId}.growthPhaseNames must be an array of strings when provided.`);
+      }
+    }
+    if (!Number.isFinite(merged.growthTimePerPhase) || merged.growthTimePerPhase <= 0) {
+      errors.push(`crops.${cropId}.growthTimePerPhase must be positive.`);
+    }
+    if (!Number.isFinite(merged.yieldGold) || merged.yieldGold <= 0) {
+      errors.push(`crops.${cropId}.yieldGold must be positive.`);
+    }
+    if (!Number.isFinite(merged.marketIconGID)) {
+      errors.push(`crops.${cropId}.marketIconGID must be a number.`);
+    }
+    if (!Array.isArray(merged.seasons) || merged.seasons.length === 0) {
+      errors.push(`crops.${cropId}.seasons must be a non-empty array.`);
+    } else if (merged.seasons.some(season => !VALID_SEASONS.includes(season))) {
+      errors.push(`crops.${cropId}.seasons must only contain ${VALID_SEASONS.join(', ')}.`);
+    }
+    if (merged.unlockCriteria && merged.unlockCriteria.totalSold != null) {
+      if (!Number.isFinite(merged.unlockCriteria.totalSold) || merged.unlockCriteria.totalSold < 0) {
+        errors.push(`crops.${cropId}.unlockCriteria.totalSold must be non-negative.`);
+      }
+    }
+
+    effectiveCrops.push(merged);
+  }
+
+  const seasonCoverage = new Set(effectiveCrops.flatMap(crop => crop.seasons));
+  const missingSeasons = VALID_SEASONS.filter(season => !seasonCoverage.has(season));
+  if (missingSeasons.length) warnings.push(`Enabled crop lineup does not cover: ${missingSeasons.join(', ')}.`);
+
+  let farmZoneDefs = buildAutoFarmZoneDefs(effectiveCrops);
+  if (rawFarmZoneDefs !== null) {
+    if (!Array.isArray(rawFarmZoneDefs)) {
+      errors.push('Farm zone overrides JSON must be an array when provided.');
+    } else {
+      const seenZoneNames = new Set();
+      farmZoneDefs = [];
+      for (const [index, zoneDef] of rawFarmZoneDefs.entries()) {
+        if (!zoneDef || typeof zoneDef !== 'object' || Array.isArray(zoneDef)) {
+          errors.push(`farmZoneDefs[${index}] must be an object.`);
+          continue;
+        }
+        if (!zoneDef.name || typeof zoneDef.name !== 'string') {
+          errors.push(`farmZoneDefs[${index}].name must be a non-empty string.`);
+        }
+        if (!zoneDef.cropId || typeof zoneDef.cropId !== 'string') {
+          errors.push(`farmZoneDefs[${index}].cropId must be a string.`);
+        }
+        if (!Number.isFinite(zoneDef.cost) || zoneDef.cost < 0) {
+          errors.push(`farmZoneDefs[${index}].cost must be a non-negative number.`);
+        }
+        if (zoneDef.cropId && !effectiveCrops.find(crop => crop.id === zoneDef.cropId)) {
+          errors.push(`farmZoneDefs[${index}] references disabled or unknown crop: ${zoneDef.cropId}`);
+        }
+        if (zoneDef.name && seenZoneNames.has(zoneDef.name)) {
+          errors.push(`Duplicate farm zone name: ${zoneDef.name}`);
+        }
+        if (zoneDef.name) seenZoneNames.add(zoneDef.name);
+        farmZoneDefs.push({ name: zoneDef.name, cropId: zoneDef.cropId, cost: zoneDef.cost });
+      }
+    }
+  }
+
+  if (!farmZoneDefs.length) errors.push('At least one farm zone definition is required.');
+  if (farmZoneDefs.length && !farmZoneDefs.some(zone => zone.cost === 0)) {
+    errors.push('Farm zone definitions must include a starter zone with cost 0.');
+  }
+
+  const plantGeneration = buildPlantGenerationData(hostedFaunaState.lookup, errors, warnings, allowDraft);
+
+  if (!fetchedPlants.length) warnings.push('No plants loaded; generated ecoregion output will be incomplete.');
+  if (!fetchedBirds.length) warnings.push('No birds loaded; generated bird module will be empty.');
+  if (fetchedPlants.length && plantGeneration.coveredPlants === 0) {
+    warnings.push('Hosted-fauna lookup currently covers none of the loaded plants.');
+  }
+
+  return {
+    errors,
+    warnings,
+    effectiveCrops,
+    cropOverrides: {},
+    farmZoneDefs,
+    hostedFaunaStats: hostedFaunaState.stats,
+    generatedPlants: plantGeneration.plants,
+    hostedCoverage: plantGeneration.coveredPlants,
+  };
+}
+
+function formatCropCatalogCode(crops) {
+  if (!crops.length) return '  {}';
+  return crops.map(crop => `  ${crop.id}: {
+    id: ${JSON.stringify(crop.id)},
+    name: ${JSON.stringify(crop.name)},
+    sciName: ${JSON.stringify(crop.sciName)},
+    growthPhaseGIDs: ${JSON.stringify(crop.growthPhaseGIDs)},
+    growthPhaseNames: ${JSON.stringify(crop.growthPhaseNames)},
+    growthTimePerPhase: ${crop.growthTimePerPhase},
+    yieldGold: ${crop.yieldGold},
+    marketIconGID: ${crop.marketIconGID},
+    unlockCriteria: ${JSON.stringify(crop.unlockCriteria)},
+    seasons: ${JSON.stringify(crop.seasons)},
+  }`).join(',\n');
+}
+
+function renderValidationReport(report) {
+  const output = document.getElementById('validationOutput');
+  output.style.display = 'block';
+  const status = report.errors.length ? 'err' : report.warnings.length ? 'info' : 'ok';
+  const heading = report.errors.length
+    ? 'Validation failed — fix blocking issues or use Draft generation.'
+    : report.warnings.length
+      ? 'Validation passed with draft warnings.'
+      : 'Validation passed.';
+  output.innerHTML = `
+    <div class="status ${status}">${heading}</div>
+    <div><strong>Effective crops:</strong> ${report.effectiveCrops.length}</div>
+    <div><strong>Farm zones:</strong> ${report.farmZoneDefs.length}</div>
+    <div><strong>Crop catalog entries:</strong> ${report.effectiveCrops.length}</div>
+    <div><strong>Hosted-fauna buckets:</strong> ${report.hostedFaunaStats.bucketCount}</div>
+    <div><strong>Hosted-fauna entries:</strong> ${report.hostedFaunaStats.hostedCount}</div>
+    <div><strong>Plants with fauna coverage:</strong> ${report.hostedCoverage}/${report.generatedPlants.length}</div>
+    ${report.errors.length ? `<h3 style="margin-top:12px; color:var(--hi);">Blocking Issues</h3><ul>${report.errors.map(msg => `<li>${escHtml(msg)}</li>`).join('')}</ul>` : ''}
+    ${report.warnings.length ? `<h3 style="margin-top:12px; color:var(--ok);">Warnings</h3><ul>${report.warnings.map(msg => `<li>${escHtml(msg)}</li>`).join('')}</ul>` : ''}
+  `;
+}
+
 // ── Code Generation ────────────────────────────────────────────────────
-function generateCode() {
+function generateCode(options = {}) {
   if (!fetchedPlants.length && !fetchedBirds.length) {
     log('No data loaded yet — load plants and/or birds first', 'err');
+    return;
+  }
+
+  const { allowDraft = false } = options;
+  const validation = validateBuilderState({ allowDraft });
+  renderValidationReport(validation);
+  if (validation.errors.length) {
+    log(`Builder validation failed — fix blocking issues before generating ${allowDraft ? 'draft ' : ''}output.`, 'err');
     return;
   }
 
@@ -495,18 +1614,27 @@ function generateCode() {
   const regionIcon = document.getElementById('regionIcon').value.trim() || '🌲';
   const regionDesc = document.getElementById('regionDesc').value.trim() || '';
   const hnpUrl     = document.getElementById('hnpUrl').value.trim() || '';
+  const fruitingPlantCount = fetchedPlants.filter(p => {
+    const type = guessPlantType(p);
+    return type === 'tree' || !!(p.edible_parts && p.edible_parts.length > 0);
+  }).length;
+  const plantTypeSet = new Set(fetchedPlants.map(p => guessPlantType(p)));
 
   // ── Generate ecoregions entry ───────────────────────────────────────
-  const plantsJs = fetchedPlants.map((p, i) => {
-    const name = p.common_name || p.name || `Plant ${i+1}`;
-    const sci  = p.scientific_name || p.sci || '';
-    const type = guessPlantType(p);
+  const plantsJs = validation.generatedPlants.map((plantData, i) => {
+    const { plant: p, name, sci, type, hostedEntries, hostedMatchType, hostedBucket } = plantData;
     const icon = typeIcon(type, p);
     const hasFruit = type === 'tree' || !!(p.edible_parts && p.edible_parts.length);
     const id   = toSnakeCase(name);
     const height = p.height || p.mature_height || '1–3 ft';
     const season = p.bloom_time || p.bloom_period || 'Spring';
     const desc = p.description || p.desc || `A native ${type} of the region.`;
+    const hostedEntriesCode = formatHostedEntriesCode(hostedEntries);
+    const wildlifeSource = hostedBucket?.source || `${hostedMatchType || 'missing'} lookup`;
+    const wildlifeNote = hostedEntries.length
+      ? `${hostedEntries.length} hosted fauna from ${wildlifeSource}`
+      : 'Hosted fauna lookup still needed for this plant';
+    const caterpillarSpp = hostedEntries.filter(entry => entry.type === 'butterfly' || entry.type === 'moth').length;
 
     return `      {
         id:               '${id}',
@@ -518,13 +1646,9 @@ function generateCode() {
         desc:             ${JSON.stringify(truncate(desc, 250))},
         height:           ${JSON.stringify(String(height))},
         seasonOfInterest: ${JSON.stringify(String(season))},
-        insectsHosted: [
-          // TODO: Fill in with region-specific insect data
-          // Use Doug Tallamy's data or NWF Native Plant Finder
-          // Shape: { name, sci, type: 'butterfly'|'moth'|'bee'|'fly'|'beetle'|'wasp', role, note }
-        ],
-        wildlifeNote:     'TODO: Wildlife that depends on this plant',
-        caterpillarSpp:   ${Math.floor(Math.random() * 20) + 5},
+        insectsHosted: ${hostedEntriesCode},
+        wildlifeNote:     ${JSON.stringify(wildlifeNote)},
+        caterpillarSpp:   ${caterpillarSpp},
         biosphereBonus:   ${[5, 8, 10, 12, 15][Math.floor(i / (fetchedPlants.length / 5))] || 5},
         cost:             ${computePlantCost(i, type)},
         duration:         ${computePlantDuration(type)},
@@ -560,8 +1684,12 @@ ${plantsJs}
   // ── Generate birds module ───────────────────────────────────────────
   const birdsEntries = fetchedBirds.map((b, i) => {
     const id = toSnakeCase(b.comName);
-    const tier = Math.floor(i / (fetchedBirds.length / 5));
-    const criteria = generateBirdCriteria(i, fetchedBirds.length);
+    const criteria = generateBirdCriteria(i, fetchedBirds.length, {
+      plantCount: fetchedPlants.length,
+      fruitingPlantCount,
+      plantTypes: [...plantTypeSet],
+      estimatedCreaturePool: Math.max(6, fetchedPlants.length * 2),
+    });
 
     return `  ${id}: {
     id:   '${id}',
@@ -588,11 +1716,13 @@ ${birdsEntries}
 export const BIRD_LIST_${regionId.toUpperCase()} = Object.values(BIRDS_${regionId.toUpperCase()});
 `;
 
+  const cropsCode = formatCropCatalogCode(validation.effectiveCrops);
+  const farmZoneDefsCode = JSON.stringify(validation.farmZoneDefs, null, 2).replace(/^(?!\s*$)/gm, '  ');
+
   // ── Generate region bundle ──────────────────────────────────────────
   const bundleCode = `// regions/${regionId}.js — Region data bundle for ${regionName} (${epaCode})
 // Aggregates all data modules that define this ecoregion's gameplay content.
 
-import { CROPS }                                       from '../crops.js';
 import { RESEARCH }                                    from '../research.js';
 import { ECOREGIONS }                                  from '../ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST }            from '../ranch.js';
@@ -622,26 +1752,15 @@ export default {
   invasiveMap:           INVASIVE_MAP,    // TODO: region-specific invasive map
   totalInvadedAcresBase: TOTAL_INVADED_ACRES,
   birdList:              BIRD_LIST_${regionId.toUpperCase()},
-  crops:                 CROPS,           // TODO: region-specific crops
+  crops: {
+${cropsCode}
+  },
   research:              RESEARCH,        // TODO: region-specific research
   ranchAnimals:          RANCH_ANIMALS,
   ranchAnimalList:       RANCH_ANIMAL_LIST,
 
-  // Farm zone definitions — region-specific
-  farmZoneDefs: [
-    { name: 'Berry Patch',        cropId: 'strawberry',  cost:          0 },
-    { name: 'Onion Row',          cropId: 'greenOnion',  cost:      10000 },
-    { name: 'Root Beds',          cropId: 'potato',      cost:      20000 },
-    { name: 'Pepper Row',         cropId: 'onion',       cost:      30000 },
-    { name: 'Bean Bottom',        cropId: 'carrot',      cost:      50000 },
-    { name: 'Berry Thicket',      cropId: 'blueberry',   cost:      70000 },
-    { name: 'Fruit Orchard',      cropId: 'parsnip',     cost:     100000 },
-    { name: 'Greens Glade',       cropId: 'lettuce',     cost:     150000 },
-    { name: 'Brassica Patch',     cropId: 'cauliflower', cost:     200000 },
-    { name: 'Grain Paddies',      cropId: 'rice',        cost:     300000 },
-    { name: 'Winter Beds',        cropId: 'broccoli',    cost:     500000 },
-    { name: 'Summer Hill',        cropId: 'asparagus',   cost:     750000 },
-  ],
+  // Farm zone definitions — generated from the builder crop plan
+  farmZoneDefs: ${farmZoneDefsCode},
 };
 `;
 
@@ -650,7 +1769,8 @@ export default {
   document.getElementById('codeBirds').value = birdsCode;
   document.getElementById('codeBundle').value = bundleCode;
   document.getElementById('codeOutputContainer').style.display = 'block';
-  log(`Generated code for ${fetchedPlants.length} plants + ${fetchedBirds.length} birds`, 'ok');
+  log(`Generated ${allowDraft ? 'draft ' : ''}code for ${fetchedPlants.length} plants + ${fetchedBirds.length} birds`, validation.errors.length ? 'info' : 'ok');
+  return { ecoregionCode, birdsCode, bundleCode, validation };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -704,15 +1824,19 @@ function computePlantDuration(type) {
   return type === 'tree' ? 30 : type === 'shrub' ? 18 : 7;
 }
 
-function generateBirdCriteria(index, total) {
+function generateBirdCriteria(index, total, metrics) {
   const frac = index / total;
   const criteria = {};
-  criteria.insectsDiscovered = Math.floor(3 + frac * 25);
-  if (frac > 0.15) criteria.plantsEstablished = Math.floor(2 + frac * 10);
-  if (frac > 0.3)  criteria.fruitingPlants = Math.floor(1 + frac * 5);
-  if (frac > 0.5)  {
-    const types = ['flower', 'shrub', 'tree'];
-    criteria.hasPlantType = types[Math.floor(frac * 3) % 3];
+  const plantCount = metrics?.plantCount || 0;
+  const fruitingPlantCount = metrics?.fruitingPlantCount || 0;
+  const estimatedCreaturePool = metrics?.estimatedCreaturePool || Math.max(6, plantCount * 2);
+  const plantTypes = metrics?.plantTypes?.length ? metrics.plantTypes : ['flower', 'shrub', 'tree'];
+
+  criteria.insectsDiscovered = Math.max(2, Math.min(estimatedCreaturePool, Math.floor(2 + frac * estimatedCreaturePool)));
+  if (plantCount > 0 && frac > 0.15) criteria.plantsEstablished = Math.max(1, Math.min(plantCount, Math.floor(1 + frac * plantCount)));
+  if (fruitingPlantCount > 0 && frac > 0.3) criteria.fruitingPlants = Math.max(1, Math.min(fruitingPlantCount, Math.floor(1 + frac * fruitingPlantCount)));
+  if (frac > 0.5 && plantTypes.length) {
+    criteria.hasPlantType = plantTypes[Math.floor(frac * plantTypes.length) % plantTypes.length];
   }
   return criteria;
 }
@@ -746,6 +1870,8 @@ function guessBirdAttractedBy(bird) {
   if (family.includes('swallow') || family.includes('flycatcher')) return 'Abundant flying insects over open habitat';
   return 'Native plant diversity providing caterpillars and seeds';
 }
+
+resetCropPlanDefaults(true);
 </script>
 </body>
 </html>

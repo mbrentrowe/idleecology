@@ -1,9 +1,9 @@
 // game.js — pure game engine for the text-UI version of Idle Ecologist
 // No DOM access. Exports createEngine() and zone definition arrays.
 
-import { CROPS, CropInstance } from './crops.js';
+import { CROPS as BASE_CROPS, CropInstance, CropType } from './crops.js';
 import { RESEARCH }            from './research.js';
-import { ECOREGIONS, findPlant } from './ecoregions.js';
+import { ECOREGIONS } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
 import { BIRD_LIST } from './birds.js';
 import { INVASIVES, INVASIVE_MAP, TOTAL_INVADED_ACRES } from './invasives.js';
@@ -180,18 +180,102 @@ class Gold {
   add(n) { this.amount += n; }
 }
 
+const CROP_PROFILE_MUTABLE_FIELDS = [
+  'name',
+  'sciName',
+  'growthTimePerPhase',
+  'yieldGold',
+  'marketIconGID',
+  'unlockCriteria',
+  'seasons',
+];
+
+function normalizeCropType(cropId, cropLike) {
+  if (cropLike instanceof CropType) return cropLike;
+  if (!cropLike || typeof cropLike !== 'object') return null;
+
+  return new CropType({
+    id: cropLike.id ?? cropId,
+    name: cropLike.name,
+    sciName: cropLike.sciName ?? null,
+    growthPhaseGIDs: [...(cropLike.growthPhaseGIDs ?? [])],
+    growthPhaseNames: cropLike.growthPhaseNames ? [...cropLike.growthPhaseNames] : null,
+    growthTimePerPhase: cropLike.growthTimePerPhase,
+    yieldGold: cropLike.yieldGold,
+    marketIconGID: cropLike.marketIconGID,
+    unlockCriteria: cropLike.unlockCriteria ? { ...cropLike.unlockCriteria } : null,
+    seasons: cropLike.seasons ? [...cropLike.seasons] : undefined,
+  });
+}
+
+function resolveRegionCrops(regionData) {
+  const baseCrops = regionData.crops ?? BASE_CROPS;
+  const cropProfiles = regionData.cropProfiles ?? {};
+  const resolvedCrops = {};
+
+  for (const [cropId, rawCrop] of Object.entries(baseCrops)) {
+    const baseCrop = normalizeCropType(cropId, rawCrop);
+    if (!baseCrop) continue;
+
+    const hasProfile = Object.prototype.hasOwnProperty.call(cropProfiles, cropId);
+    const cropProfile = hasProfile ? cropProfiles[cropId] : undefined;
+    if (cropProfile === null) continue;
+    if (!cropProfile || typeof cropProfile !== 'object') {
+      resolvedCrops[cropId] = baseCrop;
+      continue;
+    }
+
+    const overrideFields = {};
+    for (const field of CROP_PROFILE_MUTABLE_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(cropProfile, field)) {
+        overrideFields[field] = cropProfile[field];
+      }
+    }
+
+    resolvedCrops[cropId] = new CropType({
+      id: baseCrop.id,
+      name: baseCrop.name,
+      sciName: baseCrop.sciName,
+      growthPhaseGIDs: [...baseCrop.growthPhaseGIDs],
+      growthPhaseNames: baseCrop.growthPhaseNames ? [...baseCrop.growthPhaseNames] : null,
+      growthTimePerPhase: baseCrop.growthTimePerPhase,
+      yieldGold: baseCrop.yieldGold,
+      marketIconGID: baseCrop.marketIconGID,
+      unlockCriteria: baseCrop.unlockCriteria ? { ...baseCrop.unlockCriteria } : null,
+      seasons: [...baseCrop.seasons],
+      ...overrideFields,
+    });
+  }
+
+  return resolvedCrops;
+}
+
+function resolveFarmZoneDefs(regionData, crops) {
+  const defs = regionData.farmZoneDefs ?? FARM_ZONE_DEFS;
+  return defs
+    .filter(def => crops[def.cropId])
+    .map(def => ({ ...def }));
+}
+
 // ── Engine factory ────────────────────────────────────────────────────────────
 export function createEngine(regionData) {
+  const effectiveCrops = resolveRegionCrops(regionData);
+  const effectiveFarmZoneDefs = resolveFarmZoneDefs(regionData, effectiveCrops);
 
   // ── Region data (shadows module-level imports within this factory) ─────────
-  const CROPS           = regionData.crops;
+  const CROPS           = effectiveCrops;
   const RESEARCH        = regionData.research;
   const INVASIVES       = regionData.invasives;
   const INVASIVE_MAP    = regionData.invasiveMap;
   const BIRD_LIST       = regionData.birdList;
-  const FARM_ZONE_DEFS  = regionData.farmZoneDefs;
+  const FARM_ZONE_DEFS  = effectiveFarmZoneDefs;
   const RANCH_ANIMALS   = regionData.ranchAnimals;
   const RANCH_ANIMAL_LIST = regionData.ranchAnimalList;
+  const farmZoneDefByName = new Map(FARM_ZONE_DEFS.map(def => [def.name, def]));
+
+  function getFarmZoneDef(zoneName) {
+    return farmZoneDefByName.get(zoneName) ?? null;
+  }
 
   /** Region-scoped plant lookup (replaces global findPlant from ecoregions.js). */
   function findPlant(plantId) {
@@ -543,7 +627,8 @@ export function createEngine(regionData) {
       for (const zone of farmList) {
         if (getFreeAcres() <= 0) break;
         zoneAcres.set(zone.name, (zoneAcres.get(zone.name) ?? 0) + 1);
-        if (!zoneCrops.has(zone.name)) zoneCrops.set(zone.name, new CropInstance(CROPS[FARM_ZONE_DEFS.find(d => d.name === zone.name)?.cropId]));
+        const cropId = getFarmZoneDef(zone.name)?.cropId;
+        if (!zoneCrops.has(zone.name) && cropId) zoneCrops.set(zone.name, new CropInstance(CROPS[cropId]));
       }
     }
 
@@ -1084,7 +1169,7 @@ export function createEngine(regionData) {
       });
       // Only fill in missing STARTER zone — others start at 0 until allocated
       for (const n of unlockedFarmZones) {
-        const def = FARM_ZONE_DEFS.find(d => d.name === n);
+        const def = getFarmZoneDef(n);
         if (def?.cost === 0 && !zoneAcres.has(n)) zoneAcres.set(n, BASE_ZONE_ACRES);
       }
     }
@@ -1102,7 +1187,7 @@ export function createEngine(regionData) {
     if (s.zoneCrops) {
       zoneCrops.clear();
       Object.entries(s.zoneCrops).forEach(([name, zc]) => {
-        const def = FARM_ZONE_DEFS.find(d => d.name === name);
+        const def = getFarmZoneDef(name);
         const ct  = CROPS[def?.cropId ?? zc.cropId]; // always use zone's bound crop
         if (!ct) return;
         const inst = new CropInstance(ct);
@@ -1209,7 +1294,8 @@ export function createEngine(regionData) {
       s.cropEstablishQueue.forEach(({ zoneName }) => {
         if (unlockedFarmZones.has(zoneName)) {
           zoneAcres.set(zoneName, (zoneAcres.get(zoneName) ?? 0) + 1);
-          if (!zoneCrops.has(zoneName)) zoneCrops.set(zoneName, new CropInstance(CROPS[FARM_ZONE_DEFS.find(d => d.name === zoneName)?.cropId]));
+          const cropId = getFarmZoneDef(zoneName)?.cropId;
+          if (!zoneCrops.has(zoneName) && cropId) zoneCrops.set(zoneName, new CropInstance(CROPS[cropId]));
         }
       });
     }
@@ -1323,7 +1409,7 @@ export function createEngine(regionData) {
     cropEffectiveGPS,
     // Mutations (called from UI)
     upgradeZoneAcres(name) {
-      const def     = FARM_ZONE_DEFS.find(d => d.name === name);
+      const def     = getFarmZoneDef(name);
       const current = zoneAcres.get(name) ?? BASE_ZONE_ACRES;
       if (!def || !unlockedFarmZones.has(name)) return false;
       const cost = acreUpgradeCost(def, current);
@@ -1333,7 +1419,7 @@ export function createEngine(regionData) {
       return true;
     },
     upgradeZoneWorkers(name) {
-      const def     = FARM_ZONE_DEFS.find(d => d.name === name);
+      const def     = getFarmZoneDef(name);
       const current = zoneWorkers.get(name) ?? BASE_ZONE_WORKERS;
       if (!def || !unlockedFarmZones.has(name)) return false;
       const cost = workerUpgradeCost(def, current);
@@ -1457,8 +1543,10 @@ export function createEngine(regionData) {
       activePlantingId    = null;
       activePlantingTimer = 0;
     },
-    regionData,
+    regionData: { ...regionData, crops: CROPS, farmZoneDefs: FARM_ZONE_DEFS },
     findPlant,
+    getCrop(cropId) { return CROPS[cropId] ?? null; },
+    getFarmZoneDef,
     /** Set the prestige-derived gold multiplier (from meta BP). */
     setPrestigeGoldMult(v) { prestigeGoldMult = v; },
     get prestigeGoldMult() { return prestigeGoldMult; },
@@ -1546,7 +1634,8 @@ export function createEngine(regionData) {
       if (n <= 0) return 0;
       for (let i = 0; i < n; i++) {
         zoneAcres.set(zoneName, (zoneAcres.get(zoneName) ?? 0) + 1);
-        if (!zoneCrops.has(zoneName)) zoneCrops.set(zoneName, new CropInstance(CROPS[FARM_ZONE_DEFS.find(d => d.name === zoneName)?.cropId]));
+        const cropId = getFarmZoneDef(zoneName)?.cropId;
+        if (!zoneCrops.has(zoneName) && cropId) zoneCrops.set(zoneName, new CropInstance(CROPS[cropId]));
       }
       return n;
     },

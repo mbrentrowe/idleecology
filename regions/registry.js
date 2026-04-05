@@ -18,7 +18,8 @@
  * @property {Object}  invasiveMap
  * @property {number}  totalInvadedAcresBase
  * @property {Array}   birdList
- * @property {Object}  crops
+ * @property {Object}  crops          - region-owned crop catalog keyed by crop id
+ * @property {Object<string, Object|null>=} cropProfiles - legacy additive overrides; deprecated
  * @property {Array}   research
  * @property {Object}  ranchAnimals
  * @property {Array}   ranchAnimalList
@@ -26,10 +27,12 @@
  */
 
 import SE_USA_PLAINS from './se_usa_plains.js';
+import SE_USA_PLAINS_FIXTURE from './se_usa_plains_fixture.js';
 
 /** All available regions, in unlock order. */
 export const REGIONS = [
   SE_USA_PLAINS,
+  SE_USA_PLAINS_FIXTURE,
 ];
 
 /** Map region id → RegionData. */
