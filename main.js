@@ -384,22 +384,98 @@ function el(tag, cls, text) {
 
 // Header
 const header = document.getElementById('header');
+const stickyControls = document.getElementById('sticky-controls');
 // Row 1: economic stats
 const hudRow1      = el('div', 'hud-row hud-row-stats');
 const goldEl       = el('span', 'gold-amount');
-const gpsEl        = el('span', 'gps');
 const bioHeaderEl  = el('span', 'bio-header');
 const rpHeaderEl   = el('span', 'rp-header');
+[goldEl, bioHeaderEl, rpHeaderEl].forEach(e => hudRow1.appendChild(e));
+// Row 2: world state + tab context
+const hudRow2      = el('div', 'hud-row hud-row-context');
 const acresEl      = el('span', 'acres-header');
-[goldEl, gpsEl, bioHeaderEl, rpHeaderEl].forEach(e => hudRow1.appendChild(e));
-// Row 2: calendar / time (acres merged in here)
-const hudRow2      = el('div', 'hud-row hud-row-time');
 const seasonEl     = el('span', 'season-badge-hud');
 const dayEl        = el('span', 'day-counter');
-const timeEl       = el('span', 'time-display');
-const nextSeasonEl = el('span', 'next-season-hud');
-[acresEl, seasonEl, dayEl, timeEl, nextSeasonEl].forEach(e => hudRow2.appendChild(e));
+const headerFocusEl = el('span', 'hud-focus tone-info');
+[acresEl, seasonEl, dayEl, headerFocusEl].forEach(e => hudRow2.appendChild(e));
 [hudRow1, hudRow2].forEach(e => header.appendChild(e));
+
+const CONTROL_QTY_OPTIONS = [1, 5, 10, 25, 'max'];
+const stickyBuyQtyButtons = new Map();
+const stickySpeedButtons = new Map();
+let stickyPauseBtn = null;
+
+function initStickyControls() {
+  if (!stickyControls) return;
+  stickyControls.innerHTML = '';
+
+  const topBar = el('div', 'crops-top-bar sticky-controls-bar');
+
+  const qtyBar = el('div', 'buy-qty-bar');
+  for (const qty of CONTROL_QTY_OPTIONS) {
+    const btn = el('button', 'buy-qty-btn', qty === 'max' ? 'Max' : `×${qty}`);
+    btn.type = 'button';
+    btn.title = qty === 'max' ? 'Use the largest affordable quantity' : `Use ${qty} at a time`;
+    btn.addEventListener('click', () => {
+      cropBuyQty = qty;
+      renderAll();
+    });
+    stickyBuyQtyButtons.set(String(qty), btn);
+    qtyBar.appendChild(btn);
+  }
+
+  const qtyGroup = el('div', 'crops-control-group');
+  qtyGroup.appendChild(el('span', 'crops-control-label', 'Buy size'));
+  qtyGroup.appendChild(qtyBar);
+  topBar.appendChild(qtyGroup);
+
+  const speedBar = el('div', 'crops-speed-bar');
+  stickyPauseBtn = el('button', 'crops-speed-btn');
+  stickyPauseBtn.type = 'button';
+  stickyPauseBtn.addEventListener('click', () => {
+    engine.setPaused(!engine.gamePaused);
+    renderAll();
+  });
+  speedBar.appendChild(stickyPauseBtn);
+
+  for (const spd of [1, 3, 6, 12]) {
+    const btn = el('button', 'crops-speed-btn', `${spd}×`);
+    btn.type = 'button';
+    btn.title = `${spd}× speed`;
+    btn.addEventListener('click', () => {
+      engine.setGameSpeed(spd);
+      renderAll();
+    });
+    stickySpeedButtons.set(spd, btn);
+    speedBar.appendChild(btn);
+  }
+
+  const speedGroup = el('div', 'crops-control-group crops-control-group-speed');
+  speedGroup.appendChild(el('span', 'crops-control-label', 'Time flow'));
+  speedGroup.appendChild(speedBar);
+  topBar.appendChild(speedGroup);
+
+  stickyControls.appendChild(topBar);
+  updateStickyControls();
+}
+
+function updateStickyControls() {
+  stickyBuyQtyButtons.forEach((btn, qty) => {
+    btn.classList.toggle('active', String(cropBuyQty) === qty);
+  });
+
+  if (stickyPauseBtn) {
+    stickyPauseBtn.textContent = engine.gamePaused ? '▶' : '⏸';
+    stickyPauseBtn.title = engine.gamePaused ? 'Resume' : 'Pause';
+    stickyPauseBtn.classList.toggle('active', engine.gamePaused);
+  }
+
+  stickySpeedButtons.forEach((btn, spd) => {
+    btn.classList.toggle('active', engine.gameSpeed === spd);
+  });
+}
+
+initStickyControls();
 
 // ── Bottom Tab Navigation ─────────────────────────────────────────────────────
 const TAB_LABELS = {
@@ -422,6 +498,10 @@ const TAB_ICONS  = {
   collection: '📚',
   settings: '⚙️',
 };
+
+function tabDisplayName(tab) {
+  return TAB_LABELS[tab]?.split(' ').slice(1).join(' ') || TAB_LABELS[tab] || tab;
+}
 
 const tabButtonsEl = document.getElementById('tab-buttons');
 const tabBarEl = document.getElementById('tab-bar');
@@ -455,12 +535,11 @@ function setFabOpen(open) {
 function _setTabBtnText(tab, hasAlert = false) {
   const btn = tabBtns[tab];
   if (!btn) return;
-  const labelText = TAB_LABELS[tab].split(' ').slice(1).join(' ') || TAB_LABELS[tab];
   const iconEl  = btn.querySelector('.tab-btn-icon');
   const labelEl = btn.querySelector('.tab-btn-label');
   const alertEl = btn.querySelector('.tab-btn-alert');
   if (iconEl) iconEl.textContent = TAB_ICONS[tab] ?? '•';
-  if (labelEl) labelEl.textContent = labelText;
+  if (labelEl) labelEl.textContent = tabDisplayName(tab);
   if (alertEl) {
     alertEl.textContent = hasAlert ? '❗' : '';
     alertEl.hidden = !hasAlert;
@@ -768,11 +847,12 @@ function renderAll() {
   content.innerHTML = '';
   content.classList.remove('map-mode');
   content.classList.remove('map-mode-overview');
+  document.body.dataset.tab = activeTab;
   switch (activeTab) {
     case 'crops':    lastZonesFingerprint = zonesFingerprint(); renderCrops();    break;
     case 'ranch':    renderRanch();    break;
-    case 'research':   renderResearch();   break;
-    case 'garden':     renderGarden();     break;
+    case 'research':   lastResearchFingerprint = researchFingerprint(); renderResearch();   break;
+    case 'garden':     lastGardenFingerprint = gardenFingerprint(); renderGarden();     break;
     case 'land':       renderLand();       break;
     case 'map':        renderMap();        break;
     case 'collection': {
@@ -808,6 +888,7 @@ function renderAll() {
   }
   loadInatThumbs();
   loadInatDescs();
+  updateHeader();
   if (tutorialState.open) {
     updateTutorialModal();
     syncTutorialFocus();
@@ -816,8 +897,7 @@ function renderAll() {
 
 // ── Header update ─────────────────────────────────────────────────────────────
 function updateHeader() {
-  goldEl.textContent = `🪙 ${shortNumber(engine.gold.amount)}`;
-  gpsEl.textContent  = `+${shortNumber(engine.getTotalGPS() * engine.gameSpeed)}/s`;
+  goldEl.textContent = `🪙 ${shortNumber(engine.gold.amount)} • +${shortNumber(engine.getTotalGPS() * engine.gameSpeed)}/s`;
 
   // Calendar date
   const cal = calendarDate(engine.inGameDay);
@@ -835,15 +915,13 @@ function updateHeader() {
                    : hr24 < 8               ? '🌅'
                    : hr24 < 18              ? '☀️'
                    :                          '🌇';
-  seasonEl.textContent    = `${cal.season.emoji} ${cal.season.name}`;
-  dayEl.textContent       = `${cal.month.abbr} ${cal.day}, Yr ${cal.year}`;
-  timeEl.textContent      = `${timeIcon} ${timeStr}`;
   const _curSeasonIdx     = SEASONS.findIndex(s => s.name === cal.season.name);
   const _nxtSeason        = SEASONS[(_curSeasonIdx + 1) % SEASONS.length];
   const _daysToNxt        = _nxtSeason.startDoy > cal.dayOfYear
     ? _nxtSeason.startDoy - cal.dayOfYear
     : 365 - cal.dayOfYear + _nxtSeason.startDoy;
-  nextSeasonEl.textContent = `${_daysToNxt}d → ${_nxtSeason.emoji} ${_nxtSeason.name}`;
+  seasonEl.textContent    = `${cal.season.emoji} ${cal.season.name} (${_daysToNxt}d)`;
+  dayEl.textContent       = `${cal.month.abbr} ${cal.day}, Yr ${cal.year} • ${timeIcon} ${timeStr}`;
 
   // Biosphere score + gold multiplier (combined badge)
   bioHeaderEl.textContent = `🌍 ${engine.getTotalBiosphereScore()} BP = ×${engine.getGoldMultiplier().toFixed(2)} 💰`;
@@ -888,6 +966,11 @@ function updateHeader() {
   const _gardenBusy = !!engine.activePlantingId || engine.nativeEstablishQueue.length > 0;
   _setTabBtnText('research', hasAffordableResearch);
   _setTabBtnText('garden', hasAffordableGarden && !_gardenBusy);
+
+  const headerFocus = getHeaderFocusState({ hasAffordableResearch, hasAffordableGarden, gardenBusy: _gardenBusy });
+  headerFocusEl.textContent = headerFocus.text;
+  headerFocusEl.className = `hud-focus tone-${headerFocus.tone}`;
+  updateStickyControls();
 }
 
 // ── Duration formatter (real seconds) ────────────────────────────────────────
@@ -938,14 +1021,20 @@ function easyscapeUrl(sci, name) {
 }
 
 /** Generate external reference links (iNaturalist + Wikipedia + EasyScape) for a scientific name. */
-function speciesLinksHtml(sci, name) {
+function speciesReferenceLinksHtml(sci, name) {
   if (!sci) return '';
-  let html = `<a class="garden-plant-sci inat-link" href="${inatUrl(sci)}" target="_blank" rel="noopener noreferrer" title="View on iNaturalist">${sci}</a>`
+  let html = `<a class="species-ext-link inat-link" href="${inatUrl(sci)}" target="_blank" rel="noopener noreferrer" title="View on iNaturalist">iNaturalist ↗</a>`
     + ` <a class="species-ext-link wiki-link" href="${wikiUrl(sci)}" target="_blank" rel="noopener noreferrer" title="View on Wikipedia">Wiki ↗</a>`;
   if (name) {
     html += ` <a class="species-ext-link easyscape-link" href="${easyscapeUrl(sci, name)}" target="_blank" rel="noopener noreferrer" title="View on EasyScape — care info &amp; buy near you">EasyScape ↗</a>`;
   }
   return html;
+}
+
+/** Generate external reference links plus the scientific name for inline contexts. */
+function speciesLinksHtml(sci, name) {
+  if (!sci) return '';
+  return `<span class="garden-plant-sci">${sci}</span> ${speciesReferenceLinksHtml(sci, name)}`;
 }
 
 // ── Time-to-afford helper ────────────────────────────────────────────────────
@@ -977,39 +1066,293 @@ function maxAffordableCount(costFn, current, budget) {
   return count;
 }
 
+function getHeaderFocusState({ hasAffordableResearch = false, hasAffordableGarden = false, gardenBusy = false } = {}) {
+  const freeAcres = engine.getFreeAcres();
+  switch (activeTab) {
+    case 'crops': {
+      const unlockedDefs = getFarmZoneDefs().filter(def => engine.unlockedFarmZones.has(def.name));
+      const dormantCount = unlockedDefs.reduce((count, def) => count + (getCrop(def.cropId)?.isInSeason(engine.currentSeasonName) ? 0 : 1), 0);
+      if (freeAcres < 1) {
+        return { tone: 'warn', text: 'All acreage is allocated. Freeing invasive acres is the cleanest next multiplier.' };
+      }
+      if (dormantCount > 0) {
+        return { tone: 'grow', text: `${dormantCount} dormant zone${dormantCount !== 1 ? 's' : ''}; use spare acres on active crops.` };
+      }
+      return { tone: 'info', text: 'Keep acreage concentrated on in-season crops so idle land keeps compounding.' };
+    }
+    case 'research':
+      if (hasAffordableResearch) return { tone: 'ready', text: 'A conservation project is affordable right now.' };
+      if (engine.researchSlots.length > 0) return { tone: 'grow', text: `${engine.researchSlots.length} active project${engine.researchSlots.length !== 1 ? 's are' : ' is'} compounding.` };
+      return { tone: 'info', text: 'Unlock more farm zones and native species to raise CP flow.' };
+    case 'garden': {
+      const queueDepth = engine.nativeEstablishQueue.length + (engine.activePlantingId ? 1 : 0);
+      if (hasAffordableGarden && !gardenBusy) return { tone: 'ready', text: 'A native planting is ready to establish.' };
+      if (queueDepth > 0) return { tone: 'grow', text: `${queueDepth} native planting${queueDepth !== 1 ? 's are' : ' is'} moving through the queue.` };
+      return { tone: 'info', text: 'Native plantings turn ecology facts into long-term biosphere gains.' };
+    }
+    case 'land':
+      return freeAcres < 1
+        ? { tone: 'warn', text: 'Your farm is land-locked. Clear invasive acreage to keep scaling output.' }
+        : { tone: 'info', text: `${freeAcres} free acre${freeAcres !== 1 ? 's' : ''} ready for crops, ranching, or native habitat.` };
+    case 'map':
+      return { tone: 'info', text: 'Map view connects your farm to the broader region and habitat layers.' };
+    case 'collection':
+      return { tone: 'grow', text: 'Track discoveries here and use them to deepen the game loop, not leave it.' };
+    case 'settings':
+      return { tone: 'info', text: 'Tune pacing, automation, and save behavior without changing core progress.' };
+    default:
+      return { tone: 'info', text: 'Keep the ecosystem growing while balancing income, land, and biodiversity.' };
+  }
+}
+
+function getPlantById(plantId) {
+  return ALL_PLANTS.find(plant => plant.id === plantId) ?? null;
+}
+
+function getGardenDashboardState() {
+  const completedResearch = engine.completedResearch;
+  const establishedSpecies = ALL_PLANTS.filter(plant => (engine.plantedSpeciesAcres.get(plant.id) ?? 0) > 0);
+  const unlockedPlants = ALL_PLANTS.filter(plant => (plant.requiresResearch ?? []).every(rid => completedResearch.has(rid)));
+  const queuedSpecies = new Set(engine.nativeEstablishQueue.map(item => item.plantId));
+  if (engine.activePlantingId) queuedSpecies.add(engine.activePlantingId);
+
+  const establishedAcres = Array.from(engine.plantedSpeciesAcres.values()).reduce((sum, acres) => sum + acres, 0);
+  const freeAcres = engine.getFreeAcres();
+  const queueDepth = engine.nativeEstablishQueue.length + (engine.activePlantingId ? 1 : 0);
+  const affordableUnlockedCount = unlockedPlants.reduce((count, plant) => {
+    const established = (engine.plantedSpeciesAcres.get(plant.id) ?? 0) > 0;
+    return count + (!established && !queuedSpecies.has(plant.id) && engine.researchPoints >= plant.cost ? 1 : 0);
+  }, 0);
+  const completedEcoregions = ECOREGIONS.reduce((count, region) => (
+    count + (region.plants.every(plant => (engine.plantedSpeciesAcres.get(plant.id) ?? 0) > 0) ? 1 : 0)
+  ), 0);
+
+  let focus;
+  if (queueDepth > 0) {
+    const nextPlant = getPlantById(engine.nativeEstablishQueue[0]?.plantId ?? engine.activePlantingId);
+    focus = {
+      kicker: 'Propagation',
+      title: nextPlant ? `${nextPlant.name} is moving through establishment` : 'Native establishment queue is active',
+      body: queueDepth > 1
+        ? `${queueDepth} plantings are in motion. Keep spare acreage open so the queue can keep widening habitat.`
+        : 'This planting is converting conservation points into permanent habitat and biosphere score.',
+      tone: 'grow',
+    };
+  } else if (freeAcres < 1) {
+    focus = {
+      kicker: 'Habitat cap',
+      title: 'All acreage is already spoken for',
+      body: 'Land is the bottleneck. Reclaim invasive acreage if you want to expand native habitat further.',
+      tone: 'warn',
+    };
+  } else if (affordableUnlockedCount > 0) {
+    focus = {
+      kicker: 'Ready to plant',
+      title: `${affordableUnlockedCount} unlocked native species can be established now`,
+      body: 'Use open acres while you have them so idle land turns into biodiversity instead of sitting empty.',
+      tone: 'ready',
+    };
+  } else if (establishedSpecies.length >= unlockedPlants.length && unlockedPlants.length > 0) {
+    focus = {
+      kicker: 'Deepen habitat',
+      title: 'All unlocked native species are already represented',
+      body: 'Add acres to the strongest host plants to intensify biosphere gains and attract more wildlife.',
+      tone: 'info',
+    };
+  } else if (unlockedPlants.length > establishedSpecies.length) {
+    const gap = unlockedPlants.length - establishedSpecies.length;
+    focus = {
+      kicker: 'Conservation pressure',
+      title: `${gap} unlocked species still need CP or acreage`,
+      body: 'Research opened the door. The next step is banking enough conservation points to start planting.',
+      tone: 'info',
+    };
+  } else {
+    focus = {
+      kicker: 'First habitat',
+      title: 'Native plants turn ecology data into progression',
+      body: 'Establishing host plants raises biosphere score, unlocks wildlife support, and makes the learning layer part of normal play.',
+      tone: 'info',
+    };
+  }
+
+  return {
+    affordableUnlockedCount,
+    completedEcoregions,
+    establishedAcres,
+    establishedSpeciesCount: establishedSpecies.length,
+    freeAcres,
+    focus,
+    gardenBio: engine.getGardenBiosphereScore(),
+    queueDepth,
+    queuedSpeciesCount: queuedSpecies.size,
+    totalPlantCount: ALL_PLANTS.length,
+    unlockedSpeciesCount: unlockedPlants.length,
+  };
+}
+
+function renderGardenOperationCard() {
+  const queuedItem = engine.nativeEstablishQueue[0] ?? null;
+  const legacyPlant = getPlantById(engine.activePlantingId);
+
+  let plant = null;
+  let progressSource = '';
+  let pct = 0;
+  let remaining = 0;
+  let footerText = '';
+
+  if (queuedItem) {
+    plant = getPlantById(queuedItem.plantId);
+    progressSource = 'queue';
+    const totalSecs = ESTABLISH_DAYS * DAY_REAL_SECS;
+    pct = Math.min(100, Math.round(engine.nativeEstablishTimer / totalSecs * 100));
+    remaining = Math.max(0, (totalSecs - engine.nativeEstablishTimer) / DAY_REAL_SECS);
+    footerText = `${pct}% established • ${engine.nativeEstablishQueue.length} in queue${legacyPlant ? ' • legacy planting also active' : ''}`;
+  } else if (legacyPlant) {
+    plant = legacyPlant;
+    progressSource = 'legacy';
+    pct = Math.min(100, Math.round(engine.activePlantingTimer / legacyPlant.duration * 100));
+    remaining = Math.max(0, legacyPlant.duration - engine.activePlantingTimer);
+    footerText = `${pct}% established • legacy planting`;
+  } else {
+    return null;
+  }
+
+  const activeCard = el('div', 'research-active-card garden-active-card garden-operation-card');
+  activeCard.dataset.progressSource = progressSource;
+  activeCard.innerHTML = `
+    <div class="research-active-header">
+      <span class="research-active-icon">${plant?.icon ?? '🌿'}</span>
+      <span class="research-active-name">${progressSource === 'queue'
+        ? `Establishing ${plant?.name ?? 'native planting'}`
+        : `Legacy establishment: ${plant?.name ?? 'native planting'}`}</span>
+      <span class="research-active-time">${fmtDays(remaining)} remaining</span>
+    </div>
+    <div class="research-progress-track">
+      <div class="research-progress-fill garden-progress" style="width:${pct}%"></div>
+    </div>
+    <div class="research-active-footer">
+      <span class="research-active-pct">${footerText}</span>
+      ${progressSource === 'legacy'
+        ? '<button class="action-btn danger research-cancel-btn">✕ Cancel</button>'
+        : '<span class="garden-operation-note">CP → permanent habitat</span>'}
+    </div>
+  `;
+
+  if (progressSource === 'legacy') {
+    activeCard.querySelector('.research-cancel-btn').addEventListener('click', () => {
+      engine.cancelPlanting();
+      renderAll();
+    });
+  }
+
+  return activeCard;
+}
+
+function updateGardenOperationCard() {
+  if (activeTab !== 'garden') return;
+  const card = content.querySelector('.garden-operation-card');
+  if (!card) return;
+
+  const progressSource = card.dataset.progressSource;
+  let pct = 0;
+  let remaining = 0;
+  let titleText = '';
+  let footerText = '';
+
+  if (progressSource === 'queue' && engine.nativeEstablishQueue.length > 0) {
+    const plant = getPlantById(engine.nativeEstablishQueue[0].plantId);
+    const totalSecs = ESTABLISH_DAYS * DAY_REAL_SECS;
+    pct = Math.min(100, Math.round(engine.nativeEstablishTimer / totalSecs * 100));
+    remaining = Math.max(0, (totalSecs - engine.nativeEstablishTimer) / DAY_REAL_SECS);
+    titleText = `Establishing ${plant?.name ?? 'native planting'}`;
+    footerText = `${pct}% established • ${engine.nativeEstablishQueue.length} in queue${engine.activePlantingId ? ' • legacy planting also active' : ''}`;
+  } else if (progressSource === 'legacy' && engine.activePlantingId) {
+    const plant = getPlantById(engine.activePlantingId);
+    if (!plant) return;
+    pct = Math.min(100, Math.round(engine.activePlantingTimer / plant.duration * 100));
+    remaining = Math.max(0, plant.duration - engine.activePlantingTimer);
+    titleText = `Legacy establishment: ${plant.name}`;
+    footerText = `${pct}% established • legacy planting`;
+  } else {
+    return;
+  }
+
+  const fill = card.querySelector('.garden-progress');
+  if (fill) fill.style.width = `${pct}%`;
+  const nameEl = card.querySelector('.research-active-name');
+  if (nameEl) nameEl.textContent = titleText;
+  const timeEl = card.querySelector('.research-active-time');
+  if (timeEl) timeEl.textContent = `${fmtDays(remaining)} remaining`;
+  const pctEl = card.querySelector('.research-active-pct');
+  if (pctEl) pctEl.textContent = footerText;
+}
+
+const FAST_CROP_RING_REAL_SECS = 8;
+const FAST_CROP_RING_SPINNER_PROGRESS = '0.22';
+
+function getCropProgressState(instance, workerMult = 1) {
+  const cropType = instance?.cropType;
+  if (!cropType) {
+    return {
+      isReady: false,
+      stateClass: 'is-growing',
+      progressValue: '0',
+      titleText: 'Crop growth unavailable',
+    };
+  }
+
+  if (instance.isFullyGrown) {
+    return {
+      isReady: true,
+      stateClass: 'is-ready',
+      progressValue: '1',
+      titleText: `${cropType.name} ready to harvest`,
+    };
+  }
+
+  const realCycleSecs = cropType.totalGrowthTime / Math.max(engine.gameSpeed * workerMult * 4, 0.001);
+  if (realCycleSecs <= FAST_CROP_RING_REAL_SECS) {
+    return {
+      isReady: false,
+      stateClass: 'is-fast',
+      progressValue: FAST_CROP_RING_SPINNER_PROGRESS,
+      titleText: `${cropType.name} growing quickly`,
+    };
+  }
+
+  const progress = Math.max(0, Math.min(1, instance.overallProgress ?? 0));
+  return {
+    isReady: false,
+    stateClass: 'is-growing',
+    progressValue: progress.toFixed(4),
+    titleText: `${cropType.name} ${Math.round(progress * 100)}% grown`,
+  };
+}
+
+function applyCropProgressIndicator(ringEl, progressState) {
+  if (!ringEl || !progressState) return;
+
+  if (ringEl.dataset.state !== progressState.stateClass) {
+    ringEl.className = `crop-progress-ring ${progressState.stateClass}`;
+    ringEl.dataset.state = progressState.stateClass;
+  }
+
+  if (ringEl.style.getPropertyValue('--crop-progress') !== progressState.progressValue) {
+    ringEl.style.setProperty('--crop-progress', progressState.progressValue);
+  }
+
+  if (ringEl.getAttribute('role') !== 'img') {
+    ringEl.setAttribute('role', 'img');
+  }
+
+  if (ringEl.getAttribute('aria-label') !== progressState.titleText) {
+    ringEl.setAttribute('aria-label', progressState.titleText);
+  }
+}
+
 // ── CROPS TAB ────────────────────────────────────────────────────────────────
 function renderCrops() {
-  // ── Top bar: buy qty + speed/pause ──
-  const topBar = el('div', 'crops-top-bar');
-
-  const qtyBar = el('div', 'buy-qty-bar');
-  for (const qty of [1, 5, 10, 25, 'max']) {
-    const btn = el('button', `buy-qty-btn${cropBuyQty === qty ? ' active' : ''}`, qty === 'max' ? 'Max' : `×${qty}`);
-    btn.title = qty === 'max' ? 'Buy as many as you can afford' : `Buy ${qty} at a time`;
-    btn.addEventListener('click', () => { cropBuyQty = qty; renderAll(); });
-    qtyBar.appendChild(btn);
-  }
-  topBar.appendChild(qtyBar);
-
-  const speedBar = el('div', 'crops-speed-bar');
-  const pauseIconBtn = el('button', `crops-speed-btn${engine.gamePaused ? ' active' : ''}`, engine.gamePaused ? '▶' : '⏸');
-  pauseIconBtn.title = engine.gamePaused ? 'Resume' : 'Pause';
-  pauseIconBtn.addEventListener('click', () => { engine.setPaused(!engine.gamePaused); renderAll(); });
-  speedBar.appendChild(pauseIconBtn);
-  for (const spd of [1, 3, 6, 12]) {
-    const sBtn = el('button', `crops-speed-btn${engine.gameSpeed === spd ? ' active' : ''}`, `${spd}×`);
-    sBtn.title = `${spd}× speed`;
-    sBtn.addEventListener('click', () => { engine.setGameSpeed(spd); renderAll(); });
-    speedBar.appendChild(sBtn);
-  }
-  topBar.appendChild(speedBar);
-
-  content.appendChild(topBar);
-
-  // ── Farm Zones ──
-  const farmHeader = el('h2', 'section-header', '🌾 Farm Zones');
-  content.appendChild(farmHeader);
-
   // Sort: active (unlocked + in-season) first, dormant second, locked last
   const _cur = engine.currentSeasonName;
   const _sortedDefs = [...getFarmZoneDefs()].sort((a, b) => {
@@ -1109,21 +1452,27 @@ function renderCrops() {
     } else {
       const instance = engine.zoneCrops.get(def.name);
       const ct       = instance?.cropType;
-      const progress = instance?.overallProgress ?? 0;
       const currentSeason = engine.currentSeasonName;
+      card.classList.add('zone-live');
 
       // Top row: iNat photo + crop name/sci meta + GPS
       const topRow = el('div', 'zone-top-row');
       const _wm  = workerMultiplier(engine.zoneWorkers.get(def.name) ?? 1);
       const _cyc = ct ? ct.totalGrowthTime / (engine.gameSpeed * _wm * 4) : 0;
+      const progressState = getCropProgressState(instance, _wm);
       topRow.innerHTML = `
         ${ct?.sciName ? inatThumbHtml(ct.sciName, 'zone-thumb', ct.name) : ''}
         <div class="zone-name-meta">
-          <span class="zone-name">${ct?.name ?? '—'}</span>
+          <div class="zone-title-row">
+            <span class="crop-progress-ring"></span>
+            <span class="zone-name">${ct?.name ?? '—'}</span>
+          </div>
           <span class="zone-meta">${ct?.sciName ? `<em>${ct.sciName}</em> · ` : ''}${engine.zoneAcres.get(def.name) ?? 0} acres${ct ? ` · ⏱ ${fmtDur(_cyc)}` : ''}${ct ? ` · 🪙 ${shortNumber(ct.yieldGold)}/acre` : ''}</span>
         </div>
         <span class="zone-gps">🪙 ${shortNumber((ct?.yieldGold ?? 0) * (engine.zoneAcres.get(def.name) ?? 0))} / harvest</span>
       `;
+      applyCropProgressIndicator(topRow.querySelector('.crop-progress-ring'), progressState);
+      card.classList.toggle('zone-ready', progressState.isReady);
       card.appendChild(topRow);
       if (ct) {
         const cropInfoBtn = el('button', 'zone-info-btn', 'ℹ️');
@@ -1142,79 +1491,14 @@ function renderCrops() {
         card.appendChild(seasonBadges);
       }
 
-      // Progress bar
-      const barWrap = el('div', 'progress-wrap');
-      const bar     = el('div', 'progress-bar');
-      const _remGame  = (instance && ct && !instance.isFullyGrown)
-        ? ((ct.totalPhases - instance.phase) * ct.growthTimePerPhase - instance.timer)
-        : 0;
-      const _nearHarvest = instance && !instance.isFullyGrown && (_remGame / (engine.gameSpeed * _wm * 4)) <= 5;
-      if (_nearHarvest) {
-        bar.style.transition = 'none';
-        bar.style.width = '100%';
-      } else {
-        bar.style.width = `${(progress * 100).toFixed(3)}%`;
-      }
-      bar.classList.add(instance?.isFullyGrown ? 'ready' : _nearHarvest ? 'near-harvest' : 'growing');
-      if (_nearHarvest) barWrap.classList.add('near-harvest');
-      barWrap.appendChild(bar);
-      // Phase milestone ticks on the bar
-      if (ct?.growthPhaseNames?.length > 0) {
-        const _totalSteps = ct.totalPhases - 1;
-        ct.growthPhaseNames.forEach((_, _ti) => {
-          if (_ti === 0) return; // skip left edge
-          const _pct = (_ti / _totalSteps) * 100;
-          const _passed = instance?.isFullyGrown || (instance && _ti <= instance.phase);
-          const _tick = el('div', 'phase-tick' + (_nearHarvest ? ' near-harvest' : _passed ? ' passed' : ''));
-          _tick.style.left = `${_pct}%`;
-          barWrap.appendChild(_tick);
-        });
-      }
-      const pctLabel = el('span', 'progress-pct', instance?.isFullyGrown ? 'Ready!' : _nearHarvest ? 'Actively growing' : `${Math.round(progress * 100)}%`);
-      barWrap.appendChild(pctLabel);
-      card.appendChild(barWrap);
-
-      // Phase labels row
-      if (ct?.growthPhaseNames?.length > 0) {
-        const _labelsRow = el('div', 'phase-labels-row');
-        const _totalSteps2 = ct.totalPhases - 1;
-        ct.growthPhaseNames.forEach((phaseName, _li) => {
-          const _pct2 = (_li / _totalSteps2) * 100;
-          const _isCur = instance && !instance.isFullyGrown && _li === instance.phase;
-          const _isPast = instance?.isFullyGrown || (instance && _li < instance.phase);
-          const _lbl = el('span', 'phase-label' + (_nearHarvest ? ' near-harvest' : _isCur ? ' active' : _isPast ? ' passed' : ''));
-          _lbl.textContent = phaseName;
-          _lbl.style.left = `${_pct2}%`;
-          _lbl.style.transform = _li === 0 ? 'translateX(0)' : 'translateX(-50%)';
-          _labelsRow.appendChild(_lbl);
-        });
-        card.appendChild(_labelsRow);
-        // Compact single-line status for narrow screens (hidden on desktop via CSS)
-        const _curPhaseName = instance?.isFullyGrown
-          ? '✅ Ready to harvest'
-          : ct.growthPhaseNames[instance?.phase ?? 0] ?? '';
-        const _phaseNum = (instance?.phase ?? 0) + 1;
-        const _statusEl = el('div', 'phase-status-compact',
-          instance?.isFullyGrown ? '✅ Ready to harvest' : `▶ ${_curPhaseName} (${_phaseNum} / ${ct.totalPhases})`);
-        card.appendChild(_statusEl);
-      } else {
-        const phaseRow = el('div', 'phase-row');
-        phaseRow.textContent = ct
-          ? instance.isFullyGrown
-            ? `✅ Ready to harvest`
-            : `Growing — stage ${instance.phase + 1} of ${ct.totalPhases}`
-          : '';
-        card.appendChild(phaseRow);
-      }
-
       // Acre allocation row (land pool – no gold cost)
       const currentAcres = engine.zoneAcres.get(def.name) ?? 0;
       const freeAcres    = engine.getFreeAcres();
       const acreRow = el('div', 'acre-upgrade-row');
       acreRow.innerHTML = `<span class="acre-label">Acres: <strong>${currentAcres}</strong></span>`;
       
-      // Buy land button (always present to prevent layout shift)
-      const goLandBtn = el('button', `buy-btn${freeAcres >= 1 ? ' disabled' : ''}`, '🗺️ Buy land');
+      // Land shortcut (always present to prevent layout shift)
+      const goLandBtn = el('button', `buy-btn${freeAcres >= 1 ? ' disabled' : ''}`, '🛡️ Free land');
       goLandBtn.disabled = freeAcres >= 1;
       goLandBtn.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
       acreRow.appendChild(goLandBtn);
@@ -1297,17 +1581,6 @@ function renderRanch() {
   const ranchWorkers = engine.ranchWorkers;
   const ranchStats = engine.ranchStats;
   const totalSoldAllCrops = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
-
-  const topBar = el('div', 'crops-top-bar');
-  const qtyBar = el('div', 'buy-qty-bar');
-  for (const qty of [1, 5, 10, 25, 'max']) {
-    const btn = el('button', `buy-qty-btn${cropBuyQty === qty ? ' active' : ''}`, qty === 'max' ? 'Max' : `×${qty}`);
-    btn.title = qty === 'max' ? 'Use max quantity when possible' : `Use ${qty} at a time`;
-    btn.addEventListener('click', () => { cropBuyQty = qty; renderAll(); });
-    qtyBar.appendChild(btn);
-  }
-  topBar.appendChild(qtyBar);
-  content.appendChild(topBar);
 
   const header = el('div', 'ranch-header');
   header.innerHTML = `
@@ -1410,7 +1683,7 @@ function renderRanch() {
       ranchAllocBtn.disabled = true;
     }
     acreRow.appendChild(ranchAllocBtn);
-    const goLandBtnR = el('button', 'buy-btn', '🗺️ Buy land');
+    const goLandBtnR = el('button', 'buy-btn', '🛡️ Free land');
     goLandBtnR.dataset.ranchBuyLand = animal.id;
     goLandBtnR.hidden = canAllocateRanch;
     goLandBtnR.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
@@ -1453,51 +1726,205 @@ function renderRanch() {
   }
 }
 
+function researchFingerprint() {
+  const slots = engine.researchSlots;
+  return `${engine.completedResearch.size}|${slots.map(slot => slot.id).join(',')}|${Math.floor(engine.researchPoints)}|${engine.researchSlotCount}`;
+}
+
+function getResearchDashboardState() {
+  const completed = engine.completedResearch;
+  const slots = engine.researchSlots;
+  const slotCount = engine.researchSlotCount;
+  const activeIds = new Set(slots.map(slot => slot.id));
+  const pts = engine.researchPoints;
+  const biosphere = engine.getBiosphereScore();
+  const gardenBio = engine.getGardenBiosphereScore();
+  const creatureBio = engine.getCreatureBiosphereScore();
+  const totalBio = biosphere + gardenBio + creatureBio;
+  const maxBiosphere = RESEARCH.reduce((sum, project) => sum + (project.effect?.biosphereBonus ?? 0), 0);
+  const maxGardenBio = ALL_PLANTS.reduce((sum, plant) => sum + (plant.biosphereBonus ?? 0), 0);
+  const maxCreatureBio = ALL_PLANTS.reduce((sum, plant) => sum + (plant.insectsHosted?.length ?? 0), 0);
+  const maxTotal = maxBiosphere + maxGardenBio + maxCreatureBio;
+  const goldMult = engine.getGoldMultiplier();
+  const cpPerDay = engine.unlockedFarmZones.size;
+  const availableProjects = RESEARCH.filter(project => (
+    !completed.has(project.id)
+    && !activeIds.has(project.id)
+    && project.requires.every(req => completed.has(req))
+  ));
+  const affordableProjects = availableProjects.filter(project => pts >= project.cost);
+  const nextProject = availableProjects.reduce((cheapest, project) => (
+    !cheapest || project.cost < cheapest.cost ? project : cheapest
+  ), null);
+  const nextSlotCost = engine.getNextSlotCost();
+
+  let focus;
+  if (completed.size === RESEARCH.length) {
+    focus = {
+      kicker: 'Research complete',
+      title: 'The full conservation tree is already mapped',
+      body: 'From here, extra CP can keep feeding native planting and the archive rather than unlocking more theory.',
+      tone: 'info',
+    };
+  } else if (slots.length < slotCount && affordableProjects.length > 0) {
+    focus = {
+      kicker: 'Startable now',
+      title: `${affordableProjects.length} project${affordableProjects.length !== 1 ? 's are' : ' is'} ready to queue`,
+      body: 'An open lane is idle right now. Spending CP here converts passive income into permanent unlocks and biosphere score.',
+      tone: 'ready',
+    };
+  } else if (nextSlotCost !== null && pts >= nextSlotCost) {
+    focus = {
+      kicker: 'Lane expansion',
+      title: `Slot ${slotCount + 1} is affordable now`,
+      body: 'Buying another research lane lets you keep passive CP working even while current projects are still ticking down.',
+      tone: 'ready',
+    };
+  } else if (slots.length > 0) {
+    focus = {
+      kicker: 'Compounding work',
+      title: `${slots.length} research lane${slots.length !== 1 ? 's are' : ' is'} already in motion`,
+      body: 'Let the timers run unless you need to reprioritize. Progress is already converting your economy into long-term power.',
+      tone: 'grow',
+    };
+  } else if (nextProject) {
+    const delta = Math.max(0, nextProject.cost - pts);
+    focus = {
+      kicker: 'Nearest unlock',
+      title: delta > 0
+        ? `${delta} more CP opens ${nextProject.name}`
+        : `${nextProject.name} is the next clean pickup`,
+      body: 'Farm zones generate the base CP flow. Native plantings amplify the biosphere side of the tree once those projects land.',
+      tone: delta > 0 ? 'info' : 'ready',
+    };
+  } else {
+    const lockedCount = RESEARCH.length - completed.size - activeIds.size;
+    focus = {
+      kicker: 'Prerequisites first',
+      title: `${lockedCount} project${lockedCount !== 1 ? 's are' : ' is'} still gated by earlier work`,
+      body: 'Clear the available projects first. Once those are complete, the deeper conservation branches will open behind them.',
+      tone: 'warn',
+    };
+  }
+
+  return {
+    activeIds,
+    affordableProjectsCount: affordableProjects.length,
+    availableProjectsCount: availableProjects.length,
+    biosphere,
+    completed,
+    cpPerDay,
+    creatureBio,
+    focus,
+    gardenBio,
+    goldMult,
+    maxGardenBio,
+    maxTotal,
+    nextSlotCost,
+    pts,
+    slotCount,
+    slots,
+    totalBio,
+  };
+}
+
 // ── RESEARCH TAB ─────────────────────────────────────────────────────────────
 function renderResearch() {
-  const completed  = engine.completedResearch;
-  const slots      = engine.researchSlots;
-  const slotCount  = engine.researchSlotCount;
-  const activeIds  = new Set(slots.map(s => s.id));
-  const pts        = engine.researchPoints;
-  const planted    = engine.plantedSpecies;
-  const biosphere    = engine.getBiosphereScore();
-  const gardenBio    = engine.getGardenBiosphereScore();
-  const creatureBio  = engine.getCreatureBiosphereScore();
-  const totalBio     = biosphere + gardenBio + creatureBio;
-  const maxBiosphere = RESEARCH.reduce((s, r) => s + (r.effect?.biosphereBonus ?? 0), 0);
-  const maxGardenBio = ALL_PLANTS.reduce((s, p) => s + (p.biosphereBonus ?? 0), 0);
-  const maxCreatureBio = ALL_PLANTS.reduce((s, p) => s + (p.insectsHosted?.length ?? 0), 0);
-  const maxTotal     = maxBiosphere + maxGardenBio + maxCreatureBio;
-  const goldMult     = engine.getGoldMultiplier();
+  const planted = engine.plantedSpecies;
+  const researchState = getResearchDashboardState();
+  const completed = researchState.completed;
+  const slots = researchState.slots;
+  const slotCount = researchState.slotCount;
+  const activeIds = researchState.activeIds;
+  const pts = researchState.pts;
 
   // ── Biosphere Score banner ──────────────────────────────────────────────────
   const banner = el('div', 'research-banner');
-  const bioPct    = Math.round(totalBio / maxTotal * 100);
-  const gardenPct = maxGardenBio > 0 ? Math.round(gardenBio / maxGardenBio * 100) : 0;
+  const bioPct = researchState.maxTotal > 0 ? Math.round(researchState.totalBio / researchState.maxTotal * 100) : 0;
+  const gardenPct = researchState.maxGardenBio > 0 ? Math.round(researchState.gardenBio / researchState.maxGardenBio * 100) : 0;
   banner.innerHTML = `
     <div class="research-banner-row">
       <span class="bio-label">🌍 Biosphere Score</span>
-      <span class="bio-score">${totalBio} <span class="bio-max">/ ${maxTotal}</span></span>
+      <span class="bio-score">${researchState.totalBio} <span class="bio-max">/ ${researchState.maxTotal}</span></span>
       <span class="research-pts">🌱 ${pts} CP</span>
     </div>
     <div class="bio-bar-track"><div class="bio-bar-fill" style="width:${bioPct}%"></div></div>
     <div class="bio-breakdown">
-      <span>🌱 Conservation: <strong>${biosphere}</strong></span>
-      <span>🌿 Garden: <strong>${gardenBio}</strong> / ${maxGardenBio} &nbsp;<span style="color:#aaa;font-size:11px">(${gardenPct}%)</span></span>
-      <span>🦋 Creatures: <strong>${creatureBio}</strong> / ${maxCreatureBio}</span>
-      <span>💰 Gold Bonus: <strong>${goldMult.toFixed(2)}×</strong></span>
+      <span>🌱 Conservation: <strong>${researchState.biosphere}</strong></span>
+      <span>🌿 Garden: <strong>${researchState.gardenBio}</strong> / ${researchState.maxGardenBio} &nbsp;<span style="color:#aaa;font-size:11px">(${gardenPct}%)</span></span>
+      <span>🦋 Creatures: <strong>${researchState.creatureBio}</strong></span>
+      <span>💰 Gold Bonus: <strong>${researchState.goldMult.toFixed(2)}×</strong></span>
     </div>
-    <p class="research-hint">Conservation points are earned passively — ${engine.unlockedFarmZones.size} CP/day from your ${engine.unlockedFarmZones.size} unlocked farm zone${engine.unlockedFarmZones.size !== 1 ? 's' : ''}. Plant native species in the 🌿 Garden tab to add more.</p>
+    <p class="research-hint">Conservation points are earned passively — ${researchState.cpPerDay} CP/day from your ${researchState.cpPerDay} unlocked farm zone${researchState.cpPerDay !== 1 ? 's' : ''}. Plant native species in the 🌿 Garden tab to add more.</p>
   `;
   content.appendChild(banner);
+
+  const dashboard = el('section', 'tab-dashboard research-dashboard');
+  const summaryGrid = el('div', 'summary-grid research-summary-grid');
+  [
+    {
+      key: 'points',
+      kicker: 'Conservation points',
+      value: `🌱 ${shortNumber(pts)}`,
+      meta: `${researchState.cpPerDay} CP/day base income`,
+      tone: researchState.affordableProjectsCount > 0 ? 'ready' : 'info',
+    },
+    {
+      key: 'lanes',
+      kicker: 'Research lanes',
+      value: `${slots.length}/${slotCount}`,
+      meta: researchState.nextSlotCost === null
+        ? 'All slots purchased'
+        : pts >= researchState.nextSlotCost
+          ? `Slot ${slotCount + 1} ready for ${researchState.nextSlotCost} CP`
+          : `${researchState.nextSlotCost - pts} CP to unlock slot ${slotCount + 1}`,
+      tone: slots.length < slotCount ? 'ready' : slots.length > 0 ? 'grow' : 'neutral',
+    },
+    {
+      key: 'projects',
+      kicker: 'Projects mapped',
+      value: `${completed.size}/${RESEARCH.length}`,
+      meta: researchState.affordableProjectsCount > 0
+        ? `${researchState.affordableProjectsCount} ready to start`
+        : `${researchState.availableProjectsCount} available projects`,
+      tone: completed.size === RESEARCH.length ? 'accent' : researchState.affordableProjectsCount > 0 ? 'ready' : 'info',
+    },
+    {
+      key: 'reward',
+      kicker: 'Gold conversion',
+      value: `${researchState.goldMult.toFixed(2)}×`,
+      meta: `Biosphere score at ${bioPct}% of cap`,
+      tone: researchState.goldMult > 1 ? 'accent' : 'neutral',
+    },
+  ].forEach(cardData => {
+    const card = el('div', 'summary-card');
+    card.dataset.summary = cardData.key;
+    card.dataset.tone = cardData.tone;
+    card.innerHTML = `
+      <span class="summary-kicker">${cardData.kicker}</span>
+      <strong class="summary-value">${cardData.value}</strong>
+      <span class="summary-meta">${cardData.meta}</span>
+    `;
+    summaryGrid.appendChild(card);
+  });
+  dashboard.appendChild(summaryGrid);
+
+  const focusCallout = el('div', 'focus-callout research-focus-callout');
+  focusCallout.dataset.tone = researchState.focus.tone;
+  focusCallout.innerHTML = `
+    <span class="focus-kicker">${researchState.focus.kicker}</span>
+    <strong class="focus-title">${researchState.focus.title}</strong>
+    <p class="focus-body">${researchState.focus.body}</p>
+  `;
+  dashboard.appendChild(focusCallout);
+  content.appendChild(dashboard);
 
   // ── Research slots header ──────────────────────────────────────────────────
   const slotsHeader = el('div', 'research-slots-header');
   slotsHeader.innerHTML = `<span class="research-slots-label">🔬 Research Slots: ${slots.length} / ${slotCount} in use</span>`;
 
   // Buy slot button
-  const nextSlotCost = engine.getNextSlotCost();
+  const nextSlotCost = researchState.nextSlotCost;
   if (nextSlotCost !== null) {
     const canBuy = pts >= nextSlotCost;
     const buyBtn = el('button', `action-btn research-buy-slot-btn${canBuy ? '' : ' disabled'}`,
@@ -1618,14 +2045,26 @@ function renderResearch() {
 
       // Effect & prerequisites
       const meta = el('div', 'research-meta');
-      meta.innerHTML = `<span class="research-effect">✨ ${project.effect.label}</span>`;
+      meta.innerHTML = `
+        <div class="research-meta-line">
+          <span class="research-meta-label">Effect</span>
+          <div class="research-chip-group">
+            <span class="research-effect">✨ ${project.effect.label}</span>
+          </div>
+        </div>
+      `;
       if (project.requires.length > 0) {
         const reqNames = project.requires.map(req => {
           const r = RESEARCH.find(p => p.id === req);
           const met = completed.has(req);
           return `<span class="research-req${met ? ' met' : ''}">${met ? '✅' : '🔒'} ${r?.name ?? req}</span>`;
         });
-        meta.innerHTML += `&nbsp;·&nbsp; Requires: ${reqNames.join(', ')}`;
+        meta.innerHTML += `
+          <div class="research-meta-line">
+            <span class="research-meta-label">Requires</span>
+            <div class="research-chip-group">${reqNames.join('')}</div>
+          </div>
+        `;
       }
 
       // Plants unlocked by this research
@@ -1636,15 +2075,20 @@ function renderResearch() {
         const plantNames = unlockedByThis.map(p => {
           const isPlanted = planted.has(p.id);
           return `<span class="research-unlocks-plant${isPlanted ? ' planted' : ''}">${p.icon ?? '🌿'} ${p.name}${isPlanted ? ' ✅' : ''}</span>`;
-        }).join(', ');
-        meta.innerHTML += `<br><span class="research-unlocks-label">🌿 Unlocks plants:</span> ${plantNames}`;
+        }).join('');
+        meta.innerHTML += `
+          <div class="research-meta-line">
+            <span class="research-meta-label">Unlocks</span>
+            <div class="research-chip-group">${plantNames}</div>
+          </div>
+        `;
       }
 
       card.appendChild(meta);
 
       // Action button
       if (!isDone && !isActive) {
-        const btnRow = el('div', 'btn-row');
+        const btnRow = el('div', 'btn-row research-card-actions');
         const btnLabel = canStart
           ? '▶ Start Project'
           : !prereqsMet ? '🔒 Prerequisites needed'
@@ -1719,6 +2163,66 @@ function renderGarden() {
   gardenToggleBar.appendChild(collapseAllBtn);
   content.appendChild(gardenToggleBar);
 
+  const gardenState = getGardenDashboardState();
+  const dashboard = el('section', 'tab-dashboard garden-dashboard');
+  const summaryGrid = el('div', 'summary-grid garden-summary-grid');
+  [
+    {
+      key: 'species',
+      kicker: 'Native species',
+      value: `${gardenState.establishedSpeciesCount}/${gardenState.totalPlantCount}`,
+      meta: `${gardenState.completedEcoregions} of ${ECOREGIONS.length} ecoregions completed`,
+      tone: gardenState.establishedSpeciesCount > 0 ? 'grow' : 'neutral',
+    },
+    {
+      key: 'acres',
+      kicker: 'Habitat acres',
+      value: `${gardenState.establishedAcres}`,
+      meta: `${gardenState.freeAcres} free acre${gardenState.freeAcres !== 1 ? 's' : ''} still open`,
+      tone: gardenState.freeAcres > 0 ? 'info' : 'warn',
+    },
+    {
+      key: 'biosphere',
+      kicker: 'Garden biosphere',
+      value: `🌍 ${shortNumber(gardenState.gardenBio)}`,
+      meta: `${gardenState.establishedAcres} established native acre${gardenState.establishedAcres !== 1 ? 's' : ''}`,
+      tone: gardenState.gardenBio > 0 ? 'accent' : 'neutral',
+    },
+    {
+      key: 'queue',
+      kicker: 'Propagation queue',
+      value: `${gardenState.queueDepth}`,
+      meta: gardenState.queueDepth > 0
+        ? `${gardenState.queuedSpeciesCount} species in motion`
+        : `${gardenState.affordableUnlockedCount} affordable right now`,
+      tone: gardenState.queueDepth > 0 ? 'grow' : gardenState.affordableUnlockedCount > 0 ? 'ready' : 'neutral',
+    },
+  ].forEach(cardData => {
+    const card = el('div', 'summary-card');
+    card.dataset.summary = cardData.key;
+    card.dataset.tone = cardData.tone;
+    card.innerHTML = `
+      <span class="summary-kicker">${cardData.kicker}</span>
+      <strong class="summary-value">${cardData.value}</strong>
+      <span class="summary-meta">${cardData.meta}</span>
+    `;
+    summaryGrid.appendChild(card);
+  });
+  dashboard.appendChild(summaryGrid);
+
+  const focusCallout = el('div', 'focus-callout');
+  focusCallout.dataset.tone = gardenState.focus.tone;
+  focusCallout.innerHTML = `
+    <span class="focus-kicker">${gardenState.focus.kicker}</span>
+    <strong class="focus-title">${gardenState.focus.title}</strong>
+    <p class="focus-body">${gardenState.focus.body}</p>
+  `;
+  dashboard.appendChild(focusCallout);
+  content.appendChild(dashboard);
+
+  const gardenOperationCard = renderGardenOperationCard();
+  if (gardenOperationCard) content.appendChild(gardenOperationCard);
+
   for (const ecoregion of ECOREGIONS) {
     // ── Ecoregion header ─────────────────────────────────────────────────────────
     const plantedCount = ecoregion.plants.filter(p => planted.has(p.id)).length;
@@ -1741,60 +2245,6 @@ function renderGarden() {
       <p class="eco-hnp-link">Source: <a href="${ecoregion.hnpUrl}" target="_blank" rel="noopener noreferrer" class="eco-link">Homegrown National Park – Keystone Plants ↗</a></p>
     `;
     content.appendChild(ecoHeader);
-
-    // ── Active planting card (legacy migration progress display) ─────────────────
-    const activePlant = activePId ? ecoregion.plants.find(p => p.id === activePId) : null;
-    if (activePlant) {
-      const pct       = Math.min(100, Math.round(activePTimer / activePlant.duration * 100));
-      const remaining = Math.max(0, activePlant.duration - activePTimer);
-      const activeCard = el('div', 'research-active-card garden-active-card');
-      activeCard.innerHTML = `
-        <div class="research-active-header">
-          <span class="research-active-icon">${activePlant.icon}</span>
-          <span class="research-active-name">Establishing ${activePlant.name}… (legacy)</span>
-          <span class="research-active-time">${fmtDays(remaining)} remaining</span>
-        </div>
-        <div class="research-progress-track">
-          <div class="research-progress-fill garden-progress" style="width:${pct}%"></div>
-        </div>
-        <div class="research-active-footer">
-          <span class="research-active-pct">${pct}% established</span>
-          <button class="action-btn danger research-cancel-btn">✕ Cancel</button>
-        </div>
-      `;
-      activeCard.querySelector('.research-cancel-btn').addEventListener('click', () => {
-        engine.cancelPlanting();
-        renderAll();
-      });
-      content.appendChild(activeCard);
-    }
-    // Queue status for this ecoregion's plants
-    const queuedInEco = engine.nativeEstablishQueue.filter(i =>
-      ecoregion.plants.some(p => p.id === i.plantId)
-    );
-    if (queuedInEco.length > 0) {
-      const firstItem = queuedInEco[0];
-      const firstPlant = ecoregion.plants.find(p => p.id === firstItem.plantId);
-      const estTimer   = engine.nativeEstablishTimer;
-      const ESTABLISH_SECS = ESTABLISH_DAYS * DAY_REAL_SECS;
-      const pct        = Math.min(100, Math.round(estTimer / ESTABLISH_SECS * 100));
-      const remaining  = Math.max(0, (ESTABLISH_SECS - estTimer) / DAY_REAL_SECS);
-      const activeCard = el('div', 'research-active-card garden-active-card');
-      activeCard.innerHTML = `
-        <div class="research-active-header">
-          <span class="research-active-icon">${firstPlant?.icon ?? '🌱'}</span>
-          <span class="research-active-name">Establishing ${firstPlant?.name ?? firstItem.plantId}…</span>
-          <span class="research-active-time">${fmtDays(remaining)} remaining</span>
-        </div>
-        <div class="research-progress-track">
-          <div class="research-progress-fill garden-progress" style="width:${pct}%"></div>
-        </div>
-        <div class="research-active-footer">
-          <span class="research-active-pct">${pct}% · ${queuedInEco.length} in queue</span>
-        </div>
-      `;
-      content.appendChild(activeCard);
-    }
 
     // ── Plant type sections ──────────────────────────────────────────────────────────────
     const typeGroups = [
@@ -1827,13 +2277,18 @@ function renderGarden() {
             <div class="garden-card-head">
               <span class="garden-plant-icon">🔒</span>
               ${inatThumbHtml(plant.sci, 'garden-thumb', plant.name)}
-              <div class="garden-plant-names">
-                <span class="garden-plant-name">${plant.name}</span>
-                ${speciesLinksHtml(plant.sci, plant.name)}
-              </div>
-              <div class="garden-badges">
-                <span class="garden-type-badge garden-type-${plant.type}">${plant.type}</span>
-                ${plant.insectsHosted?.length ? `<span class="garden-hosted-badge">${plant.insectsHosted.length} species hosted</span>` : ''}
+              <div class="garden-plant-summary">
+                <div class="garden-plant-names">
+                  <div class="garden-plant-title-row">
+                    <span class="garden-plant-name">${plant.name}</span>
+                    <span class="garden-plant-sci">${plant.sci}</span>
+                  </div>
+                  <div class="garden-species-links">${speciesReferenceLinksHtml(plant.sci, plant.name)}</div>
+                </div>
+                <div class="garden-badges">
+                  <span class="garden-type-badge garden-type-${plant.type}">${plant.type}</span>
+                  ${plant.insectsHosted?.length ? `<span class="garden-hosted-badge">${plant.insectsHosted.length} species hosted</span>` : ''}
+                </div>
               </div>
             </div>
             <p class="garden-locked-msg">🌱 Requires project: <strong>${reqNames}</strong></p>
@@ -1849,21 +2304,26 @@ function renderGarden() {
         const cardHead = el('div', 'garden-card-head garden-card-head-clickable');
         cardHead.innerHTML = `
           ${inatThumbHtml(plant.sci, 'garden-thumb', plant.name)}
-          <div class="garden-plant-names">
-            <span class="garden-plant-name">${plant.name}</span>
-            ${speciesLinksHtml(plant.sci, plant.name)}
-          </div>
-          <div class="garden-badges">
-            <span class="garden-type-badge garden-type-${plant.type}">${plant.type}</span>
-            ${plant.insectsHosted?.length ? `<span class="garden-hosted-badge">${plant.insectsHosted.length} species hosted</span>` : ''}
-            ${establishedAcres > 0 ? `<span class="garden-status-badge planted">✅ ${establishedAcres} acre${establishedAcres !== 1 ? 's' : ''}</span>` : ''}
-            ${isActive && establishedAcres === 0 ? '<span class="garden-status-badge active">🌱 Establishing…</span>' : ''}
+          <div class="garden-plant-summary">
+            <div class="garden-plant-names">
+              <div class="garden-plant-title-row">
+                <span class="garden-plant-name">${plant.name}</span>
+                <span class="garden-plant-sci">${plant.sci}</span>
+              </div>
+              <div class="garden-species-links">${speciesReferenceLinksHtml(plant.sci, plant.name)}</div>
+            </div>
+            <div class="garden-badges">
+              <span class="garden-type-badge garden-type-${plant.type}">${plant.type}</span>
+              ${plant.insectsHosted?.length ? `<span class="garden-hosted-badge">${plant.insectsHosted.length} species hosted</span>` : ''}
+              ${establishedAcres > 0 ? `<span class="garden-status-badge planted">✅ ${establishedAcres} acre${establishedAcres !== 1 ? 's' : ''}</span>` : ''}
+              ${isActive && establishedAcres === 0 ? '<span class="garden-status-badge active">🌱 Establishing…</span>' : ''}
+            </div>
           </div>
           <button class="garden-collapse-btn" title="${isCollapsed ? 'Expand' : 'Collapse'}">${isCollapsed ? '▶' : '▼'}</button>
         `;
         // Toggle on header click (but not on inat link clicks)
         cardHead.addEventListener('click', e => {
-          if (e.target.closest('.inat-link')) return;
+          if (e.target.closest('.species-ext-link')) return;
           if (e.target.closest('.zone-info-btn')) return;
           if (collapsedGardenCards.has(plant.id)) collapsedGardenCards.delete(plant.id);
           else collapsedGardenCards.add(plant.id);
@@ -1974,7 +2434,7 @@ function renderGarden() {
           if (!canAfford && freeAcresNative < 1) {
             // Show both issues
           } else if (freeAcresNative < 1 && canAfford) {
-            const goLandBtnG = el('button', 'action-btn', '🗺️ Buy land');
+            const goLandBtnG = el('button', 'action-btn', '🛡️ Free land');
             goLandBtnG.addEventListener('click', () => { activeTab = 'land'; renderAll(); });
             actionRow.appendChild(goLandBtnG);
           }
@@ -2648,8 +3108,12 @@ function renderCollection() {
   const discoveredCount = [...discovered].filter(k => nonBirdCreatureMap.has(k)).length;
   const totalBirdCreatures    = birdCreatureMap.size;
   const discoveredBirdCreatures = [...discovered].filter(k => birdCreatureMap.has(k)).length;
+  const totalBirds = BIRD_LIST.length + totalBirdCreatures;
+  const foundBirds = engine.discoveredBirds.size + discoveredBirdCreatures;
   const unlockedCrops        = getUnlockedCrops();
   const unlockedRanchAnimals = engine.unlockedRanchAnimals;
+  const totalCropCount       = Object.keys(getCropCatalog()).length;
+  const totalRanchCount      = ENABLE_RANCH ? RANCH_ANIMAL_LIST.length : 0;
 
   // ── Biosphere banner ────────────────────────────────────────────────────────
   const researchBio      = engine.getBiosphereScore();
@@ -2659,30 +3123,13 @@ function renderCollection() {
   const maxGardenBio     = ALL_PLANTS.reduce((s, p) => s + (p.biosphereBonus ?? 0), 0);
   const birdBio          = engine.discoveredBirds.size;
   const totalBio         = researchBio + gardenBio + creatureBio + birdBio;
-  const maxTotal         = maxResearchBio + maxGardenBio + totalCreatures + totalBirdCreatures + BIRD_LIST.length;
+  const maxTotal         = maxResearchBio + maxGardenBio + totalCreatures + totalBirds;
   const goldMult         = engine.getGoldMultiplier();
   const bioPct           = maxTotal > 0 ? Math.round(totalBio / maxTotal * 100) : 0;
   const completedResearchCount = engine.completedResearch.size;
   const totalResearchCount     = RESEARCH.length;
   const plantedCount           = planted.size;
   const totalPlantCount        = ALL_PLANTS.length;
-
-  const banner = el('div', 'research-banner');
-  banner.innerHTML = `
-    <div class="research-banner-row">
-      <span class="bio-label">🌍 Biosphere Score</span>
-      <span class="bio-score">${totalBio} <span class="bio-max">/ ${maxTotal}</span></span>
-    </div>
-    <div class="bio-bar-track"><div class="bio-bar-fill" style="width:${bioPct}%"></div></div>
-    <div class="bio-breakdown">
-      <span>🌱 Conservation: <strong>${completedResearchCount}</strong> / ${totalResearchCount}</span>
-      <span>🌿 Plants: <strong>${plantedCount}</strong> / ${totalPlantCount}</span>
-      <span>🦋 Creatures: <strong>${discoveredCount}</strong> / ${totalCreatures}</span>
-      <span>🐦 Birds: <strong>${engine.discoveredBirds.size + discoveredBirdCreatures}</strong> / ${BIRD_LIST.length + totalBirdCreatures}</span>
-      <span>💰 Gold Bonus: <strong>${goldMult.toFixed(2)}×</strong></span>
-    </div>
-  `;
-  content.appendChild(banner);
 
   const showCrops      = collectionFilter === 'all' || collectionFilter === 'crops';
   const showPlants     = collectionFilter === 'all' || collectionFilter === 'plants';
@@ -2694,18 +3141,89 @@ function renderCollection() {
 
   const researchedInvasives = INVASIVES.filter(inv => engine.completedResearch.has(inv.requiredResearch));
   const researchedInvasiveCount = researchedInvasives.length;
+  const totalHistoryCount = discoveredCount + discoveredBirdCreatures + engine.discoveredBirds.size;
+  const irlTotal = irlTotalCount();
+  const archiveFound = completedResearchCount + plantedCount + discoveredCount + foundBirds + researchedInvasiveCount + unlockedCrops.length + unlockedRanchAnimals.size;
+  const archiveTotal = totalResearchCount + totalPlantCount + totalCreatures + totalBirds + INVASIVES.length + totalCropCount + totalRanchCount;
+  const archivePct = archiveTotal > 0 ? Math.round(archiveFound / archiveTotal * 100) : 0;
+  const wildlifeRemaining = Math.max(0, (totalCreatures + totalBirds) - (discoveredCount + foundBirds));
+  const plantRemaining = Math.max(0, totalPlantCount - plantedCount);
+
+  let collectionFocus;
+  if (showHistory) {
+    collectionFocus = {
+      kicker: 'Archive log',
+      title: `${discoveredCount + foundBirds} wildlife discoveries are recorded on the timeline`,
+      body: 'Use the history view to trace when the sim started compounding from new plants, insects, and birds.',
+      tone: totalHistoryCount > 0 ? 'info' : 'warn',
+    };
+  } else if (showIrlOnly && irlTotal > 0) {
+    collectionFocus = {
+      kicker: 'Real-world filter',
+      title: `Showing ${irlTotal} real-garden record${irlTotal !== 1 ? 's' : ''}`,
+      body: 'This view is narrowed to what you have tracked outside the sim, so the archive doubles as a field notebook.',
+      tone: 'info',
+    };
+  } else if (wildlifeRemaining > 0) {
+    collectionFocus = {
+      kicker: 'Wildlife frontier',
+      title: `${wildlifeRemaining} creature and bird entries are still missing`,
+      body: 'Keep host plants established and let time run. The archive fills fastest when habitat diversity is still widening.',
+      tone: 'grow',
+    };
+  } else if (plantRemaining > 0) {
+    collectionFocus = {
+      kicker: 'Flora gaps',
+      title: `${plantRemaining} native plant${plantRemaining !== 1 ? 's are' : ' is'} still missing from the guide`,
+      body: 'Research may already support them. The next step is turning open acreage and CP into permanent habitat entries.',
+      tone: 'ready',
+    };
+  } else if (researchedInvasiveCount < INVASIVES.length) {
+    const invasiveGap = INVASIVES.length - researchedInvasiveCount;
+    collectionFocus = {
+      kicker: 'Control dossier',
+      title: `${invasiveGap} invasive profile${invasiveGap !== 1 ? 's are' : ' is'} still locked`,
+      body: 'The field guide is broad, but invasive-control research still has gaps before the archive is truly complete.',
+      tone: 'warn',
+    };
+  } else {
+    collectionFocus = {
+      kicker: 'Field guide',
+      title: 'The collection is acting like a full archive now',
+      body: 'At this stage the guide is less about missing entries and more about reviewing what your runs have already taught you.',
+      tone: 'info',
+    };
+  }
+
+  const banner = el('div', 'research-banner collection-banner');
+  banner.innerHTML = `
+    <div class="research-banner-row">
+      <span class="bio-label">🗂️ Archive Coverage</span>
+      <span class="bio-score">${totalBio} <span class="bio-max">/ ${maxTotal}</span></span>
+      <span class="research-pts">${archivePct}% logged</span>
+    </div>
+    <div class="bio-bar-track"><div class="bio-bar-fill" style="width:${bioPct}%"></div></div>
+    <div class="bio-breakdown">
+      <span>🌱 Conservation: <strong>${completedResearchCount}</strong> / ${totalResearchCount}</span>
+      <span>🌿 Plants: <strong>${plantedCount}</strong> / ${totalPlantCount}</span>
+      <span>🦋 Creatures: <strong>${discoveredCount}</strong> / ${totalCreatures}</span>
+      <span>🐦 Birds: <strong>${foundBirds}</strong> / ${totalBirds}</span>
+      <span>💰 Gold Bonus: <strong>${goldMult.toFixed(2)}×</strong></span>
+    </div>
+    <p class="research-hint collection-hint">${archiveFound} of ${archiveTotal} archive entries are logged across research, flora, wildlife, production, and invasive control.</p>
+  `;
+  content.appendChild(banner);
 
   // ── Filter bar ──────────────────────────────────────────────────────────────
-  const totalHistoryCount = discoveredCount + discoveredBirdCreatures + engine.discoveredBirds.size;
   const filterBar = el('div', 'collection-filter-bar');
   const filterDefs = [
     { key: 'all',       label: 'All'                                                                              },
-    { key: 'crops',     label: `🌾 Crops (${unlockedCrops.length} / ${Object.keys(getCropCatalog()).length})`   },
+    { key: 'crops',     label: `🌾 Crops (${unlockedCrops.length} / ${totalCropCount})`                         },
     { key: 'plants',    label: `🌿 Native Plants (${planted.size} / ${totalPlantCount})`                         },
     { key: 'creatures', label: `🦋 Creatures (${discoveredCount} / ${totalCreatures})`                           },
-    { key: 'birds',     label: `🐦 Birds (${engine.discoveredBirds.size + discoveredBirdCreatures} / ${BIRD_LIST.length + totalBirdCreatures})`                 },
+    { key: 'birds',     label: `🐦 Birds (${foundBirds} / ${totalBirds})`                                        },
     { key: 'invasives', label: `🛡️ Invasives (${researchedInvasiveCount} / ${INVASIVES.length})`                  },
-    ...(ENABLE_RANCH ? [{ key: 'ranch', label: `🐄 Ranch Animals (${unlockedRanchAnimals.size} / ${RANCH_ANIMAL_LIST.length})` }] : []),
+    ...(ENABLE_RANCH ? [{ key: 'ranch', label: `🐄 Ranch Animals (${unlockedRanchAnimals.size} / ${totalRanchCount})` }] : []),
     { key: 'history',   label: `📊 History (${totalHistoryCount})` },
   ];
   for (const fd of filterDefs) {
@@ -2742,7 +3260,6 @@ function renderCollection() {
   }
 
   // IRL filter toggle
-  const irlTotal = irlTotalCount();
   const irlBtn = el('button', `collection-filter-btn tab-toggle-btn irl-filter-btn${showIrlOnly ? ' active' : ''}`,
     showIrlOnly ? `🌱 Show all (${irlTotal} IRL)` : `🌱 My Real Garden (${irlTotal})`);
   irlBtn.addEventListener('click', () => {
@@ -2753,6 +3270,15 @@ function renderCollection() {
   filterBar.appendChild(irlBtn);
 
   content.appendChild(filterBar);
+
+  const collectionFocusCallout = el('div', 'focus-callout collection-focus-callout');
+  collectionFocusCallout.dataset.tone = collectionFocus.tone;
+  collectionFocusCallout.innerHTML = `
+    <span class="focus-kicker">${collectionFocus.kicker}</span>
+    <strong class="focus-title">${collectionFocus.title}</strong>
+    <p class="focus-body">${collectionFocus.body}</p>
+  `;
+  content.appendChild(collectionFocusCallout);
 
   // IRL summary banner
   if (irlTotal > 0) {
@@ -2765,7 +3291,13 @@ function renderCollection() {
     if (ic > 0) parts.push(`🛡️ ${ic} invasives`);
     if (crc > 0) parts.push(`🌾 ${crc} crops`);
     if (rc > 0) parts.push(`🐄 ${rc} ranch`);
-    irlSummary.innerHTML = `<strong>🌱 My Real Garden:</strong> ${irlTotal} species tracked · ${parts.join(' · ')}`;
+    irlSummary.innerHTML = `
+      <div class="irl-summary-head">
+        <strong class="irl-summary-title">🌱 My Real Garden</strong>
+        <span class="irl-summary-total">${irlTotal} tracked</span>
+      </div>
+      <div class="irl-summary-chips">${parts.map(part => `<span class="irl-summary-chip">${part}</span>`).join('')}</div>
+    `;
     content.appendChild(irlSummary);
   }
 
@@ -4071,6 +4603,23 @@ function zonesFingerprint() {
   return `f${engine.unlockedFarmZones.size}|${farmParts}|s${Math.floor(totalSold / 10)}|g${Math.floor(lifetimeGold / 10000)}|season:${engine.currentSeasonName}`;
 }
 
+function gardenFingerprint() {
+  const queuedCounts = new Map();
+  engine.nativeEstablishQueue.forEach(item => {
+    queuedCounts.set(item.plantId, (queuedCounts.get(item.plantId) ?? 0) + 1);
+  });
+
+  const trackedPlantIds = new Set([...engine.plantedSpeciesAcres.keys(), ...queuedCounts.keys()]);
+  if (engine.activePlantingId) trackedPlantIds.add(engine.activePlantingId);
+
+  const plantParts = Array.from(trackedPlantIds)
+    .sort()
+    .map(plantId => `${plantId}:${engine.plantedSpeciesAcres.get(plantId) ?? 0}:${queuedCounts.get(plantId) ?? 0}`)
+    .join(',');
+
+  return `r:${engine.completedResearch.size}|pts:${Math.floor(engine.researchPoints)}|free:${engine.getFreeAcres()}|active:${engine.activePlantingId ?? ''}|queue:${engine.nativeEstablishQueue.map(item => item.plantId).join(',')}|${plantParts}`;
+}
+
 function ranchFingerprint() {
   const ranchParts = RANCH_ANIMAL_LIST
     .filter(animal => engine.unlockedRanchAnimals.has(animal.id))
@@ -4222,7 +4771,7 @@ function liveUpdate() {
   } else if (activeTab === 'research') {
     // Re-render fully when completions, pts, or active project change
     const _rSlots = engine.researchSlots;
-    const rfp = `${engine.completedResearch.size}|${_rSlots.map(s => s.id).join(',')}|${Math.floor(engine.researchPoints)}|${engine.researchSlotCount}`;
+    const rfp = researchFingerprint();
     if (rfp !== lastResearchFingerprint) {
       lastResearchFingerprint = rfp;
       renderAll();
@@ -4245,90 +4794,28 @@ function liveUpdate() {
       });
     }
   } else if (activeTab === 'garden') {
-    // Re-render fully when planted set or active plant changes
-    const gfp = `${engine.plantedSpecies.size}|${engine.activePlantingId}`;
+    const gfp = gardenFingerprint();
     if (gfp !== lastGardenFingerprint) {
       lastGardenFingerprint = gfp;
       renderAll();
-    } else if (engine.activePlantingId) {
-      // In-place: update planting progress bar and time remaining
-      let plantDuration = null;
-      for (const region of ECOREGIONS) {
-        const p = region.plants.find(pl => pl.id === engine.activePlantingId);
-        if (p) { plantDuration = p.duration; break; }
-      }
-      if (plantDuration) {
-        const pct       = Math.min(100, Math.round(engine.activePlantingTimer / plantDuration * 100));
-        const remaining = Math.max(0, plantDuration - engine.activePlantingTimer);
-        const fill    = content.querySelector('.garden-progress');
-        if (fill) fill.style.width = `${pct}%`;
-        const timeEl  = content.querySelector('.research-active-time');
-        if (timeEl) timeEl.textContent = `${fmtDays(remaining)} remaining`;
-        const pctEl   = content.querySelector('.research-active-pct');
-        if (pctEl) pctEl.textContent = `${pct}% established`;
-      }
+    } else {
+      updateGardenOperationCard();
     }
   }
 }
 
 function updateZoneProgressBars() {
-  content.querySelectorAll('.zone-card:not(.locked)').forEach((card, i) => {
-    const bar   = card.querySelector('.progress-bar');
-    const pctEl = card.querySelector('.progress-pct');
-    if (!bar || !pctEl) return;
-
+  content.querySelectorAll('.zone-card:not(.locked)').forEach(card => {
     if (activeTab === 'crops') {
       const zoneDef  = getFarmZoneDef(card.dataset.zone);
       if (!zoneDef) return;
       const instance = engine.zoneCrops.get(zoneDef.name);
       if (!instance)  return;
       if (!instance.cropType.isInSeason(engine.currentSeasonName)) return; // dormant — static
-      const prog = instance.overallProgress;
-      const ct2      = instance.cropType;
-      const wm2      = workerMultiplier(engine.zoneWorkers.get(zoneDef.name) ?? 1);
-      const remGame  = instance.isFullyGrown ? 0
-        : ((ct2.totalPhases - instance.phase) * ct2.growthTimePerPhase - instance.timer);
-      const nearHarvest = !instance.isFullyGrown && (remGame / (engine.gameSpeed * wm2 * 4)) <= 5;
-      if (nearHarvest) {
-        // Snap to 100% and freeze
-        if (!bar.classList.contains('near-harvest')) {
-          bar.style.transition = 'none';
-          bar.style.width = '100%';
-        }
-      } else {
-        bar.style.width = `${(prog * 100).toFixed(3)}%`;
-      }
-      bar.className = 'progress-bar ' + (instance.isFullyGrown ? 'ready' : nearHarvest ? 'near-harvest' : 'growing');
-      const wrap = bar.parentElement;
-      if (wrap) wrap.classList.toggle('near-harvest', nearHarvest);
-      pctEl.textContent = instance.isFullyGrown ? 'Ready!' : nearHarvest ? 'Actively growing' : `${Math.round(prog * 100)}%`;
-      // Update phase tick and label classes
-      const _phase2 = instance.phase;
-      const _grown2 = instance.isFullyGrown;
-      card.querySelectorAll('.phase-tick').forEach((_tick2, _ti2) => {
-        const _passed2 = _grown2 || _phase2 > _ti2;
-        _tick2.className = 'phase-tick' + (nearHarvest ? ' near-harvest' : _passed2 ? ' passed' : '');
-      });
-      card.querySelectorAll('.phase-label').forEach((_lbl2, _li2) => {
-        const _isCur2  = !_grown2 && _li2 === _phase2;
-        const _isPast2 = _grown2 || _li2 < _phase2;
-        _lbl2.className = 'phase-label' + (nearHarvest ? ' near-harvest' : _isCur2 ? ' active' : _isPast2 ? ' passed' : '');
-      });
-      const _phaseEl = card.querySelector('.phase-row');
-      if (_phaseEl) {
-        _phaseEl.textContent = _grown2
-          ? '\u2705 Ready to harvest'
-          : nearHarvest ? 'Actively growing'
-          : instance.cropType.growthPhaseNames?.[_phase2] ?? `Growing \u2014 stage ${_phase2 + 1} of ${instance.cropType.totalPhases}`;
-      }
-      const _compactEl = card.querySelector('.phase-status-compact');
-      if (_compactEl) {
-        const _phaseName = instance.cropType.growthPhaseNames?.[_phase2] ?? `Stage ${_phase2 + 1}`;
-        _compactEl.textContent = _grown2
-          ? '\u2705 Ready to harvest'
-          : nearHarvest ? 'Actively growing'
-          : `\u25b6 ${_phaseName} (${_phase2 + 1} / ${instance.cropType.totalPhases})`;
-      }
+      const wm2 = workerMultiplier(engine.zoneWorkers.get(zoneDef.name) ?? 1);
+      const progressState = getCropProgressState(instance, wm2);
+      applyCropProgressIndicator(card.querySelector('.crop-progress-ring'), progressState);
+      card.classList.toggle('zone-ready', progressState.isReady);
     }
   });
 }

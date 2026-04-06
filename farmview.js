@@ -1,7 +1,7 @@
 // farmview.js — Canvas-based pixel-art farm view (Phase 1 + Farmer guide)
 // Replaces the emoji tile grid with a sprite-sheet-rendered map.
 
-import { CROPS } from './crops.js';
+// Use engine-provided CROPS (resolved per-region) instead of global import
 import { FARM_ZONE_DEFS } from './game.js';
 import { ECOREGIONS } from './ecoregions.js';
 import { INVASIVES, INVASIVE_MAP } from './invasives.js';
@@ -51,10 +51,11 @@ const _allPlants = ECOREGIONS.flatMap(e => e.plants);
 const _plantById = new Map(_allPlants.map(p => [p.id, p]));
 
 // ── Educational fact generator ────────────────────────────────────────────────
-function speciesFacts(tile) {
+function speciesFacts(tile, engine) {
   const facts = [];
   if (tile.type === 'crop' && tile.cropId) {
-    const crop = CROPS[tile.cropId];
+    const crops = (engine && engine.CROPS) ? engine.CROPS : (typeof window !== 'undefined' && window.CROPS) ? window.CROPS : {};
+    const crop = crops[tile.cropId];
     if (!crop) return facts;
     const sci = crop.sciName || null;
     facts.push({ icon: '🌾', heading: crop.name, text: `Scientific name: ${sci || 'Unknown'}`, sci });
@@ -654,7 +655,7 @@ export class FarmView {
         f.factTimer = 0;
         // Generate facts for current tile
         const idx = f.ty * this.mapW + f.tx;
-        f.facts = speciesFacts(this.tiles[idx] || { type: 'free' });
+        f.facts = speciesFacts(this.tiles[idx] || { type: 'free' }, this.engine);
         // Show first fact
         this._emitFact(f);
       } else {

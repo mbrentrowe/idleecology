@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Hosted fauna lookup schema",
+  "type": "object",
+  "properties": {
+    "species": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/bucket" }
+    },
+    "genus": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/bucket" }
+    },
+    "family": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/bucket" }
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/bucket" }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "bucket": {
+      "type": "object",
+      "properties": {
+        "hosted": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/hostedEntry" }
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["species","genus","family","fallback","curated","inferred","unknown"]
+        },
+        "reviewed": { "type": "boolean" },
+        "source": { "type": "string" }
+      },
+      "required": ["hosted"],
+      "additionalProperties": false
+    },
+    "hostedEntry": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "sci": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["butterfly","moth","bee","fly","beetle","wasp","bird","mammal"]
+        },
+        "role": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "required": ["name","sci","type","role","note"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -52,6 +52,8 @@
   .step-group { border-left:3px solid var(--accent); padding-left:12px; margin:10px 0; }
   .step-label { color:var(--hi); font-weight:bold; font-size:.9em; margin-bottom:4px; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/ajv@8.12.0/dist/ajv.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -119,6 +121,16 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
       <input id="ebirdRegion" type="text" placeholder="US-MO" />
       <p class="help">Country (US), State (US-MO), or County (US-MO-019)</p>
     </div>
+  </div>
+  </div>
+  <div style="margin-top:8px;">
+    <label>Fetch Mode</label>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <label style="display:flex;align-items:center; color:var(--dim); font-size:.95em;"><input id="useProxy" type="checkbox" style="margin-right:6px;" />Use local proxy</label>
+      <input id="proxyBase" type="text" value="http://localhost:3000" placeholder="http://localhost:3000" style="width:260px;" />
+      <button class="btn-secondary" onclick="testProxy()">Test proxy</button>
+    </div>
+    <p class="help">Enable to fetch data directly from the local proxy server (recommended for developer convenience).</p>
   </div>
   <div class="grid">
     <div>
@@ -211,6 +223,7 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
   <div class="step-group">
     <div class="step-label">🌱 Plants (Flora API)</div>
     <button class="btn-primary" onclick="genPlantCurl()">Generate curl command</button>
+    <button class="btn-ok" onclick="fetchPlantsViaProxy()">Fetch via proxy</button>
     <div id="plantCurlBox" style="display:none;"></div>
     <label style="margin-top:8px;">Paste the JSON response here:</label>
     <textarea id="plantPaste" rows="6" placeholder='Paste the JSON array from the curl output here...'></textarea>
@@ -221,6 +234,7 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
   <div class="step-group" style="margin-top:16px;">
     <div class="step-label">🐦 Birds — Step A: Species List (eBird)</div>
     <button class="btn-primary" onclick="genBirdSppCurl()">Generate curl command</button>
+    <button class="btn-ok" onclick="fetchBirdSppViaProxy()">Fetch via proxy</button>
     <div id="birdSppCurlBox" style="display:none;"></div>
     <label style="margin-top:8px;">Paste the species code array here:</label>
     <textarea id="birdSppPaste" rows="4" placeholder='Paste the JSON array of species codes, e.g. ["amecro","amerob",...]'></textarea>
@@ -233,6 +247,7 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
     <div class="step-label">🐦 Birds — Step B: Taxonomy Details (eBird)</div>
     <p class="help">After loading species codes, generate the taxonomy curl. This fetches names and family info.</p>
     <button class="btn-primary" onclick="genBirdTaxCurl()">Generate curl command(s)</button>
+    <button class="btn-ok" onclick="fetchBirdTaxViaProxy()">Fetch via proxy</button>
     <div id="birdTaxCurlBox" style="display:none;"></div>
     <label style="margin-top:8px;">Paste the taxonomy JSON here:</label>
     <textarea id="birdTaxPaste" rows="6" placeholder='Paste the JSON array from the taxonomy curl output...'></textarea>
@@ -244,6 +259,7 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
     <div class="step-label">🐦 Birds — Step C: Recent Observations (optional)</div>
     <p class="help">Optional — helps prioritize recently-active birds. Skip to use all-time species only.</p>
     <button class="btn-primary" onclick="genBirdRecentCurl()">Generate curl command</button>
+    <button class="btn-ok" onclick="fetchBirdRecentViaProxy()">Fetch via proxy</button>
     <div id="birdRecentCurlBox" style="display:none;"></div>
     <label style="margin-top:8px;">Paste the recent observations JSON here:</label>
     <textarea id="birdRecentPaste" rows="4" placeholder='Paste the JSON array from the recent observations curl...'></textarea>
@@ -279,6 +295,7 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
   <button class="btn-ok" onclick="generateCode({ allowDraft: true })">⚙️ Generate Draft</button>
   <button class="btn-secondary" onclick="loadGoldenFixture()">🧪 Load Golden Fixture</button>
   <button class="btn-secondary" onclick="runGoldenFixtureCompare()">🔍 Run Golden Suite</button>
+  <button class="btn-secondary" onclick="packInstallZip()">📦 Pack & Download Install Zip</button>
 
   <div id="validationOutput" class="output-box" style="display:none; margin-top:12px;"></div>
   <div id="fixtureCompareOutput" class="output-box" style="display:none; margin-top:12px;"></div>
@@ -291,14 +308,17 @@ Uses <strong>curl commands</strong> to avoid CORS — run in terminal, paste res
     </div>
     <div id="codetab-ecoregion" class="tab-content active">
       <button class="btn-secondary copy-btn" onclick="copyCode('codeEcoregion')">📋 Copy</button>
+      <button class="btn-secondary copy-btn" onclick="downloadCode('codeEcoregion','ecoregion_{regionId}.js')">⬇️ Download</button>
       <textarea id="codeEcoregion" rows="25" readonly></textarea>
     </div>
     <div id="codetab-birds" class="tab-content">
       <button class="btn-secondary copy-btn" onclick="copyCode('codeBirds')">📋 Copy</button>
+      <button class="btn-secondary copy-btn" onclick="downloadCode('codeBirds','birds_{regionId}.js')">⬇️ Download</button>
       <textarea id="codeBirds" rows="25" readonly></textarea>
     </div>
     <div id="codetab-bundle" class="tab-content">
       <button class="btn-secondary copy-btn" onclick="copyCode('codeBundle')">📋 Copy</button>
+      <button class="btn-secondary copy-btn" onclick="downloadCode('codeBundle','bundle_{regionId}.js')">⬇️ Download</button>
       <textarea id="codeBundle" rows="25" readonly></textarea>
     </div>
   </div>
@@ -387,6 +407,45 @@ const BASE_CROP_LIBRARY = [
 ].map(crop => ({ ...crop, ...BASE_CROP_PHASES[crop.id] }));
 const BASE_CROP_MAP = Object.fromEntries(BASE_CROP_LIBRARY.map(crop => [crop.id, crop]));
 const VALID_WILDLIFE_TYPES = ['butterfly', 'moth', 'bee', 'fly', 'beetle', 'wasp', 'bird', 'mammal'];
+
+// JSON Schema for hosted-fauna lookup (also stored externally at ./schemas/hosted_fauna.schema.json)
+const SCHEMA_HOSTED_FAUNA = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Hosted fauna lookup",
+  "type": "object",
+  "properties": {
+    "species": { "type": "object", "additionalProperties": { "$ref": "#/definitions/bucket" } },
+    "genus":   { "type": "object", "additionalProperties": { "$ref": "#/definitions/bucket" } },
+    "family":  { "type": "object", "additionalProperties": { "$ref": "#/definitions/bucket" } },
+    "fallback":{ "type": "object", "additionalProperties": { "$ref": "#/definitions/bucket" } }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "bucket": {
+      "type": "object",
+      "properties": {
+        "hosted": { "type": "array", "items": { "$ref": "#/definitions/hostedEntry" } },
+        "confidence": { "type": "string", "enum": ["species","genus","family","fallback","curated","inferred","unknown"] },
+        "reviewed": { "type": "boolean" },
+        "source": { "type": "string" }
+      },
+      "required": ["hosted"],
+      "additionalProperties": false
+    },
+    "hostedEntry": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "sci":  { "type": "string" },
+        "type": { "type": "string", "enum": ['butterfly','moth','bee','fly','beetle','wasp','bird','mammal'] },
+        "role": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "required": ["name","sci","type","role","note"],
+      "additionalProperties": false
+    }
+  }
+};
 const BUILDER_JSON_TEXTAREAS = {
   cropPlanJson: { label: 'Region crop catalog JSON', fileName: 'region-crops.json' },
   farmZoneDefsJson: { label: 'Farm zone overrides JSON', fileName: 'farm-zone-defs.json' },
@@ -619,6 +678,21 @@ function log(msg, type = 'info') {
   el.scrollTop = el.scrollHeight;
 }
 
+// Try to compile the hosted-fauna JSON Schema using Ajv (if available).
+let ajvValidateHostedFauna = null;
+try {
+  if (typeof Ajv !== 'undefined') {
+    const ajvInstance = new Ajv({ allErrors: true, strict: false });
+    ajvValidateHostedFauna = ajvInstance.compile(SCHEMA_HOSTED_FAUNA);
+    log('Hosted-fauna JSON Schema compiled for validation', 'info');
+  } else {
+    log('Ajv not found: hosted-fauna schema validation disabled (built-in checks will still run)', 'info');
+  }
+} catch (e) {
+  ajvValidateHostedFauna = null;
+  log('Failed to compile hosted-fauna schema: ' + (e && e.message ? e.message : String(e)), 'err');
+}
+
 // ── Tab switching ──────────────────────────────────────────────────────
 function switchTab(clicked, name) {
   const section = clicked.closest('section');
@@ -640,6 +714,57 @@ function copyCode(id) {
   ta.select();
   navigator.clipboard.writeText(ta.value);
   log('Copied to clipboard!', 'ok');
+}
+
+function downloadCode(textareaId, defaultNameTemplate) {
+  const text = document.getElementById(textareaId).value || '';
+  const regionId = document.getElementById('regionId').value.trim() || 'new_region';
+  const fileName = defaultNameTemplate.replace('{regionId}', regionId);
+  downloadTextFile(fileName, text, 'text/javascript;charset=utf-8');
+  log(`Downloaded ${fileName}`, 'ok');
+}
+
+async function packInstallZip() {
+  const ecoregion = document.getElementById('codeEcoregion').value || '';
+  const birds = document.getElementById('codeBirds').value || '';
+  const bundle = document.getElementById('codeBundle').value || '';
+  if (!ecoregion && !birds && !bundle) { log('No generated code available to pack — generate code first', 'err'); return; }
+  const regionId = document.getElementById('regionId').value.trim() || 'new_region';
+  try {
+    const zip = new JSZip();
+    zip.file(`ecoregion_${regionId}.js`, ecoregion || `// ecoregion_${regionId}.js — empty`);
+    zip.file(`birds_${regionId}.js`, birds || `// birds_${regionId}.js — empty`);
+    zip.file(`${regionId}.bundle.js`, bundle || `// ${regionId}.bundle.js — empty`);
+    const installReadme = `This archive contains generated region files for ${regionId}.
+
+Place the files into your repository root (or inspect before committing). Example workflow from repo root:
+
+1) Save the files into the project root (or extract this archive):
+
+   - ecoregion_${regionId}.js  -> add this object into the ECOREGIONS array in ecoregions.js (or use the tools installer)
+   - birds_${regionId}.js      -> place in project root (or combine into birds module as desired)
+   - ${regionId}.bundle.js     -> place into regions/${regionId}.js (or adjust imports)
+
+2) Use the provided Node helper (tools/install_region.js) to install into the repo automatically:
+
+   node tools/install_region.js --ecoregion ./ecoregion_${regionId}.js --birds ./birds_${regionId}.js --bundle ./${regionId}.bundle.js
+
+Review changes before committing. If you don't have the installer, manually move files and edit 'ecoregions.js' and 'regions/registry.js' as needed.
+`;
+    zip.file('INSTALL_README.txt', installReadme);
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `region_install_${regionId}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    log(`Packed install archive for ${regionId}`, 'ok');
+  } catch (e) {
+    log('Failed to pack install zip: ' + (e && e.message ? e.message : String(e)), 'err');
+  }
 }
 
 function downloadTextFile(fileName, text, mimeType = 'text/plain;charset=utf-8') {
@@ -1241,6 +1366,24 @@ function parseHostedFaunaLookup(errors, warnings) {
   if (!rawLookup || typeof rawLookup !== 'object' || Array.isArray(rawLookup)) {
     errors.push('Hosted fauna lookup JSON must be an object.');
     return { lookup: emptyHostedFaunaLookup(), stats: { bucketCount: 0, hostedCount: 0 } };
+  }
+
+  // If Ajv schema validator is available, run schema validation first to produce schema-style errors.
+  if (ajvValidateHostedFauna) {
+    try {
+      const valid = ajvValidateHostedFauna(rawLookup);
+      if (!valid && Array.isArray(ajvValidateHostedFauna.errors)) {
+        ajvValidateHostedFauna.errors.forEach(err => {
+          const path = err.instancePath || '';
+          errors.push(`Hosted-fauna schema ${path} ${err.message}`);
+        });
+        // Continue with built-in validation to gather contextual issues as well.
+      } else {
+        log('Hosted-fauna lookup JSON validated against schema', 'ok');
+      }
+    } catch (e) {
+      log('Schema validation error: ' + (e && e.message ? e.message : String(e)), 'err');
+    }
   }
 
   const lookup = emptyHostedFaunaLookup();
@@ -1869,6 +2012,116 @@ function guessBirdAttractedBy(bird) {
   if (family.includes('hummingbird')) return 'Native tubular flowers providing nectar';
   if (family.includes('swallow') || family.includes('flycatcher')) return 'Abundant flying insects over open habitat';
   return 'Native plant diversity providing caterpillars and seeds';
+}
+
+// ── Proxy helpers ─────────────────────────────────────────────────────
+function getProxyBase() {
+  try { return (document.getElementById('proxyBase').value || '').trim().replace(/\/+$/, '') || 'http://localhost:3000'; } catch (e) { return 'http://localhost:3000'; }
+}
+function useProxyEnabled() {
+  try { return !!document.getElementById('useProxy').checked; } catch (e) { return false; }
+}
+async function testProxy() {
+  if (!useProxyEnabled()) return log('Enable "Use local proxy" before testing.', 'err');
+  const proxy = getProxyBase();
+  try {
+    const region = encodeURIComponent(document.getElementById('ebirdRegion').value.trim() || 'US-MO');
+    const url = `${proxy}/proxy/ebird/spplist?region=${region}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('status ' + r.status);
+    const data = await r.json();
+    log(`Proxy test OK — returned ${Array.isArray(data) ? data.length : typeof data} items`, 'ok');
+  } catch (e) {
+    log('Proxy test failed: ' + (e && e.message ? e.message : String(e)), 'err');
+  }
+}
+
+async function fetchPlantsViaProxy() {
+  if (!useProxyEnabled()) return log('Enable "Use local proxy" first', 'err');
+  const proxy = getProxyBase();
+  const state = (document.getElementById('floraState').value || '').trim().toUpperCase();
+  const max = parseInt(document.getElementById('maxPlants').value, 10) || 30;
+  const key = (document.getElementById('floraKey').value || '').trim();
+  if (!state) return log('State code required', 'err');
+  try {
+    const resp = await fetch(`${proxy}/proxy/flora/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state, limit: max, native_only: true, key })
+    });
+    if (!resp.ok) throw new Error('Proxy responded ' + resp.status);
+    const data = await resp.json();
+    document.getElementById('plantPaste').value = JSON.stringify(data, null, 2);
+    loadPlants();
+    log('Plants fetched via proxy', 'ok');
+  } catch (e) {
+    log('Failed fetching plants via proxy: ' + (e && e.message ? e.message : String(e)), 'err');
+  }
+}
+
+async function fetchBirdSppViaProxy() {
+  if (!useProxyEnabled()) return log('Enable "Use local proxy" first', 'err');
+  const proxy = getProxyBase();
+  const region = (document.getElementById('ebirdRegion').value || '').trim();
+  const key = (document.getElementById('ebirdKey').value || '').trim();
+  if (!region) return log('eBird region code required', 'err');
+  try {
+    const url = `${proxy}/proxy/ebird/spplist?region=${encodeURIComponent(region)}${key ? '&key=' + encodeURIComponent(key) : ''}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Proxy responded ' + resp.status);
+    const data = await resp.json();
+    let codes = [];
+    if (Array.isArray(data)) codes = Array.from(new Set(data.map(d => d.speciesCode).filter(Boolean)));
+    else if (Array.isArray(data.codes)) codes = data.codes;
+    else if (Array.isArray(data.data)) codes = Array.from(new Set(data.data.map(d => d.speciesCode).filter(Boolean)));
+    else { log('Proxy returned unexpected shape for species list', 'err'); return; }
+    document.getElementById('birdSppPaste').value = JSON.stringify(codes, null, 2);
+    loadBirdSpp();
+    log('Species codes fetched via proxy', 'ok');
+  } catch (e) {
+    log('Failed fetching species list via proxy: ' + (e && e.message ? e.message : String(e)), 'err');
+  }
+}
+
+async function fetchBirdTaxViaProxy() {
+  if (!useProxyEnabled()) return log('Enable "Use local proxy" first', 'err');
+  const proxy = getProxyBase();
+  if (!birdSpeciesCodes.length) {
+    const raw = safeParse('birdSppPaste', 'Species list');
+    if (Array.isArray(raw)) birdSpeciesCodes = raw;
+  }
+  if (!birdSpeciesCodes.length) return log('No species codes available — load or fetch species codes first', 'err');
+  const key = (document.getElementById('ebirdKey').value || '').trim();
+  try {
+    const speciesParam = birdSpeciesCodes.join(',');
+    const url = `${proxy}/proxy/ebird/taxonomy?species=${encodeURIComponent(speciesParam)}${key ? '&key=' + encodeURIComponent(key) : ''}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Proxy responded ' + resp.status);
+    const data = await resp.json();
+    document.getElementById('birdTaxPaste').value = JSON.stringify(data, null, 2);
+    loadBirdTax();
+    log('Taxonomy fetched via proxy', 'ok');
+  } catch (e) {
+    log('Failed fetching taxonomy via proxy: ' + (e && e.message ? e.message : String(e)), 'err');
+  }
+}
+
+async function fetchBirdRecentViaProxy() {
+  if (!useProxyEnabled()) return log('Enable "Use local proxy" first', 'err');
+  const proxy = getProxyBase();
+  const region = (document.getElementById('ebirdRegion').value || '').trim();
+  const key = (document.getElementById('ebirdKey').value || '').trim();
+  if (!region) return log('eBird region code required', 'err');
+  try {
+    const url = `${proxy}/proxy/ebird/spplist?region=${encodeURIComponent(region)}${key ? '&key=' + encodeURIComponent(key) : ''}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Proxy responded ' + resp.status);
+    const data = await resp.json();
+    document.getElementById('birdRecentPaste').value = JSON.stringify(data, null, 2);
+    loadBirdRecent();
+    log('Recent observations fetched via proxy', 'ok');
+  } catch (e) {
+    log('Failed fetching recent observations via proxy: ' + (e && e.message ? e.message : String(e)), 'err');
+  }
 }
 
 resetCropPlanDefaults(true);
