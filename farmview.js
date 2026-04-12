@@ -59,8 +59,6 @@ function speciesFacts(tile, engine) {
     if (!crop) return facts;
     const sci = crop.sciName || null;
     facts.push({ icon: '🌾', heading: crop.name, text: `Scientific name: ${sci || 'Unknown'}`, sci });
-    if (crop.seasons?.length)
-      facts.push({ icon: '📅', heading: crop.name, text: `Grows in ${crop.seasons.join(' & ')}`, sci });
     if (crop.growthPhaseNames?.length)
       facts.push({ icon: '🌱', heading: crop.name, text: `Growth stages: ${crop.growthPhaseNames.join(' → ')}`, sci });
   } else if (tile.type === 'native' && tile.plantId) {

@@ -45,7 +45,7 @@ export default {
     { name: 'Peanut Bottom',         cropId: 'carrot',      cost:      50000 },
     { name: 'Rabbiteye Thicket',     cropId: 'blueberry',   cost:      70000 },
     { name: 'Peach Orchard',         cropId: 'parsnip',     cost:     100000 },
-    { name: 'Lettuce Glade',         cropId: 'lettuce',     cost:     150000 },
+    { name: 'Lettuce Glade',         cropId: 'lettuce',     cost:     100000 },
     { name: 'Collard Patch',         cropId: 'cauliflower', cost:     200000 },
     { name: 'Carolina Gold Paddies', cropId: 'rice',        cost:     300000 },
     { name: 'Broccoli Field',        cropId: 'broccoli',    cost:     500000 },

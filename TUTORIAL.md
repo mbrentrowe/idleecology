@@ -75,16 +75,16 @@ Open `engine_sanity_test.html` in the browser and confirm PASS output.
 
 Implement this feature:
 
-"Show a short in-season label for each crop in the Crops tab."
+"Show a short crop-mastery label for each crop in the Crops tab."
 
 Suggested steps:
 
 1. In `main.js`, locate crop row/card rendering.
-2. Read the crop seasons from `CROPS[cropId].seasons`.
-3. Read current season from engine calendar state (already used in header/time UI).
+2. Read the crop harvest totals from `engine.cropStats`.
+3. Convert those totals into a small mastery state such as a tier or next milestone.
 4. Render one small status label:
-   - In season
-   - Out of season
+  - Current mastery tier
+  - Next milestone target
 5. Keep business rules in engine unchanged unless gameplay must change.
 
 Scope control tips:

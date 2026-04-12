@@ -49,7 +49,7 @@ A shared catalog plus per-region overrides allows:
 
 1. Stable crop IDs
 2. Shared art and growth-phase bindings
-3. Region-specific timing, yields, seasonality, and availability
+3. Region-specific timing, yields, and availability
 4. Safer save/load behavior across regions
 
 ### `cropProfiles` contract
@@ -64,7 +64,6 @@ Allowed override fields:
 4. `yieldGold`
 5. `marketIconGID`
 6. `unlockCriteria`
-7. `seasons`
 
 Immutable fields:
 
@@ -92,9 +91,8 @@ The builder should validate:
 
 1. `growthTimePerPhase` is positive
 2. `yieldGold` is positive
-3. `seasons` is a non-empty subset of the four game seasons
-4. `unlockCriteria.totalSold` is non-negative when present
-5. The selected crop lineup supports viable progression and seasonal coverage
+3. `unlockCriteria.totalSold` is non-negative when present
+4. The selected crop lineup supports viable progression without relying on crop season rotation
 
 ## Hosted-Fauna Direction
 
@@ -219,3 +217,31 @@ That pass should answer:
 4. `insectsHosted` is required for a playable generated region
 5. Structured non-insect wildlife is additive in the first pass
 6. Builder UX improvements should come after the data contracts are nailed down
+
+## Deferred Builder Sync Note
+
+Base-game crop tuning is currently happening in gameplay files first. The builder should stay frozen until that work settles.
+
+Current gameplay-side source of truth:
+
+1. [crops.js](./crops.js) for crop mastery thresholds, unlock pacing, and baseline crop stats
+2. [research.js](./research.js) for `requiresCropMilestones` patterns on projects
+3. [ecoregions.js](./ecoregions.js) for `requiresCropMilestones` patterns on native plants
+4. [prestige.js](./prestige.js) for how crop mastery contributes to collection and prestige
+5. [main.js](./main.js) for player-facing mastery copy and lock messaging
+
+When builder work resumes, update in this order:
+
+1. Re-read the current crop mastery thresholds and unlock pacing in [crops.js](./crops.js)
+2. Re-read the active research milestone patterns in [research.js](./research.js)
+3. Re-read the active native-plant milestone patterns in [ecoregions.js](./ecoregions.js)
+4. Re-check prestige assumptions in [prestige.js](./prestige.js) so builder-authored content does not distort completion balance
+5. Update [region_builder.html](./region_builder.html) schema, validation, defaults, and code generation only after steps 1 through 4 are stable
+6. Refresh [assets/region_builder_golden_fixture.js](./assets/region_builder_golden_fixture.js) and [regions/se_usa_plains_fixture.js](./regions/se_usa_plains_fixture.js) after the builder schema matches gameplay again
+
+Future builder pass checklist:
+
+1. Do not reintroduce crop seasons, seasonal coverage checks, or builder-owned crop pacing rules that no longer exist in gameplay
+2. Add support only for the milestone fields that are actually live in gameplay, starting with `requiresCropMilestones`
+3. Keep crop pacing validation aligned to the base-game ladder instead of inferring a separate builder-specific progression model
+4. Re-run fixture generation only after the generated output matches the live gameplay contract

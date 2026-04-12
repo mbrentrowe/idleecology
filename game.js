@@ -1,7 +1,14 @@
 // game.js — pure game engine for the text-UI version of Idle Ecologist
 // No DOM access. Exports createEngine() and zone definition arrays.
 
-import { CROPS as BASE_CROPS, CropInstance, CropType } from './crops.js';
+import {
+  CROPS as BASE_CROPS,
+  CropInstance,
+  CropType,
+  CROP_MASTERY_THRESHOLDS,
+  getCropMasteryLevel,
+  getNextCropMasteryThreshold,
+} from './crops.js';
 import { RESEARCH }            from './research.js';
 import { ECOREGIONS } from './ecoregions.js';
 import { RANCH_ANIMALS, RANCH_ANIMAL_LIST } from './ranch.js';
@@ -187,7 +194,6 @@ const CROP_PROFILE_MUTABLE_FIELDS = [
   'yieldGold',
   'marketIconGID',
   'unlockCriteria',
-  'seasons',
 ];
 
 function normalizeCropType(cropId, cropLike) {
@@ -204,7 +210,6 @@ function normalizeCropType(cropId, cropLike) {
     yieldGold: cropLike.yieldGold,
     marketIconGID: cropLike.marketIconGID,
     unlockCriteria: cropLike.unlockCriteria ? { ...cropLike.unlockCriteria } : null,
-    seasons: cropLike.seasons ? [...cropLike.seasons] : undefined,
   });
 }
 
@@ -242,7 +247,6 @@ function resolveRegionCrops(regionData) {
       yieldGold: baseCrop.yieldGold,
       marketIconGID: baseCrop.marketIconGID,
       unlockCriteria: baseCrop.unlockCriteria ? { ...baseCrop.unlockCriteria } : null,
-      seasons: [...baseCrop.seasons],
       ...overrideFields,
     });
   }
@@ -443,6 +447,103 @@ export function createEngine(regionData) {
   const cropStats     = new Map();
   Object.keys(CROPS).forEach(id => cropStats.set(id, { grown: 0, sold: 0, lifetimeSales: 0 }));
 
+  function getCropYieldMultiplier() {
+    return 1 + [...completedResearch].reduce((sum, id) => {
+      const project = RESEARCH.find(item => item.id === id);
+      return sum + (project?.effect?.cropYieldBonus ?? 0);
+    }, 0);
+  }
+
+  function getCropMasteryStatus(cropId) {
+    const crop = CROPS[cropId] ?? null;
+    const grown = cropStats.get(cropId)?.grown ?? 0;
+    const level = getCropMasteryLevel(grown);
+    const maxLevel = CROP_MASTERY_THRESHOLDS.length;
+    const nextThreshold = getNextCropMasteryThreshold(grown);
+    const previousThreshold = level > 0 ? CROP_MASTERY_THRESHOLDS[level - 1] : 0;
+    const progressToNext = nextThreshold == null
+      ? 1
+      : Math.max(0, Math.min(1, (grown - previousThreshold) / Math.max(1, nextThreshold - previousThreshold)));
+
+    return {
+      cropId,
+      crop,
+      grown,
+      level,
+      maxLevel,
+      thresholds: [...CROP_MASTERY_THRESHOLDS],
+      nextThreshold,
+      previousThreshold,
+      progressToNext,
+    };
+  }
+
+  function getCropMilestoneStatus(milestoneLike) {
+    if (!milestoneLike || typeof milestoneLike !== 'object') return null;
+    const cropId = typeof milestoneLike.cropId === 'string' ? milestoneLike.cropId : null;
+    const required = Number.isFinite(milestoneLike.grown) ? Math.max(0, Math.floor(milestoneLike.grown)) : null;
+    if (!cropId || required == null) return null;
+
+    const crop = CROPS[cropId] ?? null;
+    const current = cropStats.get(cropId)?.grown ?? 0;
+    const met = current >= required;
+
+    return {
+      cropId,
+      crop,
+      current,
+      required,
+      met,
+      remaining: Math.max(0, required - current),
+    };
+  }
+
+  function getResearchUnlockStatus(projectLike) {
+    const project = typeof projectLike === 'string'
+      ? RESEARCH.find(item => item.id === projectLike) ?? null
+      : projectLike ?? null;
+    if (!project) {
+      return { project: null, unlocked: false, unmetResearch: [], cropMilestones: [], unmetCropMilestones: [] };
+    }
+
+    const unmetResearch = (project.requires ?? []).filter(req => !completedResearch.has(req));
+    const cropMilestones = (project.requiresCropMilestones ?? [])
+      .map(getCropMilestoneStatus)
+      .filter(Boolean);
+    const unmetCropMilestones = cropMilestones.filter(status => !status.met);
+
+    return {
+      project,
+      unlocked: unmetResearch.length === 0 && unmetCropMilestones.length === 0,
+      unmetResearch,
+      cropMilestones,
+      unmetCropMilestones,
+    };
+  }
+
+  function getPlantUnlockStatus(plantLike) {
+    const plant = typeof plantLike === 'string'
+      ? findPlant(plantLike)?.plant ?? null
+      : plantLike ?? null;
+    if (!plant) {
+      return { plant: null, unlocked: false, unmetResearch: [], cropMilestones: [], unmetCropMilestones: [] };
+    }
+
+    const unmetResearch = (plant.requiresResearch ?? []).filter(req => !completedResearch.has(req));
+    const cropMilestones = (plant.requiresCropMilestones ?? [])
+      .map(getCropMilestoneStatus)
+      .filter(Boolean);
+    const unmetCropMilestones = cropMilestones.filter(status => !status.met);
+
+    return {
+      plant,
+      unlocked: unmetResearch.length === 0 && unmetCropMilestones.length === 0,
+      unmetResearch,
+      cropMilestones,
+      unmetCropMilestones,
+    };
+  }
+
   // ── Gold multiplier from Biosphere Points ───────────────────────────────────
   // Scales from 1× (0 BP) to 5× (all BP unlocked) using a power-1.5 curve.
   const MAX_BP = RESEARCH.reduce((s, r) => s + (r.effect?.biosphereBonus ?? 0), 0)
@@ -514,21 +615,22 @@ export function createEngine(regionData) {
     if (!ct) return 0;
     const cycleTime = (ct.growthPhaseGIDs.length - 1) * ct.growthTimePerPhase;
     if (cycleTime <= 0) return 0;
-    return ct.yieldGold / cycleTime;
+    return ct.yieldGold * getCropYieldMultiplier() * goldMultiplier() / cycleTime;
   }
 
   /** Total gold-per-second across all zones (used in header). */
   function getTotalGPS() {
     let gps = 0;
+    const _yieldMult = getCropYieldMultiplier();
+    const _goldMult = goldMultiplier();
     for (const [zoneName, instance] of zoneCrops) {
       if (!unlockedFarmZones.has(zoneName)) continue;
       const ct  = instance.cropType;
-      if (!ct.isInSeason(lastSeasonName)) continue; // dormant — no earnings
       const cyc = (ct.growthPhaseGIDs.length - 1) * ct.growthTimePerPhase;
       if (cyc <= 0) continue;
       const tc = farmTileCount(zoneName);
       const wm  = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
-      if (autoSellSet.has(ct.id)) gps += (ct.yieldGold * tc * wm * TICKS_PER_SEC) / cyc;
+      if (autoSellSet.has(ct.id)) gps += (ct.yieldGold * _yieldMult * _goldMult * tc * wm * TICKS_PER_SEC) / cyc;
     }
     if (ENABLE_RANCH) {
       for (const animalId of unlockedRanchAnimals) {
@@ -603,7 +705,7 @@ export function createEngine(regionData) {
         const established = plantedSpeciesAcres.get(plant.id) ?? 0;
         const queued = nativeEstablishQueue.filter(i => i.plantId === plant.id).length;
         if (established > 0 || queued > 0) continue;
-        if (!(plant.requiresResearch ?? []).every(rid => completedResearch.has(rid))) continue;
+        if (!getPlantUnlockStatus(plant).unlocked) continue;
         if (researchPoints < plant.cost) continue;
         plantCandidates.push(plant);
       }
@@ -657,7 +759,7 @@ export function createEngine(regionData) {
     const affordable = RESEARCH.filter(r =>
       !completedResearch.has(r.id) &&
       !activeRIds.has(r.id) &&
-      r.requires.every(req => completedResearch.has(req)) &&
+      getResearchUnlockStatus(r).unlocked &&
       researchPoints >= r.cost
     );
     if (affordable.length === 0) return;
@@ -669,7 +771,7 @@ export function createEngine(regionData) {
   /**
    * Queue first acres for native plants that are:
    *  - Not yet established or queued
-   *  - Have all requiresResearch prerequisites met
+  *  - Have all research and crop-mastery prerequisites met
    *  - Have enough CP available
    * Habitat-risk species are prioritised first.
    */
@@ -681,7 +783,7 @@ export function createEngine(regionData) {
       const established = plantedSpeciesAcres.get(plant.id) ?? 0;
       const queued = nativeEstablishQueue.filter(i => i.plantId === plant.id).length;
       if (established > 0 || queued > 0) continue;
-      if (!(plant.requiresResearch ?? []).every(rid => completedResearch.has(rid))) continue;
+      if (!getPlantUnlockStatus(plant).unlocked) continue;
       if (researchPoints < plant.cost) continue;
       // Priority: habitat-risk creatures hosted by this plant come first
       const hosting = [...habitatRiskCreatures.keys()].some(ckey => {
@@ -724,42 +826,13 @@ export function createEngine(regionData) {
   // ── Season transitions ─────────────────────────────────────────────────────
   function onSeasonChange(oldSeason, newSeason) {
     _onSeasonChange(oldSeason, newSeason);
-    for (const [zoneName, instance] of zoneCrops) {
-      if (!unlockedFarmZones.has(zoneName)) continue;
-      const ct = instance.cropType;
-      if (ct.isInSeason(oldSeason) && !ct.isInSeason(newSeason)) {
-        // End of this crop's growing season — harvest if ready, then freeze
-        const tc = farmTileCount(zoneName);
-        if (instance.isFullyGrown && tc > 0) {
-          const id = ct.id;
-          const s  = cropStats.get(id);
-          s.grown += tc;
-          if (autoSellSet.has(id)) {
-            const earned = ct.yieldGold * tc * goldMultiplier();
-            gold.add(earned);
-            s.sold += tc;
-            s.lifetimeSales += earned;
-          } else {
-            cropInventory.set(id, (cropInventory.get(id) || 0) + tc);
-          }
-        }
-        instance.harvest(); // reset phase=0, timer=0 — zone is now dormant
-
-        // Free all acres allocated to this dormant zone back to the pool
-        zoneAcres.delete(zoneName);
-        // Cancel any queued (establishing) acres for this zone
-        for (let i = cropEstablishQueue.length - 1; i >= 0; i--) {
-          if (cropEstablishQueue[i].zoneName === zoneName) cropEstablishQueue.splice(i, 1);
-        }
-        if (cropEstablishQueue.length === 0) cropEstablishTimer = 0;
-      }
-    }
   }
 
   // ── Main tick ───────────────────────────────────────────────────────────────
   function tick() {
     if (gamePaused) return;
     const _gMult = goldMultiplier(); // compute once; reused for all harvests this tick
+    const _yieldMult = getCropYieldMultiplier();
 
     calendarAccum += gameSpeed;
     if (calendarAccum >= DAY_REAL_SECS) {
@@ -776,7 +849,6 @@ export function createEngine(regionData) {
     {
       for (const [zoneName, instance] of zoneCrops) {
         if (!unlockedFarmZones.has(zoneName)) continue;
-        if (!instance.cropType.isInSeason(lastSeasonName)) continue; // dormant
         const tc = farmTileCount(zoneName);
         if (tc <= 0) continue; // no land allocated — pause growth
         const wm = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
@@ -786,7 +858,7 @@ export function createEngine(regionData) {
           const s     = cropStats.get(id);
           s.grown    += tc;
           if (autoSellSet.has(id)) {
-            const earned = instance.cropType.yieldGold * tc * _gMult;
+            const earned = instance.cropType.yieldGold * tc * _yieldMult * _gMult;
             gold.add(earned);
             s.sold          += tc;
             s.lifetimeSales += earned;
@@ -976,28 +1048,8 @@ export function createEngine(regionData) {
   function simulateOffline(realSecs) {
     const MAX_SECS  = 7200;
     const daysBefore = inGameDay;
-
-    // ── Season-eve cap: stop the sim the day before a season change ─────────
-    const curCal = calendarDate(inGameDay);
-    const curDoy  = curCal.dayOfYear;
-    const curYear = curCal.year;
-    // Find the upcoming season (the one we want to stop before entering)
-    let nextSeasonObj  = SEASONS.find(s => s.startDoy > curDoy);
-    let nextSeasonYear = curYear;
-    if (!nextSeasonObj) {
-      // Past the last season start of this year — next is Spring of year+1
-      nextSeasonObj  = SEASONS[0];
-      nextSeasonYear = curYear + 1;
-    }
-    const eveDoy    = nextSeasonObj.startDoy - 1;
-    const eveAbsDay = (nextSeasonYear - 1) * 365 + eveDoy;
-    // Real seconds needed to reach and complete the eve day
-    const cutoffSecs = eveAbsDay > inGameDay
-      ? Math.max(0, Math.ceil((eveAbsDay - inGameDay) * DAY_REAL_SECS - calendarAccum))
-      : 0; // already at or past the eve
-    const simSecs = Math.min(realSecs, MAX_SECS, cutoffSecs > 0 ? cutoffSecs : 0);
-    // Pause-at-season-eve: sim was cut short by the eve cap or we opened right on the eve
-    const pausedAtSeasonEve = cutoffSecs === 0 || (cutoffSecs < realSecs && cutoffSecs <= MAX_SECS);
+    const simSecs = Math.min(realSecs, MAX_SECS);
+    const pausedAtSeasonEve = false;
 
     const goldBefore = gold.amount;
     const simRanchTimers = new Map(ranchTimers);
@@ -1019,10 +1071,10 @@ export function createEngine(regionData) {
         }
       }
       const _offMult = goldMultiplier();
+      const _yieldMult = getCropYieldMultiplier();
       {
         for (const [zoneName, instance] of zoneCrops) {
           if (!unlockedFarmZones.has(zoneName)) continue;
-          if (!instance.cropType.isInSeason(offlineSeason)) continue; // dormant
           const tc = farmTileCount(zoneName);
           if (tc <= 0) continue; // no land allocated — pause growth
           const wm = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
@@ -1032,7 +1084,7 @@ export function createEngine(regionData) {
             const s  = cropStats.get(id);
             s.grown += tc;
             if (autoSellSet.has(id)) {
-              const earned = instance.cropType.yieldGold * tc * _offMult;
+              const earned = instance.cropType.yieldGold * tc * _yieldMult * _offMult;
               gold.add(earned);
               s.sold += tc; s.lifetimeSales += earned;
             } else {
@@ -1065,15 +1117,11 @@ export function createEngine(regionData) {
     }
     lastSeasonName = offlineSeason;
     if (ENABLE_RANCH) for (const [k, v] of simRanchTimers) ranchTimers.set(k, v);
-    // Always pause after offline sync — player reviews state then resumes manually
-    gamePaused = true;
     return {
       goldEarned: gold.amount - goldBefore,
       simSecs,
       capped: realSecs > MAX_SECS,
       pausedAtSeasonEve,
-      nextSeason:      nextSeasonObj.name,
-      nextSeasonEmoji: nextSeasonObj.emoji,
       daysAdvanced:    inGameDay - daysBefore,
     };
   }
@@ -1470,7 +1518,7 @@ export function createEngine(regionData) {
       if (inv <= 0) return 0;
       const qty = (amount == null) ? inv : Math.min(Math.floor(amount), inv);
       if (qty <= 0) return 0;
-      const earned = ct.yieldGold * qty;
+      const earned = ct.yieldGold * qty * getCropYieldMultiplier() * goldMultiplier();
       gold.add(earned);
       cropInventory.set(key, inv - qty);
       const s = cropStats.get(key);
@@ -1529,6 +1577,7 @@ export function createEngine(regionData) {
       const result = findPlant(plantId);
       if (!result) return { ok: false, reason: 'not_found' };
       if (plantedSpecies.has(plantId)) return { ok: false, reason: 'already_planted' };
+      if (!getPlantUnlockStatus(result.plant).unlocked) return { ok: false, reason: 'requirements_unmet' };
       if (researchPoints < result.plant.cost) return { ok: false, reason: 'insufficient_pts' };
       if (getFreeAcres() < 1) return { ok: false, reason: 'no_free_acres' };
       researchPoints     -= result.plant.cost;
@@ -1547,6 +1596,11 @@ export function createEngine(regionData) {
     findPlant,
     getCrop(cropId) { return CROPS[cropId] ?? null; },
     getFarmZoneDef,
+    getCropYieldMultiplier,
+    getCropMasteryStatus,
+    getCropMilestoneStatus,
+    getResearchUnlockStatus,
+    getPlantUnlockStatus,
     /** Set the prestige-derived gold multiplier (from meta BP). */
     setPrestigeGoldMult(v) { prestigeGoldMult = v; },
     get prestigeGoldMult() { return prestigeGoldMult; },
@@ -1660,6 +1714,7 @@ export function createEngine(regionData) {
     queueNativeAcre(plantId, qty = 1) {
       const result = findPlant(plantId);
       if (!result) return { ok: false, queued: 0, reason: 'not_found' };
+      if (!getPlantUnlockStatus(result.plant).unlocked) return { ok: false, queued: 0, reason: 'requirements_unmet' };
       const free = getFreeAcres();
       const n = Math.min(qty, free);
       if (n <= 0) return { ok: false, queued: 0, reason: 'no_free_acres' };
@@ -1783,7 +1838,7 @@ export function createEngine(regionData) {
       const project = RESEARCH.find(r => r.id === id);
       if (!project || completedResearch.has(id)) return false;
       if (researchPoints < project.cost) return false;
-      if (project.requires.some(req => !completedResearch.has(req))) return false;
+      if (!getResearchUnlockStatus(project).unlocked) return false;
       researchPoints -= project.cost;
       researchSlots.push({ id, timer: 0 });
       return true;

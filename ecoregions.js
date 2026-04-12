@@ -112,6 +112,7 @@ export const ECOREGIONS = [
       {
         id:               'late_boneset',
         requiresResearch: ['wildflower_margins'],
+        requiresCropMilestones: [{ cropId: 'strawberry', grown: 250 }],
         name:             'Late Boneset',
         sci:  'Eupatorium serotinum',
         icon: '🌿',
@@ -147,6 +148,7 @@ export const ECOREGIONS = [
       {
         id:               'calico_aster',
         requiresResearch: ['wildflower_margins'],
+        requiresCropMilestones: [{ cropId: 'greenOnion', grown: 250 }],
         name:             'Calico Aster',
         sci:  'Symphyotrichum lateriflorum',
         icon: '✨',
@@ -180,6 +182,7 @@ export const ECOREGIONS = [
       {
         id:               'blue_wood_aster',
         requiresResearch: ['wildflower_margins'],
+        requiresCropMilestones: [{ cropId: 'strawberry', grown: 1000 }],
         name:             'Blue Wood Aster',
         sci:  'Symphyotrichum cordifolium',
         icon: '💜',
@@ -209,6 +212,7 @@ export const ECOREGIONS = [
       {
         id:               'wrinkleleaf_goldenrod',
         requiresResearch: ['pollinator_survey'],
+        requiresCropMilestones: [{ cropId: 'greenOnion', grown: 1000 }],
         name:             'Wrinkleleaf Goldenrod',
         sci:  'Solidago rugosa',
         icon: '🌕',
@@ -447,6 +451,7 @@ export const ECOREGIONS = [
       {
         id:               'common_evening_primrose',
         requiresResearch: ['wildflower_margins'],
+        requiresCropMilestones: [{ cropId: 'potato', grown: 250 }],
         name:             'Common Evening Primrose',
         sci:  'Oenothera biennis',
         icon: '🌙',
@@ -478,6 +483,7 @@ export const ECOREGIONS = [
       {
         id:               'woodland_sunflower',
         requiresResearch: ['bumblebee_habitat'],
+        requiresCropMilestones: [{ cropId: 'lettuce', grown: 500 }],
         name:             'Woodland Sunflower',
         sci:  'Helianthus strumosus',
         icon: '☀️',
@@ -507,6 +513,7 @@ export const ECOREGIONS = [
       {
         id:               'swamp_sunflower',
         requiresResearch: ['bumblebee_habitat'],
+        requiresCropMilestones: [{ cropId: 'blueberry', grown: 1000 }],
         name:             'Swamp Sunflower',
         sci:  'Helianthus angustifolius',
         icon: '🌅',
@@ -538,6 +545,7 @@ export const ECOREGIONS = [
       {
         id:               'blanketflower',
         requiresResearch: ['wildflower_margins'],
+        requiresCropMilestones: [{ cropId: 'onion', grown: 250 }],
         name:             'Blanketflower (Firewheel)',
         sci:  'Gaillardia pulchella',
         icon: '🔴',
@@ -656,6 +664,7 @@ export const ECOREGIONS = [
       {
         id:               'smooth_alder',
         requiresResearch: ['hedgerow_seeding'],
+        requiresCropMilestones: [{ cropId: 'carrot', grown: 250 }],
         name:             'Smooth Alder',
         sci:  'Alnus serrulata',
         icon: '🌿',
@@ -719,6 +728,7 @@ export const ECOREGIONS = [
       {
         id:               'pitch_pine',
         requiresResearch: ['prairie_grass_patches'],
+        requiresCropMilestones: [{ cropId: 'parsnip', grown: 500 }],
         name:             'Pitch Pine',
         sci:  'Pinus rigida',
         icon: '🌲',
@@ -748,6 +758,7 @@ export const ECOREGIONS = [
       {
         id:               'river_birch',
         requiresResearch: ['prairie_grass_patches'],
+        requiresCropMilestones: [{ cropId: 'potato', grown: 1000 }],
         name:             'River Birch',
         sci:  'Betula nigra',
         icon: '🌿',
@@ -779,6 +790,7 @@ export const ECOREGIONS = [
       {
         id:               'blackjack_oak',
         requiresResearch: ['bird_boxes'],
+        requiresCropMilestones: [{ cropId: 'cauliflower', grown: 250 }],
         name:             'Blackjack Oak',
         sci:  'Quercus marilandica',
           hasFruit: true,
@@ -809,6 +821,7 @@ export const ECOREGIONS = [
       {
         id:               'red_maple',
         requiresResearch: ['prairie_grass_patches'],
+        requiresCropMilestones: [{ cropId: 'broccoli', grown: 150 }],
         name:             'Red Maple',
         sci:  'Acer rubrum',
         icon: '🍁',
@@ -838,6 +851,7 @@ export const ECOREGIONS = [
       {
         id:               'shagbark_hickory',
         requiresResearch: ['bird_boxes'],
+        requiresCropMilestones: [{ cropId: 'carrot', grown: 1000 }],
         name:             'Shagbark Hickory',
         sci:  'Carya ovata',
         icon: '🌰',
@@ -860,6 +874,7 @@ export const ECOREGIONS = [
         ],
         wildlifeNote: 'Shagbark hickory\'s slow growth is an investment in long-term ecological capital. A 50-year-old tree supports a wildlife community that cannot be replicated by any other tree or group of plants.',
         caterpillarSpp: 219,
+          requiresCropMilestones: [{ cropId: 'onion', grown: 1000 }],
         biosphereBonus: 18,
         cost: 90,
         duration: 75,
@@ -928,6 +943,7 @@ export const ECOREGIONS = [
       {
         id:               'white_oak',
         requiresResearch: ['hedgehog_highways'],
+        requiresCropMilestones: [{ cropId: 'rice', grown: 250 }],
         name:             'White Oak',
         sci:  'Quercus alba',
         icon: '🏔️',
@@ -960,6 +976,7 @@ export const ECOREGIONS = [
       {
         id:               'black_willow',
         requiresResearch: ['bat_roosts'],
+        requiresCropMilestones: [{ cropId: 'broccoli', grown: 250 }],
         name:             'Black Willow',
         sci:  'Salix nigra',
         icon: '🌿',
@@ -989,6 +1006,7 @@ export const ECOREGIONS = [
       {
         id:               'black_cherry',
         requiresResearch: ['hedgehog_highways'],
+        requiresCropMilestones: [{ cropId: 'asparagus', grown: 150 }],
         name:             'Black Cherry',
         sci:  'Prunus serotina',
         icon: '🍒',

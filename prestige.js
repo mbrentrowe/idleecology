@@ -47,6 +47,11 @@ export function regionCollectionScore(engine) {
   const researchDone = engine.completedResearch.size;
   const researchMax = rd.research.length;
 
+  // Crop mastery tiers completed
+  const cropCatalog = Object.values(engine.CROPS ?? {});
+  const cropMastery = cropCatalog.reduce((sum, crop) => sum + engine.getCropMasteryStatus(crop.id).level, 0);
+  const cropMasteryMax = cropCatalog.length * (engine.getCropMasteryStatus(cropCatalog[0]?.id ?? '').maxLevel || 0);
+
   // Invasives cleared (species with 0 acres)
   let invasivesCleared = 0;
   for (const inv of rd.invasives) {
@@ -54,8 +59,8 @@ export function regionCollectionScore(engine) {
   }
   const invasivesMax = rd.invasives.length;
 
-  const current = plantsEstablished + creaturesDiscovered + birdsAttracted + researchDone + invasivesCleared;
-  const max = plantsMax + creaturesMax + birdsMax + researchMax + invasivesMax;
+  const current = plantsEstablished + creaturesDiscovered + birdsAttracted + researchDone + cropMastery + invasivesCleared;
+  const max = plantsMax + creaturesMax + birdsMax + researchMax + cropMasteryMax + invasivesMax;
 
   return {
     current,
@@ -66,6 +71,7 @@ export function regionCollectionScore(engine) {
       creatures:  { current: creaturesDiscovered,  max: creaturesMax },
       birds:      { current: birdsAttracted,       max: birdsMax },
       research:   { current: researchDone,         max: researchMax },
+      crops:      { current: cropMastery,         max: cropMasteryMax },
       invasives:  { current: invasivesCleared,     max: invasivesMax },
     },
   };

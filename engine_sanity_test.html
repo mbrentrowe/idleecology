@@ -18,7 +18,7 @@
   <ul id="results"></ul>
 
   <script type="module">
-    import { createEngine, FARM_ZONE_DEFS } from './game.js';
+    import { createEngine, FARM_ZONE_DEFS, DAY_REAL_SECS } from './game.js';
     import { getRegion, DEFAULT_REGION_ID } from './regions/registry.js';
 
     const _regionData = getRegion(DEFAULT_REGION_ID);
@@ -71,6 +71,178 @@
       state.totalLandAcres = 1;
       engine.applyState(state);
       if (engine.getFreeAcres() < 0) throw new Error('free acres became negative');
+    });
+
+    run('crops stay active and allocated across season changes', () => {
+      const engine = createEngine(_regionData);
+      const starter = FARM_ZONE_DEFS[0].name;
+      const state = engine.getState();
+
+      state.unlockedFarmZones = [starter];
+      state.zoneAcres = { [starter]: 1 };
+      state.zoneWorkers = { [starter]: 1 };
+      state.zoneCrops = { [starter]: { cropId: 'strawberry', phase: 0, timer: 0 } };
+      state.inGameDay = 170;
+      state.lastSeasonName = 'Spring';
+      state.calendarAccum = 0;
+
+      engine.applyState(state);
+
+      const gpsBefore = engine.getTotalGPS();
+      const goldBefore = engine.gold.amount;
+      const result = engine.simulateOffline(DAY_REAL_SECS * 4);
+
+      if (result.pausedAtSeasonEve) throw new Error('offline sim still paused for crop season review');
+        if (engine.gamePaused) throw new Error('offline sim left the game paused');
+      if (engine.currentSeasonName !== 'Summer') throw new Error('season did not advance into summer');
+      if ((engine.zoneAcres.get(starter) ?? 0) !== 1) throw new Error('starter crop acres were deallocated on season change');
+      if (gpsBefore <= 0 || engine.getTotalGPS() <= 0) throw new Error('starter crop stopped contributing gps');
+      if (engine.gold.amount <= goldBefore) throw new Error('starter crop did not keep earning through season change');
+    });
+
+    run('research unlock status respects crop milestones', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.completedResearch = ['wildflower_margins'];
+      state.cropStats.strawberry.grown = 249;
+      engine.applyState(state);
+
+      let status = engine.getResearchUnlockStatus('hedgerow_seeding');
+      if (status.unlocked) throw new Error('hedgerow seeding unlocked before strawberry milestone');
+
+      state.cropStats.strawberry.grown = 250;
+      engine.applyState(state);
+
+      status = engine.getResearchUnlockStatus('hedgerow_seeding');
+      if (!status.unlocked) throw new Error('hedgerow seeding stayed locked after strawberry milestone');
+    });
+
+    run('late research unlocks respect scaled crop milestones', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.completedResearch = ['bat_roosts', 'ladybird_colonies'];
+      state.cropStats.rice.grown = 149;
+      engine.applyState(state);
+
+      let status = engine.getResearchUnlockStatus('hedgehog_highways');
+      if (status.unlocked) throw new Error('hedgehog highways unlocked before rice milestone');
+
+      state.cropStats.rice.grown = 150;
+      engine.applyState(state);
+
+      status = engine.getResearchUnlockStatus('hedgehog_highways');
+      if (!status.unlocked) throw new Error('hedgehog highways stayed locked after rice milestone');
+    });
+
+    run('broccoli mastery gates late wildlife research', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.completedResearch = ['hedgehog_highways', 'kestrel_perches'];
+      state.cropStats.broccoli.grown = 149;
+      engine.applyState(state);
+
+      let status = engine.getResearchUnlockStatus('barn_owl_towers');
+      if (status.unlocked) throw new Error('barn owl towers unlocked before broccoli milestone');
+
+      state.cropStats.broccoli.grown = 150;
+      engine.applyState(state);
+
+      status = engine.getResearchUnlockStatus('barn_owl_towers');
+      if (!status.unlocked) throw new Error('barn owl towers stayed locked after broccoli milestone');
+    });
+
+    run('tomato mastery gates late wildlife research', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.completedResearch = ['barn_owl_towers', 'moth_light_study'];
+      state.cropStats.asparagus.grown = 149;
+      engine.applyState(state);
+
+      let status = engine.getResearchUnlockStatus('shelterbelt_refugia');
+      if (status.unlocked) throw new Error('late-season shelterbelts unlocked before tomato milestone');
+
+      state.cropStats.asparagus.grown = 150;
+      engine.applyState(state);
+
+      status = engine.getResearchUnlockStatus('shelterbelt_refugia');
+      if (!status.unlocked) throw new Error('late-season shelterbelts stayed locked after tomato milestone');
+    });
+
+    run('native plant unlock status respects crop milestones', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.completedResearch = ['wildflower_margins'];
+      state.cropStats.strawberry.grown = 249;
+      engine.applyState(state);
+
+      let status = engine.getPlantUnlockStatus('late_boneset');
+      if (status.unlocked) throw new Error('late boneset unlocked before strawberry milestone');
+
+      state.cropStats.strawberry.grown = 250;
+      engine.applyState(state);
+
+      status = engine.getPlantUnlockStatus('late_boneset');
+      if (!status.unlocked) throw new Error('late boneset stayed locked after strawberry milestone');
+    });
+
+    run('late native plants respect crop milestones', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.completedResearch = ['hedgehog_highways'];
+      state.cropStats.asparagus.grown = 149;
+      engine.applyState(state);
+
+      let status = engine.getPlantUnlockStatus('black_cherry');
+      if (status.unlocked) throw new Error('black cherry unlocked before tomato milestone');
+
+      state.cropStats.asparagus.grown = 150;
+      engine.applyState(state);
+
+      status = engine.getPlantUnlockStatus('black_cherry');
+      if (!status.unlocked) throw new Error('black cherry stayed locked after tomato milestone');
+    });
+
+    run('moth light study respects lettuce mastery milestone', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.completedResearch = ['ladybird_colonies'];
+      state.cropStats.lettuce.grown = 249;
+      engine.applyState(state);
+
+      let status = engine.getResearchUnlockStatus('moth_light_study');
+      if (status.unlocked) throw new Error('moth light study unlocked before lettuce milestone');
+
+      state.cropStats.lettuce.grown = 250;
+      engine.applyState(state);
+
+      status = engine.getResearchUnlockStatus('moth_light_study');
+      if (!status.unlocked) throw new Error('moth light study stayed locked after lettuce milestone');
+    });
+
+    run('lettuce zone stays locked until the adjusted sell threshold', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.cropStats.strawberry.sold = 44999;
+      engine.applyState(state);
+
+      if (engine.unlockedFarmZones.has('Lettuce Glade')) {
+        throw new Error('lettuce zone unlocked before the adjusted threshold');
+      }
+
+      state.cropStats.strawberry.sold = 45000;
+      engine.applyState(state);
+
+      if (!engine.unlockedFarmZones.has('Lettuce Glade')) {
+        throw new Error('lettuce zone stayed locked at the adjusted threshold');
+      }
     });
   </script>
 </body>
