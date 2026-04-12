@@ -110,7 +110,7 @@ export const RESEARCH = [
     cost:       120,
     duration:   100,         // in-game days
     requires:   ['wildflower_margins'],
-    requiresCropMilestones: [{ cropId: 'strawberry', grown: 250 }],
+    requiresCropMilestones: [{ cropId: 'strawberry', grown: 400 }],
     effect: { biosphereBonus: 8, label: '+8 Biosphere Score' },
   },
   {
@@ -123,7 +123,7 @@ export const RESEARCH = [
     cost:       200,
     duration:   150,         // in-game days
     requires:   ['hedgerow_seeding'],
-    requiresCropMilestones: [{ cropId: 'potato', grown: 1000 }],
+    requiresCropMilestones: [{ cropId: 'potato', grown: 1100 }],
     effect: { biosphereBonus: 10, cropYieldBonus: 0.02, label: '+10 Biosphere Score · +2% crop yield' },
   },
   {
@@ -136,7 +136,7 @@ export const RESEARCH = [
     cost:       350,
     duration:   200,         // in-game days
     requires:   ['prairie_grass_patches'],
-    requiresCropMilestones: [{ cropId: 'blueberry', grown: 250 }],
+    requiresCropMilestones: [{ cropId: 'blueberry', grown: 725 }],
     effect: { biosphereBonus: 12, label: '+12 Biosphere Score · unlocks amphibian research' },
   },
   {
@@ -149,7 +149,7 @@ export const RESEARCH = [
     cost:       280,
     duration:   180,         // in-game days
     requires:   ['prairie_grass_patches'],
-    requiresCropMilestones: [{ cropId: 'parsnip', grown: 250 }],
+    requiresCropMilestones: [{ cropId: 'parsnip', grown: 775 }],
     effect: { biosphereBonus: 14, cropYieldBonus: 0.03, label: '+14 Biosphere Score · +3% crop yield' },
   },
 
@@ -164,7 +164,7 @@ export const RESEARCH = [
     cost:       80,
     duration:   75,          // in-game days
     requires:   ['wildflower_margins'],
-    requiresCropMilestones: [{ cropId: 'greenOnion', grown: 250 }],
+    requiresCropMilestones: [{ cropId: 'greenOnion', grown: 500 }],
     effect: { biosphereBonus: 3, label: '+3 Biosphere Score · unlocks insect projects' },
   },
   {
@@ -177,7 +177,7 @@ export const RESEARCH = [
     cost:       160,
     duration:   125,         // in-game days
     requires:   ['pollinator_survey'],
-    requiresCropMilestones: [{ cropId: 'greenOnion', grown: 1000 }],
+    requiresCropMilestones: [{ cropId: 'greenOnion', grown: 1200 }],
     effect: { biosphereBonus: 8, cropYieldBonus: 0.03, label: '+8 Biosphere Score · +3% crop yield' },
   },
   {
@@ -202,7 +202,7 @@ export const RESEARCH = [
     cost:       320,
     duration:   200,         // in-game days
     requires:   ['ladybird_colonies'],
-    requiresCropMilestones: [{ cropId: 'lettuce', grown: 250 }],
+    requiresCropMilestones: [{ cropId: 'lettuce', grown: 800 }],
     effect: { biosphereBonus: 8, label: '+8 Biosphere Score · unlocks night-ecology projects' },
   },
 
@@ -217,7 +217,7 @@ export const RESEARCH = [
     cost:       100,
     duration:   100,         // in-game days
     requires:   ['hedgerow_seeding'],
-    requiresCropMilestones: [{ cropId: 'onion', grown: 1000 }],
+    requiresCropMilestones: [{ cropId: 'onion', grown: 1300 }],
     effect: { biosphereBonus: 6, label: '+6 Biosphere Score' },
   },
   {
@@ -230,7 +230,7 @@ export const RESEARCH = [
     cost:       180,
     duration:   150,         // in-game days
     requires:   ['bird_boxes'],
-    requiresCropMilestones: [{ cropId: 'carrot', grown: 1000 }],
+    requiresCropMilestones: [{ cropId: 'carrot', grown: 1400 }],
     effect: { biosphereBonus: 8, cropYieldBonus: 0.02, label: '+8 Biosphere Score · +2% crop yield' },
   },
   {
@@ -243,7 +243,7 @@ export const RESEARCH = [
     cost:       300,
     duration:   250,         // in-game days
     requires:   ['bat_roosts', 'ladybird_colonies'],
-    requiresCropMilestones: [{ cropId: 'rice', grown: 150 }],
+    requiresCropMilestones: [{ cropId: 'rice', grown: 900 }],
     effect: { biosphereBonus: 15, cropYieldBonus: 0.05, label: '+15 Biosphere Score · +5% crop yield' },
   },
   {
@@ -256,7 +256,7 @@ export const RESEARCH = [
     cost:       450,
     duration:   300,         // in-game days
     requires:   ['bird_boxes', 'prairie_grass_patches'],
-    requiresCropMilestones: [{ cropId: 'cauliflower', grown: 200 }],
+    requiresCropMilestones: [{ cropId: 'cauliflower', grown: 950 }],
     effect: { biosphereBonus: 12, label: '+12 Biosphere Score · unlocks raptor projects' },
   },
   {
@@ -269,7 +269,7 @@ export const RESEARCH = [
     cost:       520,
     duration:   340,
     requires:   ['hedgehog_highways', 'kestrel_perches'],
-    requiresCropMilestones: [{ cropId: 'broccoli', grown: 150 }],
+    requiresCropMilestones: [{ cropId: 'broccoli', grown: 1000 }],
     effect: { biosphereBonus: 18, cropYieldBonus: 0.06, label: '+18 Biosphere Score · +6% crop yield' },
   },
   {
@@ -282,7 +282,7 @@ export const RESEARCH = [
     cost:       650,
     duration:   420,
     requires:   ['barn_owl_towers', 'moth_light_study'],
-    requiresCropMilestones: [{ cropId: 'asparagus', grown: 150 }],
+    requiresCropMilestones: [{ cropId: 'asparagus', grown: 1050 }],
     effect: { biosphereBonus: 22, cropYieldBonus: 0.08, label: '+22 Biosphere Score · +8% crop yield' },
   },
 ];

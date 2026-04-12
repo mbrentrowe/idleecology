@@ -346,6 +346,7 @@ let tutorialSkipBtn = null;
 
 // ── Tab toggle state ──────────────────────────────────────────────────────────
 let hideCompletedResearch = localStorage.getItem('hideCompletedResearch') === 'true';
+let showOnlyStartableResearch = localStorage.getItem('showOnlyStartableResearch') === 'true';
 let hideCompletedGarden   = localStorage.getItem('hideCompletedGarden')   === 'true';
 let hideLockedGarden      = localStorage.getItem('hideLockedGarden')      === 'true';
 let hideCompletedLand     = localStorage.getItem('hideCompletedLand')     === 'true';
@@ -1066,8 +1067,8 @@ function getCompactWorkerLabel(qty, totalCost) {
     : '+1 — can\'t afford';
 }
 
-function getCompactGardenEstablishLabel(qty, plantCost) {
-  return `🌱 +${shortNumber(Math.max(1, qty))} — ${shortNumber(plantCost)} CP`;
+function getCompactGardenEstablishLabel(qty, plantCost, freeAcres) {
+  return `🌱 +${shortNumber(Math.max(1, qty))} (${shortNumber(Math.max(0, freeAcres))} free) — ${shortNumber(plantCost)} CP`;
 }
 
 function getZoneControlSummaryHtml(acres, workers, workerMult) {
@@ -1784,6 +1785,7 @@ function getResearchDashboardState() {
   const completed = engine.completedResearch;
   const slots = engine.researchSlots;
   const slotCount = engine.researchSlotCount;
+  const hasOpenSlot = slots.length < slotCount;
   const activeIds = new Set(slots.map(slot => slot.id));
   const pts = engine.researchPoints;
   const biosphere = engine.getBiosphereScore();
@@ -1802,6 +1804,7 @@ function getResearchDashboardState() {
     && engine.getResearchUnlockStatus(project).unlocked
   ));
   const affordableProjects = availableProjects.filter(project => pts >= project.cost);
+  const startableProjectsCount = hasOpenSlot ? affordableProjects.length : 0;
   const nextProject = availableProjects.reduce((cheapest, project) => (
     !cheapest || project.cost < cheapest.cost ? project : cheapest
   ), null);
@@ -1815,7 +1818,7 @@ function getResearchDashboardState() {
       body: 'From here, extra CP can keep feeding native planting and the archive rather than unlocking more theory.',
       tone: 'info',
     };
-  } else if (slots.length < slotCount && affordableProjects.length > 0) {
+  } else if (hasOpenSlot && affordableProjects.length > 0) {
     focus = {
       kicker: 'Startable now',
       title: `${affordableProjects.length} project${affordableProjects.length !== 1 ? 's are' : ' is'} ready to queue`,
@@ -1867,12 +1870,14 @@ function getResearchDashboardState() {
     focus,
     gardenBio,
     goldMult,
+    hasOpenSlot,
     maxGardenBio,
     maxTotal,
     nextSlotCost,
     pts,
     slotCount,
     slots,
+    startableProjectsCount,
     totalBio,
   };
 }
@@ -1890,7 +1895,6 @@ function renderResearch() {
   // ── Biosphere Score banner ──────────────────────────────────────────────────
   const banner = el('div', 'research-banner');
   const bioPct = researchState.maxTotal > 0 ? Math.round(researchState.totalBio / researchState.maxTotal * 100) : 0;
-  const gardenPct = researchState.maxGardenBio > 0 ? Math.round(researchState.gardenBio / researchState.maxGardenBio * 100) : 0;
   banner.innerHTML = `
     <div class="research-banner-row">
       <span class="bio-label">🌍 Biosphere Score</span>
@@ -1900,7 +1904,7 @@ function renderResearch() {
     <div class="bio-bar-track"><div class="bio-bar-fill" style="width:${bioPct}%"></div></div>
     <div class="bio-breakdown">
       <span>🌱 Conservation: <strong>${researchState.biosphere}</strong></span>
-      <span>🌿 Garden: <strong>${researchState.gardenBio}</strong> / ${researchState.maxGardenBio} &nbsp;<span style="color:#aaa;font-size:11px">(${gardenPct}%)</span></span>
+      <span>🌿 Garden: <strong>${researchState.gardenBio}</strong> / ${researchState.maxGardenBio}</span>
       <span>🦋 Creatures: <strong>${researchState.creatureBio}</strong></span>
       <span>💰 Gold Bonus: <strong>${researchState.goldMult.toFixed(2)}×</strong></span>
     </div>
@@ -2040,9 +2044,24 @@ function renderResearch() {
     renderAll();
   });
   researchToggleBar.appendChild(researchToggleBtn);
+
+  const startableCount = researchState.startableProjectsCount;
+  const startableToggleBtn = el('button',
+    `tab-toggle-btn${showOnlyStartableResearch ? ' active' : ''}`,
+    showOnlyStartableResearch
+      ? `👁 Show all (${startableCount} startable)`
+      : `▶ Startable now (${startableCount})`
+  );
+  startableToggleBtn.addEventListener('click', () => {
+    showOnlyStartableResearch = !showOnlyStartableResearch;
+    localStorage.setItem('showOnlyStartableResearch', showOnlyStartableResearch);
+    renderAll();
+  });
+  researchToggleBar.appendChild(startableToggleBtn);
   content.appendChild(researchToggleBar);
 
   // ── Category sections ──────────────────────────────────────────────────────
+  let renderedResearchCards = 0;
   for (const cat of Object.values(RESEARCH_CATEGORIES)) {
     const catProjects = RESEARCH.filter(r => r.category === cat.id);
     const section = el('div', 'research-section');
@@ -2052,6 +2071,8 @@ function renderResearch() {
 
     const catDesc = el('p', 'research-cat-desc', cat.desc);
     section.appendChild(catDesc);
+
+    let visibleProjects = 0;
 
     for (const project of catProjects) {
       const isDone   = completed.has(project.id);
@@ -2064,6 +2085,7 @@ function renderResearch() {
       const canAfford  = pts >= project.cost;
       const hasOpenSlot = slots.length < slotCount;
       const canStart   = prereqsMet && canAfford && !isDone && !isActive && hasOpenSlot;
+      if (showOnlyStartableResearch && !canStart) continue;
 
       const card = el('div', `research-card${isDone ? ' research-done' : ''}${isActive ? ' research-in-progress' : ''}${!prereqsMet ? ' research-locked' : ''}`);
 
@@ -2166,9 +2188,20 @@ function renderResearch() {
       }
 
       section.appendChild(card);
+      visibleProjects++;
+      renderedResearchCards++;
     }
 
-    content.appendChild(section);
+    if (visibleProjects > 0) content.appendChild(section);
+  }
+
+  if (renderedResearchCards === 0) {
+    const emptyNote = el('p', 'research-idle-note',
+      showOnlyStartableResearch
+        ? 'No projects can be started right now. Earn more CP, clear prerequisites, or free a research slot.'
+        : 'No research projects match the current filters.'
+    );
+    content.appendChild(emptyNote);
   }
 }
 // ── NATIVE GARDEN TAB ───────────────────────────────────────────────────────
@@ -2493,7 +2526,7 @@ function renderGarden() {
           const btn = el('button',
             `action-btn${canPlant ? ' garden-plant-btn' : ' disabled'}`,
             isActive ? `🌱 Establishing… ${fmtDays(Math.max(0, plant.duration - activePTimer))}`
-            : canPlant ? getCompactGardenEstablishLabel(qtyNativePlant, plant.cost)
+            : canPlant ? getCompactGardenEstablishLabel(qtyNativePlant, plant.cost, freeAcresNative)
             : !canAfford ? `🌱 Need ${shortNumber(plant.cost - pts)} CP`
             : 'No free acres'
           );

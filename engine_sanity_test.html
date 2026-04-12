@@ -105,13 +105,13 @@
       const state = engine.getState();
 
       state.completedResearch = ['wildflower_margins'];
-      state.cropStats.strawberry.grown = 249;
+      state.cropStats.strawberry.grown = 399;
       engine.applyState(state);
 
       let status = engine.getResearchUnlockStatus('hedgerow_seeding');
       if (status.unlocked) throw new Error('hedgerow seeding unlocked before strawberry milestone');
 
-      state.cropStats.strawberry.grown = 250;
+      state.cropStats.strawberry.grown = 400;
       engine.applyState(state);
 
       status = engine.getResearchUnlockStatus('hedgerow_seeding');
@@ -123,13 +123,13 @@
       const state = engine.getState();
 
       state.completedResearch = ['bat_roosts', 'ladybird_colonies'];
-      state.cropStats.rice.grown = 149;
+      state.cropStats.rice.grown = 899;
       engine.applyState(state);
 
       let status = engine.getResearchUnlockStatus('hedgehog_highways');
       if (status.unlocked) throw new Error('hedgehog highways unlocked before rice milestone');
 
-      state.cropStats.rice.grown = 150;
+      state.cropStats.rice.grown = 900;
       engine.applyState(state);
 
       status = engine.getResearchUnlockStatus('hedgehog_highways');
@@ -141,13 +141,13 @@
       const state = engine.getState();
 
       state.completedResearch = ['hedgehog_highways', 'kestrel_perches'];
-      state.cropStats.broccoli.grown = 149;
+      state.cropStats.broccoli.grown = 999;
       engine.applyState(state);
 
       let status = engine.getResearchUnlockStatus('barn_owl_towers');
       if (status.unlocked) throw new Error('barn owl towers unlocked before broccoli milestone');
 
-      state.cropStats.broccoli.grown = 150;
+      state.cropStats.broccoli.grown = 1000;
       engine.applyState(state);
 
       status = engine.getResearchUnlockStatus('barn_owl_towers');
@@ -159,13 +159,13 @@
       const state = engine.getState();
 
       state.completedResearch = ['barn_owl_towers', 'moth_light_study'];
-      state.cropStats.asparagus.grown = 149;
+      state.cropStats.asparagus.grown = 1049;
       engine.applyState(state);
 
       let status = engine.getResearchUnlockStatus('shelterbelt_refugia');
       if (status.unlocked) throw new Error('late-season shelterbelts unlocked before tomato milestone');
 
-      state.cropStats.asparagus.grown = 150;
+      state.cropStats.asparagus.grown = 1050;
       engine.applyState(state);
 
       status = engine.getResearchUnlockStatus('shelterbelt_refugia');
@@ -213,13 +213,13 @@
       const state = engine.getState();
 
       state.completedResearch = ['ladybird_colonies'];
-      state.cropStats.lettuce.grown = 249;
+      state.cropStats.lettuce.grown = 799;
       engine.applyState(state);
 
       let status = engine.getResearchUnlockStatus('moth_light_study');
       if (status.unlocked) throw new Error('moth light study unlocked before lettuce milestone');
 
-      state.cropStats.lettuce.grown = 250;
+      state.cropStats.lettuce.grown = 800;
       engine.applyState(state);
 
       status = engine.getResearchUnlockStatus('moth_light_study');
