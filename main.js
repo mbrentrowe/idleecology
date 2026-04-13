@@ -1688,10 +1688,13 @@ function renderRanch() {
         <div class="ranch-card-head">
           ${inatThumbHtml(animal.sci, 'ranch-thumb', animal.name)}
           <div class="ranch-animal-names">
-            <span class="ranch-animal-name">${animal.name}</span>
+            <div class="ranch-title-row">
+              <span class="ranch-animal-name">${animal.name}</span>
+              <span class="ranch-badge locked">🔒 Locked</span>
+            </div>
             <span class="ranch-animal-sci">${animal.sci}</span>
+            <span class="ranch-product-label">📦 ${animal.product}</span>
           </div>
-          <span class="ranch-badge locked">🔒 Locked</span>
         </div>
         <div class="unlock-reqs">
           <span class="unlock-req">
@@ -1710,6 +1713,7 @@ function renderRanch() {
     const wm      = workerMultiplier(workers);
     const stats   = ranchStats.get(animal.id) ?? { produced: 0, sold: 0, lifetimeSales: 0 };
     const gps     = acres > 0 ? (animal.goldPerCycle * acres * wm * engine.getGoldMultiplier() * 4 * engine.gameSpeed) / animal.productionIntervalSecs : 0;
+    const cycleTime = fmtDur(animal.productionIntervalSecs / (engine.gameSpeed * wm * 4));
     const controlQty = getHeaderQtyForTab('ranch');
 
     const workerCostFn = n => workerUpgradeCost({ cost: animal.baseCost }, n);
@@ -1720,16 +1724,19 @@ function renderRanch() {
     const summaryRow = el('div', 'zone-control-summary');
     summaryRow.innerHTML = getZoneControlSummaryHtml(acres, workers, wm);
 
-    const card = el('div', 'ranch-card ranch-card-unlocked');
+    const card = el('div', `ranch-card ranch-card-unlocked${acres > 0 ? ' ranch-card-live' : ''}`);
 
     // Header row
     const cardHead = el('div', 'ranch-card-head');
     cardHead.innerHTML = `
       ${inatThumbHtml(animal.sci, 'ranch-thumb', animal.name)}
       <div class="ranch-animal-names">
-        <span class="ranch-animal-name">${animal.name}</span>
-        ${speciesLinksHtml(animal.sci)}
-        <span class="ranch-product-label">📦 ${animal.product}</span>
+        <div class="ranch-title-row">
+          <span class="ranch-animal-name">${animal.name}</span>
+          <span class="ranch-product-label">📦 ${animal.product}</span>
+        </div>
+        ${speciesLinksHtml(animal.sci, animal.name)}
+        <span class="ranch-meta">🪙 ${shortNumber(animal.goldPerCycle)}g / cycle · ⏱ ${cycleTime}</span>
       </div>
       <div class="ranch-gps">+${shortNumber(gps)}<span class="ranch-gps-unit">/s</span></div>
     `;
@@ -2109,7 +2116,7 @@ function renderResearch() {
       const canStart   = prereqsMet && canAfford && !isDone && !isActive && hasOpenSlot;
       if (showOnlyStartableResearch && !canStart) continue;
 
-      const card = el('div', `research-card${isDone ? ' research-done' : ''}${isActive ? ' research-in-progress' : ''}${!prereqsMet ? ' research-locked' : ''}`);
+      const card = el('div', `research-card${isDone ? ' research-done' : ''}${isActive ? ' research-in-progress' : ''}${!prereqsMet ? ' research-locked' : ''}${canStart ? ' research-startable' : ''}`);
 
       // Header row
       const cardHead = el('div', 'research-card-head');
@@ -2134,10 +2141,14 @@ function renderResearch() {
       card.appendChild(cardHead);
 
       // Description + flavor
+      const copy = el('div', 'research-card-copy');
       const descEl = el('p', 'research-desc', project.desc);
-      card.appendChild(descEl);
-      const flavor = el('p', 'research-flavor', project.flavorText);
-      card.appendChild(flavor);
+      copy.appendChild(descEl);
+      if (project.flavorText) {
+        const flavor = el('p', 'research-flavor', project.flavorText);
+        copy.appendChild(flavor);
+      }
+      card.appendChild(copy);
 
       // Effect & prerequisites
       const meta = el('div', 'research-meta');
@@ -2420,7 +2431,8 @@ function renderGarden() {
           continue;
         }
 
-        const card = el('div', `garden-card${isPlanted ? ' garden-planted' : ''}${isActive ? ' garden-active' : ''}`);
+        const isReadyToEstablish = !isPlanted && !isActive && pts >= plant.cost && gardenState.freeAcres > 0;
+        const card = el('div', `garden-card${isPlanted ? ' garden-planted' : ''}${isActive ? ' garden-active' : ''}${isReadyToEstablish ? ' garden-ready' : ''}`);
         const isCollapsed = collapsedGardenCards.has(plant.id);
 
         // ── Card header row: iNat photo + name + badges + collapse toggle ───────────────
@@ -2466,16 +2478,18 @@ function renderGarden() {
         const cardBody = el('div', 'garden-card-body');
 
         // ── Plant description ─────────────────────────────────────────────────────
+        const copyBlock = el('div', 'garden-card-copy');
         const plantMeta = el('div', 'garden-plant-meta');
         plantMeta.innerHTML = `
           <span class="garden-meta-item">↕️ ${plant.height}</span>
           <span class="garden-meta-item">🌱 ${plant.seasonOfInterest}</span>
           ${plant.caterpillarSpp ? `<span class="garden-meta-item caterpillar-count">🐦 ${plant.caterpillarSpp}+ caterpillar species</span>` : ''}
         `;
-        cardBody.appendChild(plantMeta);
+        copyBlock.appendChild(plantMeta);
 
         const descEl = el('p', 'garden-desc', plant.desc);
-        cardBody.appendChild(descEl);
+        copyBlock.appendChild(descEl);
+        cardBody.appendChild(copyBlock);
 
         // ── Insects & Wildlife hosted (educational section) ───────────────────────
         const insectSection = el('div', 'garden-insect-section');
@@ -2606,49 +2620,117 @@ function renderLand() {
   const invPct  = totalAcres > 0 ? Math.round(invadedAcres / totalAcres * 100) : 0;
   const allocPct = totalAcres > 0 ? Math.round(allocAcres / totalAcres * 100) : 0;
   const freePct  = totalAcres > 0 ? Math.round(freeAcres / totalAcres * 100) : 0;
+  const queuedRemovalAcres = removalQ.reduce((sum, job) => sum + (job.acresRemaining ?? 0), 0);
+  const removableSpeciesCount = INVASIVES.filter(inv => {
+    const current = engine.invasiveAcres.get(inv.id) ?? 0;
+    return current > 0 && engine.canRemoveInvasive(inv.id);
+  }).length;
+
+  let landFocus;
+  if (nativeQ.length > 0 || removalQ.length > 0) {
+    const jobCount = nativeQ.length + removalQ.length;
+    const focusParts = [];
+    if (nativeQ.length > 0) {
+      focusParts.push(`${nativeQ.length} planting order${nativeQ.length !== 1 ? 's' : ''}`);
+    }
+    if (removalQ.length > 0) {
+      focusParts.push(`${queuedRemovalAcres} invasive acre${queuedRemovalAcres !== 1 ? 's' : ''} queued for removal`);
+    }
+    landFocus = {
+      kicker: 'Restoration underway',
+      title: `${jobCount} land job${jobCount !== 1 ? 's are' : ' is'} already in motion`,
+      body: `${focusParts.join(' and ')}. Let the queue resolve here, then spend any reclaimed acreage where it compounds best.`,
+      tone: removalQ.length > 0 ? 'grow' : 'ready',
+    };
+  } else if (invadedAcres > 0 && removableSpeciesCount > 0) {
+    landFocus = {
+      kicker: 'Control pressure',
+      title: `${invadedAcres} acre${invadedAcres !== 1 ? 's are' : ' is'} still under invasive pressure`,
+      body: `${removableSpeciesCount} invasive profile${removableSpeciesCount !== 1 ? 's are' : ' is'} actionable right now. Clearing them is the fastest way to reopen acreage for habitat work.`,
+      tone: 'warn',
+    };
+  } else if (invadedAcres > 0) {
+    landFocus = {
+      kicker: 'Research gate',
+      title: `${invadedAcres} acre${invadedAcres !== 1 ? 's are' : ' is'} blocked behind control research`,
+      body: 'The land is constrained by invasive pressure, but the next step is in Research rather than here. Unlock the removal methods first, then come back to reclaim acres.',
+      tone: 'warn',
+    };
+  } else if (freeAcres > 0) {
+    landFocus = {
+      kicker: 'Open capacity',
+      title: `${freeAcres} free acre${freeAcres !== 1 ? 's are' : ' is'} ready for habitat work`,
+      body: 'Land pressure is low now. The next gain comes from turning spare acreage into crops, ranch capacity, or permanent native planting.',
+      tone: 'ready',
+    };
+  } else {
+    landFocus = {
+      kicker: 'Stable footprint',
+      title: 'Every acre is assigned or stabilized right now',
+      body: 'Use this tab as the control board, then shift to Garden, Crops, Ranch, or Map when you want to decide what the land should do next.',
+      tone: 'info',
+    };
+  }
+
   banner.innerHTML = `
+    <div class="land-banner-head">
+      <span class="bio-label">🌾 Land Ledger</span>
+      <span class="land-pressure-badge${invadedAcres > 0 ? ' land-pressure-badge-warn' : ' land-pressure-badge-clear'}">
+        ${invadedAcres > 0 ? `${invPct}% under pressure` : 'All acres stable'}
+      </span>
+    </div>
     <div class="land-banner-row">
-      <span class="land-stat"><span class="land-stat-num">${totalAcres}</span> Total Acres</span>
-      <span class="land-stat" style="color:#e57373"><span class="land-stat-num">${invadedAcres}</span> Invaded</span>
-      <span class="land-stat"><span class="land-stat-num">${allocAcres}</span> In Use</span>
-      <span class="land-stat land-stat-free"><span class="land-stat-num">${freeAcres}</span> Free</span>
+      <span class="land-stat land-stat-total"><span class="land-stat-num">${totalAcres}</span><span class="land-stat-label">Total Acres</span></span>
+      <span class="land-stat land-stat-invaded"><span class="land-stat-num">${invadedAcres}</span><span class="land-stat-label">Invaded</span></span>
+      <span class="land-stat land-stat-in-use"><span class="land-stat-num">${allocAcres}</span><span class="land-stat-label">In Use</span></span>
+      <span class="land-stat land-stat-free"><span class="land-stat-num">${freeAcres}</span><span class="land-stat-label">Free</span></span>
     </div>
     <div class="bio-bar-track land-bar-track" title="Red = invaded, Green = in use, White = free">
-      <div style="display:flex;height:100%;width:100%;border-radius:inherit;overflow:hidden">
-        <div style="width:${allocPct}%;background:#4caf50;transition:width .3s"></div>
-        <div style="width:${freePct}%;background:#78909c;transition:width .3s"></div>
-        <div style="width:${invPct}%;background:#e57373;transition:width .3s"></div>
+      <div class="land-bar-segments">
+        <div class="land-bar-segment land-bar-segment-in-use" style="width:${allocPct}%"></div>
+        <div class="land-bar-segment land-bar-segment-free" style="width:${freePct}%"></div>
+        <div class="land-bar-segment land-bar-segment-invaded" style="width:${invPct}%"></div>
       </div>
     </div>
-    <div class="bio-breakdown">
-      <span>🟩 In Use: ${allocAcres}</span>
-      <span>⬜ Free: ${freeAcres}</span>
-      <span>🟥 Invaded: ${invadedAcres}</span>
-      <span>🔬 CP: ${Math.floor(engine.researchPoints)}</span>
+    <div class="bio-breakdown land-breakdown">
+      <span class="land-breakdown-item land-breakdown-in-use">🟩 In Use <strong>${allocAcres}</strong></span>
+      <span class="land-breakdown-item land-breakdown-free">⬜ Free <strong>${freeAcres}</strong></span>
+      <span class="land-breakdown-item land-breakdown-invaded">🟥 Invaded <strong>${invadedAcres}</strong></span>
+      <span class="land-breakdown-item land-breakdown-cp">🔬 CP <strong>${Math.floor(engine.researchPoints)}</strong></span>
     </div>
   `;
   content.appendChild(banner);
+
+  const landFocusCallout = el('div', 'focus-callout land-focus-callout');
+  landFocusCallout.dataset.tone = landFocus.tone;
+  landFocusCallout.innerHTML = `
+    <span class="focus-kicker">${landFocus.kicker}</span>
+    <strong class="focus-title">${landFocus.title}</strong>
+    <p class="focus-body">${landFocus.body}</p>
+  `;
+  content.appendChild(landFocusCallout);
 
   // ── Establish queues ────────────────────────────────────────────────────────
   if (nativeQ.length > 0 || removalQ.length > 0) {
     const qSect = el('div', 'land-section');
     qSect.innerHTML = '<h2 class="land-section-header">⏳ In Progress</h2>';
 
-    function queueBlock(queue, timer, secs, typeLabel, getLabel) {
+    function queueBlock(queue, timer, secs, typeLabel, getLabel, kind, cardClass, fillClass) {
       if (queue.length === 0) return;
       const pct    = Math.min(100, Math.round((timer / secs) * 100));
       const remain = Math.max(0, secs / DAY_REAL_SECS - timer / DAY_REAL_SECS);
       const first  = queue[0];
       const rest   = queue.length - 1;
-      const card   = el('div', 'land-queue-card');
+      const card   = el('div', `land-queue-card ${cardClass}`);
+      card.dataset.landQueueKind = kind;
       card.innerHTML = `
         <div class="land-queue-row">
           <span class="land-queue-type">${typeLabel}</span>
           <span class="land-queue-name">${getLabel(first)}</span>
           <span class="land-queue-time">${fmtDays(remain)}</span>
         </div>
-        <div class="research-progress-track">
-          <div class="research-progress-fill" style="width:${pct}%"></div>
+        <div class="research-progress-track land-queue-progress-track">
+          <div class="research-progress-fill land-queue-progress-fill ${fillClass}" style="width:${pct}%"></div>
         </div>
         ${rest > 0 ? `<div class="land-queue-more">+${rest} more in queue</div>` : ''}
       `;
@@ -2658,27 +2740,28 @@ function renderLand() {
     queueBlock(nativeQ, nativeTimer, ESTABLISH_SECS, '🌿 Planting', i => {
       const r = engine.findPlant(i.plantId);
       return r ? r.plant.name : i.plantId;
-    });
+    }, 'planting', 'land-queue-card-planting', 'land-queue-progress-planting');
 
     // Show invasive removal queue jobs
-    for (const job of removalQ) {
+    removalQ.forEach((job, index) => {
       const inv = INVASIVE_MAP[job.invasiveId];
-      if (!inv) continue;
-      const secs = inv.removeTimeDays * DAY_REAL_SECS;
+      if (!inv) return;
       const pct  = Math.min(100, Math.round((job.timer / inv.removeTimeDays) * 100));
-      const card = el('div', 'land-queue-card');
+      const card = el('div', 'land-queue-card land-queue-card-removal');
+      card.dataset.landQueueKind = 'removal';
+      card.dataset.landRemovalIndex = String(index);
       card.innerHTML = `
         <div class="land-queue-row">
           <span class="land-queue-type">🛡️ Removing</span>
           <span class="land-queue-name">${inv.icon} ${inv.name} (${job.acresRemaining} ac left)</span>
           <span class="land-queue-time">${fmtDays(Math.max(0, inv.removeTimeDays - job.timer))}</span>
         </div>
-        <div class="research-progress-track">
-          <div class="research-progress-fill" style="width:${pct}%"></div>
+        <div class="research-progress-track land-queue-progress-track">
+          <div class="research-progress-fill land-queue-progress-fill land-queue-progress-removal" style="width:${pct}%"></div>
         </div>
       `;
       qSect.appendChild(card);
-    }
+    });
 
     content.appendChild(qSect);
   }
@@ -2725,7 +2808,10 @@ function renderLand() {
       const pct = inv.baseAcres > 0 ? Math.round((1 - current / inv.baseAcres) * 100) : 100;
       const cp = engine.researchPoints;
 
-      const card = el('div', `land-invasive-card${isCleared ? ' land-invasive-cleared' : ''}`);
+      const cardStateClass = isCleared
+        ? ' land-invasive-cleared'
+        : canRemove ? ' land-invasive-live' : ' land-invasive-locked-state';
+      const card = el('div', `land-invasive-card${cardStateClass}`);
       card.innerHTML = `
         <div class="land-invasive-header">
           <span class="land-invasive-icon">${inv.icon}</span>
@@ -2741,13 +2827,15 @@ function renderLand() {
           </div>
         </div>
         <div class="research-progress-track">
-          <div class="research-progress-fill ${isCleared ? 'land-progress-cleared' : ''}" style="width:${pct}%;background:${isCleared ? '#4caf50' : '#66bb6a'}"></div>
+          <div class="research-progress-fill land-progress-fill${isCleared ? ' land-progress-cleared' : ''}" style="width:${pct}%"></div>
         </div>
-        <div class="land-invasive-desc">${inv.desc}</div>
-        ${!isCleared ? `
-          <div class="land-invasive-damage"><strong>Damage:</strong> ${inv.damage}</div>
-          <div class="land-invasive-control"><strong>Control:</strong> ${inv.controlMethod}</div>
-        ` : ''}
+        <div class="land-invasive-copy">
+          <div class="land-invasive-desc">${inv.desc}</div>
+          ${!isCleared ? `
+            <div class="land-invasive-damage"><strong>Damage:</strong> ${inv.damage}</div>
+            <div class="land-invasive-control"><strong>Control:</strong> ${inv.controlMethod}</div>
+          ` : ''}
+        </div>
         <div class="land-invasive-actions" id="inv-actions-${inv.id}"></div>
       `;
       invSect.appendChild(card);
@@ -3490,15 +3578,15 @@ function renderCollection() {
       if (!unlockedRanchAnimals.has(animal.id)) continue;
       if (showIrlOnly && !isIrl('ranch', animal.id)) continue;
       const stats = engine.ranchStats.get(animal.id) ?? { produced: 0, sold: 0, lifetimeSales: 0 };
-      const card = el('div', 'collection-crop-card');
+      const card = el('div', 'collection-crop-card collection-ranch-card');
       card.dataset.collectionid = animal.id;
       const cardHead = el('div', 'collection-crop-head');
       cardHead.innerHTML = `
-        ${animal.sci ? inatThumbHtml(animal.sci, 'collection-crop-thumb', animal.name) : `<span style="font-size:48px;flex-shrink:0">${animal.icon}</span>`}
+        ${animal.sci ? inatThumbHtml(animal.sci, 'collection-crop-thumb', animal.name) : `<span class="collection-ranch-fallback-icon">${animal.icon}</span>`}
         <div class="collection-crop-names">
           <span class="collection-plant-name">${animal.name}</span>
           ${speciesLinksHtml(animal.sci)}
-          <span style="font-size:12px;color:#aaa;display:block;margin-top:4px">Product: ${animal.product}</span>
+          <span class="collection-ranch-product">Product: ${animal.product}</span>
         </div>
         <div class="collection-crop-stats">
           <span class="collection-crop-stat">🐄 Cycles: <strong>${shortNumber(stats.produced)}</strong></span>
@@ -3952,7 +4040,7 @@ function renderCollection() {
       historyEntries.forEach(({ icon, name, sci, detail, day, category }, idx) => {
         const cal = day > 0 ? calendarDate(day) : null;
         const dateStr = cal ? `${cal.month.abbr} ${cal.day}, Year ${cal.year}` : 'Year 1 (legacy)';
-        const row = el('li', 'discovery-history-row');
+        const row = el('li', `discovery-history-row discovery-history-${category}`);
         row.innerHTML = `
           <span class="dh-num">${idx + 1}</span>
           <span class="dh-icon">${icon}</span>
@@ -4133,19 +4221,133 @@ function _applyLoadout(loadout) {
 function renderSettings() {
   content.appendChild(el('h2', 'section-header', '⚙️ Settings'));
 
+  const currentHome = localStorage.getItem(HOME_TAB_KEY) || 'crops';
+  const fullscreenActive = Boolean(document.fullscreenElement);
+  const wakeLockSupported = 'wakeLock' in navigator;
+  const wakeLockOn = _wakeLock !== null;
+  const savedLoadoutsCount = LOADOUT_SLOTS.filter(slot => !isLoadoutEmpty(slot)).length;
+  const autoPilotLabel = engine.autoPilot
+    ? (engine.autoPilotMode === 'conservation' ? 'Conserve' : 'Economy')
+    : 'Manual';
+  const displayLabel = wakeLockOn ? 'Awake' : fullscreenActive ? 'Fullscreen' : 'Standard';
+
+  const settingsSummary = el('div', 'summary-grid settings-summary-grid');
+  const summaryCards = [
+    {
+      kicker: 'Time Flow',
+      value: engine.gamePaused ? 'Paused' : `${engine.gameSpeed}×`,
+      meta: engine.gamePaused ? 'Simulation is halted until you resume it here.' : `${engine.gameSpeed === 1 ? 'Normal pace' : 'Accelerated pace'} is active.`,
+      tone: engine.gamePaused ? 'warn' : engine.gameSpeed > 1 ? 'ready' : 'info',
+    },
+    {
+      kicker: 'Automation',
+      value: autoPilotLabel,
+      meta: engine.autoPilot ? 'Auto-pilot is making routine decisions for the run.' : 'You are driving the run manually.',
+      tone: engine.autoPilot ? 'grow' : 'info',
+    },
+    {
+      kicker: 'Display',
+      value: displayLabel,
+      meta: wakeLockSupported ? (wakeLockOn ? 'Wake lock is active for longer sessions.' : 'Screen behavior is in its default state.') : 'Fullscreen and wake lock support depend on the device.',
+      tone: wakeLockOn || fullscreenActive ? 'ready' : 'info',
+    },
+    {
+      kicker: 'Presets',
+      value: `${savedLoadoutsCount}/3`,
+      meta: `Home tab: ${currentHome === 'map' ? 'Map' : 'Crops'}.`,
+      tone: savedLoadoutsCount > 0 ? 'accent' : 'info',
+    },
+  ];
+  summaryCards.forEach(cardData => {
+    const card = el('div', 'summary-card');
+    card.dataset.tone = cardData.tone;
+    card.innerHTML = `
+      <span class="summary-kicker">${cardData.kicker}</span>
+      <strong class="summary-value">${cardData.value}</strong>
+      <span class="summary-meta">${cardData.meta}</span>
+    `;
+    settingsSummary.appendChild(card);
+  });
+  content.appendChild(settingsSummary);
+
+  let settingsFocus;
+  if (engine.gamePaused) {
+    settingsFocus = {
+      kicker: 'Paused state',
+      title: 'Time flow is stopped until you resume the run',
+      body: 'Use this state when you want to inspect tabs or adjust automation without queues, crops, or wildlife timers advancing underneath you.',
+      tone: 'warn',
+    };
+  } else if (engine.autoPilot) {
+    settingsFocus = {
+      kicker: 'Automation active',
+      title: `${autoPilotLabel} auto-pilot is steering the farm right now`,
+      body: 'Settings is acting as the control room for pace, display behavior, and save safety while automation handles routine gameplay decisions.',
+      tone: 'grow',
+    };
+  } else if (engine.gameSpeed > 1 || wakeLockOn || fullscreenActive) {
+    settingsFocus = {
+      kicker: 'Run configuration',
+      title: 'This session is tuned for active play rather than idle defaults',
+      body: 'Higher speed, fullscreen, or wake lock changes the feel of long runs. The rest of the tab stays focused on save control and startup behavior.',
+      tone: 'ready',
+    };
+  } else {
+    settingsFocus = {
+      kicker: 'Control room',
+      title: 'Settings is in a stable baseline configuration',
+      body: 'Nothing here is urgent right now. Use this tab when you want to change pace, automation, startup behavior, or save-state handling.',
+      tone: 'info',
+    };
+  }
+
+  const settingsFocusCallout = el('div', 'focus-callout settings-focus-callout');
+  settingsFocusCallout.dataset.tone = settingsFocus.tone;
+  settingsFocusCallout.innerHTML = `
+    <span class="focus-kicker">${settingsFocus.kicker}</span>
+    <strong class="focus-title">${settingsFocus.title}</strong>
+    <p class="focus-body">${settingsFocus.body}</p>
+  `;
+  content.appendChild(settingsFocusCallout);
+
+  function makeSettingsSection({ title, desc, status, tone = 'info', className = '' }) {
+    const section = el('div', `settings-section${className ? ` ${className}` : ''}`);
+    const head = el('div', 'settings-section-head');
+    const copy = el('div', 'settings-section-copy');
+    copy.appendChild(el('div', 'settings-label', title));
+    if (desc) copy.appendChild(el('p', 'settings-desc', desc));
+    head.appendChild(copy);
+    if (status) {
+      head.appendChild(el('span', `settings-section-status settings-section-status-${tone}`, status));
+    }
+    section.appendChild(head);
+    return section;
+  }
+
+  const settingsGrid = el('div', 'settings-grid');
+
   // Pause / Resume
-  const pauseSection = el('div', 'settings-section');
-  pauseSection.appendChild(el('div', 'settings-label', 'Game Paused'));
-  pauseSection.appendChild(el('p', 'settings-desc', 'Pause the game to prevent time from advancing. Your progress is preserved exactly as-is.'));
+  const pauseSection = makeSettingsSection({
+    title: 'Game Paused',
+    desc: 'Pause the game to prevent time from advancing. Your progress is preserved exactly as-is.',
+    status: engine.gamePaused ? 'Paused' : 'Running',
+    tone: engine.gamePaused ? 'warn' : 'grow',
+    className: 'settings-section-pause',
+  });
   const pauseBtn = el('button', `action-btn${engine.gamePaused ? ' active' : ''}`,
     engine.gamePaused ? '▶ Resume' : '⏸ Pause');
   pauseBtn.addEventListener('click', () => { engine.setPaused(!engine.gamePaused); renderAll(); });
   pauseSection.appendChild(pauseBtn);
-  content.appendChild(pauseSection);
+  settingsGrid.appendChild(pauseSection);
 
   // Game speed
-  const speedSection = el('div', 'settings-section');
-  speedSection.appendChild(el('div', 'settings-label', 'Game Speed'));
+  const speedSection = makeSettingsSection({
+    title: 'Game Speed',
+    desc: 'Choose how quickly in-game time advances while the simulation is running.',
+    status: `${engine.gameSpeed}×`,
+    tone: engine.gameSpeed > 1 ? 'ready' : 'info',
+    className: 'settings-section-speed',
+  });
   const speedRow = el('div', 'btn-row');
   [1, 3, 6, 12].forEach(spd => {
     const btn = el('button', `speed-btn${engine.gameSpeed === spd ? ' active' : ''}`, `${spd}×`);
@@ -4153,21 +4355,22 @@ function renderSettings() {
     speedRow.appendChild(btn);
   });
   speedSection.appendChild(speedRow);
-  content.appendChild(speedSection);
+  settingsGrid.appendChild(speedSection);
 
   // Auto-pilot
-  const apSection = el('div', 'settings-section');
-  apSection.appendChild(el('div', 'settings-label', '🤖 Auto-pilot'));
-
   const apModeDescs = {
     economy:      ENABLE_RANCH
       ? 'Maximizes income: prioritizes farm and ranch growth, allocates free acres, buys land, and hires the cheapest available worker.'
       : 'Maximizes income: prioritizes farm growth, allocates free acres, buys land, and hires the cheapest available worker.',
     conservation: 'Balances income with nature: does everything Economy does, plus auto-starts research projects, establishes native plants, and re-plants habitat-risk species first.',
   };
-  const apDesc = el('p', 'settings-desc',
-    engine.autoPilot ? apModeDescs[engine.autoPilotMode] : 'Enable Auto-pilot to let the game make decisions for you based on your chosen priority.');
-  apSection.appendChild(apDesc);
+  const apSection = makeSettingsSection({
+    title: '🤖 Auto-pilot',
+    desc: engine.autoPilot ? apModeDescs[engine.autoPilotMode] : 'Enable Auto-pilot to let the game make decisions for you based on your chosen priority.',
+    status: engine.autoPilot ? autoPilotLabel : 'Off',
+    tone: engine.autoPilot ? 'grow' : 'info',
+    className: 'settings-section-autopilot settings-span-full',
+  });
 
   // ON / OFF toggle
   const apBtn = el('button', `ap-btn${engine.autoPilot ? ' ap-on' : ''}`,
@@ -4190,11 +4393,16 @@ function renderSettings() {
     apSection.appendChild(modeRow);
   }
 
-  content.appendChild(apSection);
+  settingsGrid.appendChild(apSection);
 
   // Screen (fullscreen + wake lock)
-  const screenSection = el('div', 'settings-section');
-  screenSection.appendChild(el('div', 'settings-label', '📱 Screen'));
+  const screenSection = makeSettingsSection({
+    title: '📱 Screen',
+    desc: 'Display controls for longer sessions, fullscreen use, and preventing the device from dimming during play.',
+    status: displayLabel,
+    tone: wakeLockOn || fullscreenActive ? 'ready' : 'info',
+    className: 'settings-section-screen settings-span-full',
+  });
   const screenBtnRow = el('div', 'btn-row');
   if (document.fullscreenEnabled) {
     const fsBtn = el('button', 'action-btn', document.fullscreenElement ? '⛶ Exit Fullscreen' : '⛶ Fullscreen');
@@ -4208,12 +4416,11 @@ function renderSettings() {
     });
     screenBtnRow.appendChild(fsBtn);
   } else {
-    screenSection.appendChild(el('p', 'settings-desc',
+    screenSection.appendChild(el('p', 'settings-note',
       '📱 iOS: tap Share → “Add to Home Screen” to play fullscreen.'));
   }
-  if ('wakeLock' in navigator) {
-    const wlOn = _wakeLock !== null;
-    const wlBtn = el('button', `action-btn${wlOn ? ' wl-on' : ''}`, wlOn ? '🔆 Keep screen on: ON' : '🔅 Keep screen on: OFF');
+  if (wakeLockSupported) {
+    const wlBtn = el('button', `action-btn${wakeLockOn ? ' wl-on' : ''}`, wakeLockOn ? '🔆 Keep screen on: ON' : '🔅 Keep screen on: OFF');
     wlBtn.addEventListener('click', async () => {
       if (_wakeLock) { await _wakeLock.release(); _wakeLock = null; }
       else { await acquireWakeLock(); }
@@ -4222,18 +4429,21 @@ function renderSettings() {
     screenBtnRow.appendChild(wlBtn);
   }
   screenSection.appendChild(screenBtnRow);
-  content.appendChild(screenSection);
+  settingsGrid.appendChild(screenSection);
 
   // Home Page
-  const homeSection = el('div', 'settings-section');
-  homeSection.appendChild(el('div', 'settings-label', '🏠 Home Page'));
-  homeSection.appendChild(el('p', 'settings-desc', 'Choose which tab opens when you start the game.'));
+  const homeSection = makeSettingsSection({
+    title: '🏠 Home Page',
+    desc: 'Choose which tab opens when you start the game.',
+    status: currentHome === 'map' ? 'Map' : 'Crops',
+    tone: 'info',
+    className: 'settings-section-home',
+  });
   const homeRow = el('div', 'btn-row');
   const homeChoices = [
     { id: 'crops', label: '🌾 Crops' },
     { id: 'map',   label: '🧑‍🌾 Map' },
   ];
-  const currentHome = localStorage.getItem(HOME_TAB_KEY) || 'crops';
   for (const h of homeChoices) {
     const hBtn = el('button', `speed-btn${currentHome === h.id ? ' active' : ''}`, h.label);
     hBtn.addEventListener('click', () => {
@@ -4243,21 +4453,30 @@ function renderSettings() {
     homeRow.appendChild(hBtn);
   }
   homeSection.appendChild(homeRow);
-  content.appendChild(homeSection);
+  settingsGrid.appendChild(homeSection);
 
   // Tutorial
-  const tutorialSection = el('div', 'settings-section');
-  tutorialSection.appendChild(el('div', 'settings-label', '🎓 Tutorial'));
-  tutorialSection.appendChild(el('p', 'settings-desc', 'Run an in-game walkthrough of the main gameplay loop and core systems.'));
+  const tutorialSection = makeSettingsSection({
+    title: '🎓 Tutorial',
+    desc: 'Run an in-game walkthrough of the main gameplay loop and core systems.',
+    status: 'Replayable',
+    tone: 'info',
+    className: 'settings-section-tutorial',
+  });
   const tutorialBtn = el('button', 'action-btn', '🎓 Replay Tutorial');
   tutorialBtn.id = 'tutorial-replay-btn';
   tutorialBtn.addEventListener('click', () => startTutorial({ fromSettings: true }));
   tutorialSection.appendChild(tutorialBtn);
-  content.appendChild(tutorialSection);
+  settingsGrid.appendChild(tutorialSection);
 
   // Save / Reset
-  const saveSection = el('div', 'settings-section');
-  saveSection.appendChild(el('div', 'settings-label', 'Save Data'));
+  const saveSection = makeSettingsSection({
+    title: 'Save Data',
+    desc: 'Create a save immediately or wipe the current run if you want a full reset.',
+    status: 'Manual',
+    tone: 'warn',
+    className: 'settings-section-danger settings-span-full',
+  });
   const saveBtn  = el('button', 'action-btn', '💾 Save Now');
   const resetBtn = el('button', 'action-btn danger', '🗑 Reset Game');
   saveBtn.addEventListener('click', () => { saveGame(); saveBtn.textContent = '✅ Saved!'; setTimeout(() => { saveBtn.textContent = '💾 Save Now'; }, 1500); });
@@ -4273,12 +4492,16 @@ function renderSettings() {
   btnRow.appendChild(saveBtn);
   btnRow.appendChild(resetBtn);
   saveSection.appendChild(btnRow);
-  content.appendChild(saveSection);
+  settingsGrid.appendChild(saveSection);
 
   // Crop presets
-  const loadoutSection = el('div', 'settings-section');
-  loadoutSection.appendChild(el('div', 'settings-label', '🌾 Crop Presets'));
-  loadoutSection.appendChild(el('p', 'settings-desc', 'Save your current crop layout into one of three reusable presets. Loading a preset reallocates crop acres only; native habitat stays untouched.'));
+  const loadoutSection = makeSettingsSection({
+    title: '🌾 Crop Presets',
+    desc: 'Save your current crop layout into one of three reusable presets. Loading a preset reallocates crop acres only; native habitat stays untouched.',
+    status: `${savedLoadoutsCount}/3 saved`,
+    tone: savedLoadoutsCount > 0 ? 'ready' : 'info',
+    className: 'settings-section-loadouts settings-span-full',
+  });
 
   LOADOUT_SLOTS.forEach(slot => {
     const slotRow = el('div', 'loadout-slot-row');
@@ -4326,7 +4549,8 @@ function renderSettings() {
     loadoutSection.appendChild(slotRow);
   });
 
-  content.appendChild(loadoutSection);
+  settingsGrid.appendChild(loadoutSection);
+  content.appendChild(settingsGrid);
 }
 
 // ── Offline toast ─────────────────────────────────────────────────────────────
@@ -4374,6 +4598,7 @@ let lastResearchFingerprint   = '';
 let lastGardenFingerprint     = '';
 let lastCollectionFingerprint = '';
 let lastLandFingerprint       = '';
+let lastMapFingerprint        = '';
 let collectionFilter = 'all'; // 'all' | 'crops' | 'plants' | 'creatures' | 'birds' | 'invasives' | 'history'
 let collectionCreaturesCollapsed = new Set(); // plant IDs whose creature list is collapsed
 let collectionAllCollapsed = false;
@@ -4835,8 +5060,55 @@ function collectionFingerprint() {
   return `${collectionFilter}|crops:${cropPart}|plants:${plantPart}|research:${engine.completedResearch.size}|creatures:${engine.discoveredCreatures.size}|birds:${engine.discoveredBirds.size}|invasives:${invasivePart}`;
 }
 
+function landFingerprint() {
+  const invasivePart = INVASIVES
+    .map(inv => `${inv.id}:${engine.invasiveAcres.get(inv.id) ?? 0}:${engine.canRemoveInvasive(inv.id) ? 1 : 0}`)
+    .join(',');
+  const nativePart = engine.nativeEstablishQueue.map(item => item.plantId).join(',');
+  const removalPart = engine.invasiveRemovalQueue
+    .map(job => `${job.invasiveId}:${job.acresRemaining}`)
+    .join(',');
+  return `alloc:${engine.getAllocatedAcres()}|free:${engine.getFreeAcres()}|inv:${engine.getTotalInvadedAcres()}|cp:${Math.floor(engine.researchPoints)}|active:${engine.activePlantingId ?? ''}|native:${nativePart}|rem:${removalPart}|invasive:${invasivePart}`;
+}
+
 function mapFingerprint() {
   return `${collectionFingerprint()}|alloc:${engine.getAllocatedAcres()}|inv:${engine.getTotalInvadedAcres()}|free:${engine.getFreeAcres()}|bp:${engine.getTotalBiosphereScore()}`;
+}
+
+function updateLandQueueCards() {
+  if (activeTab !== 'land') return;
+
+  const ESTABLISH_SECS = ESTABLISH_DAYS * DAY_REAL_SECS;
+  const plantingCard = content.querySelector('.land-queue-card[data-land-queue-kind="planting"]');
+  if (plantingCard && engine.nativeEstablishQueue.length > 0) {
+    const first = engine.nativeEstablishQueue[0];
+    const result = engine.findPlant(first.plantId);
+    const pct = Math.min(100, Math.round((engine.nativeEstablishTimer / ESTABLISH_SECS) * 100));
+    const remain = Math.max(0, ESTABLISH_SECS / DAY_REAL_SECS - engine.nativeEstablishTimer / DAY_REAL_SECS);
+    const nameEl = plantingCard.querySelector('.land-queue-name');
+    if (nameEl) nameEl.textContent = result ? result.plant.name : first.plantId;
+    const timeEl = plantingCard.querySelector('.land-queue-time');
+    if (timeEl) timeEl.textContent = fmtDays(remain);
+    const fillEl = plantingCard.querySelector('.land-queue-progress-fill');
+    if (fillEl) fillEl.style.width = `${pct}%`;
+    const moreEl = plantingCard.querySelector('.land-queue-more');
+    if (moreEl) moreEl.textContent = `+${engine.nativeEstablishQueue.length - 1} more in queue`;
+  }
+
+  content.querySelectorAll('.land-queue-card[data-land-queue-kind="removal"]').forEach(card => {
+    const index = Number(card.dataset.landRemovalIndex ?? '-1');
+    const job = engine.invasiveRemovalQueue[index];
+    if (!job) return;
+    const inv = INVASIVE_MAP[job.invasiveId];
+    if (!inv) return;
+    const pct = Math.min(100, Math.round((job.timer / inv.removeTimeDays) * 100));
+    const nameEl = card.querySelector('.land-queue-name');
+    if (nameEl) nameEl.textContent = `${inv.icon} ${inv.name} (${job.acresRemaining} ac left)`;
+    const timeEl = card.querySelector('.land-queue-time');
+    if (timeEl) timeEl.textContent = fmtDays(Math.max(0, inv.removeTimeDays - job.timer));
+    const fillEl = card.querySelector('.land-queue-progress-fill');
+    if (fillEl) fillEl.style.width = `${pct}%`;
+  });
 }
 
 function updateCropActionButtonStates() {
@@ -5003,10 +5275,18 @@ function liveUpdate() {
     } else {
       updateGardenOperationCard();
     }
+  } else if (activeTab === 'land') {
+    const lfp = landFingerprint();
+    if (lfp !== lastLandFingerprint) {
+      lastLandFingerprint = lfp;
+      renderAll();
+    } else {
+      updateLandQueueCards();
+    }
   } else if (activeTab === 'map') {
     const mfp = mapFingerprint();
-    if (mfp !== lastLandFingerprint) {
-      lastLandFingerprint = mfp;
+    if (mfp !== lastMapFingerprint) {
+      lastMapFingerprint = mfp;
       renderAll();
     }
   } else if (activeTab === 'collection') {
