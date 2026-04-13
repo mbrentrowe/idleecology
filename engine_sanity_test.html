@@ -226,23 +226,40 @@
       if (!status.unlocked) throw new Error('moth light study stayed locked after lettuce milestone');
     });
 
-    run('lettuce zone stays locked until the adjusted sell threshold', () => {
+    run('lettuce zone stays locked until the adjusted harvest threshold', () => {
       const engine = createEngine(_regionData);
       const state = engine.getState();
 
-      state.cropStats.strawberry.sold = 44999;
+      state.cropStats.strawberry.grown = 44999;
       engine.applyState(state);
 
       if (engine.unlockedFarmZones.has('Lettuce Glade')) {
         throw new Error('lettuce zone unlocked before the adjusted threshold');
       }
 
-      state.cropStats.strawberry.sold = 45000;
+      state.cropStats.strawberry.grown = 45000;
       engine.applyState(state);
 
       if (!engine.unlockedFarmZones.has('Lettuce Glade')) {
         throw new Error('lettuce zone stayed locked at the adjusted threshold');
       }
+    });
+
+    run('legacy crop inventory liquidates into gold and earnings on load', () => {
+      const engine = createEngine(_regionData);
+      const state = engine.getState();
+
+      state.gold = 0;
+      state.cropStats.strawberry.grown = 12;
+      state.cropStats.strawberry.lifetimeSales = 0;
+      state.cropInventory = { strawberry: 5 };
+
+      engine.applyState(state);
+
+      const migrated = engine.cropStats.get('strawberry');
+      if (engine.gold.amount !== 125) throw new Error(`legacy inventory should liquidate into 125g, got ${engine.gold.amount}`);
+      if (migrated.grown !== 12) throw new Error('legacy inventory migration should not change harvested count');
+      if (migrated.lifetimeSales !== 125) throw new Error(`legacy inventory should add 125g to lifetime sales, got ${migrated.lifetimeSales}`);
     });
   </script>
 </body>

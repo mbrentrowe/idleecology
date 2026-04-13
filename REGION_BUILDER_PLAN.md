@@ -91,7 +91,7 @@ The builder should validate:
 
 1. `growthTimePerPhase` is positive
 2. `yieldGold` is positive
-3. `unlockCriteria.totalSold` is non-negative when present
+3. `unlockCriteria.totalHarvested` is non-negative when present
 4. The selected crop lineup supports viable progression without relying on crop season rotation
 
 ## Hosted-Fauna Direction

@@ -28,8 +28,8 @@ export class CropType {
 
   isUnlocked(cropStats) {
     if (!this.unlockCriteria) return true;
-    const totalSold = Array.from(cropStats.values()).reduce((s, v) => s + v.sold, 0);
-    return totalSold >= this.unlockCriteria.totalSold;
+    const totalHarvested = Array.from(cropStats.values()).reduce((sum, value) => sum + value.grown, 0);
+    return totalHarvested >= this.unlockCriteria.totalHarvested;
   }
 
   get totalPhases() { return this.growthPhaseGIDs.length; }
@@ -87,7 +87,7 @@ export const CROPS = {
     growthPhaseGIDs: [4729,4730,4731,4732,4733,4734],
     growthPhaseNames: ['Seeds sown', 'Germinating', 'Sprouting', 'Bulbing', 'Maturing'],
     growthTimePerPhase: 14, yieldGold: 45, marketIconGID: 4736,
-    unlockCriteria: { totalSold: 500 },
+    unlockCriteria: { totalHarvested: 500 },
   }),
   potato: new CropType({
     // Note: sprite is a round root; represents sweet potato (Ipomoea batatas)
@@ -95,7 +95,7 @@ export const CROPS = {
     growthPhaseGIDs: [4978,4979,4980,4981,4982,4983,4984],
     growthPhaseNames: ['Slips planted', 'Rooting', 'Vining', 'Spreading', 'Tuber forming', 'Curing'],
     growthTimePerPhase: 18, yieldGold: 85, marketIconGID: 4986,
-    unlockCriteria: { totalSold: 2000 },
+    unlockCriteria: { totalHarvested: 2000 },
   }),
   onion: new CropType({
     // Note: sprite is a bulb vegetable; represents okra pods
@@ -103,7 +103,7 @@ export const CROPS = {
     growthPhaseGIDs: [5228,5229,5230,5231,5232,5233,5234],
     growthPhaseNames: ['Seeds sown', 'Germinating', 'Seedling', 'Growing', 'Budding', 'Podding'],
     growthTimePerPhase: 22, yieldGold: 160, marketIconGID: 5236,
-    unlockCriteria: { totalSold: 6000 },
+    unlockCriteria: { totalHarvested: 6000 },
   }),
   carrot: new CropType({
     // Note: sprite is an orange root; represents peanut plants
@@ -111,14 +111,14 @@ export const CROPS = {
     growthPhaseGIDs: [5479,5480,5481,5482,5483,5484],
     growthPhaseNames: ['Planted', 'Germinating', 'Seedling', 'Flowering', 'Pegging'],
     growthTimePerPhase: 28, yieldGold: 300, marketIconGID: 5486,
-    unlockCriteria: { totalSold: 15000 },
+    unlockCriteria: { totalHarvested: 15000 },
   }),
   blueberry: new CropType({
     id: 'blueberry', name: 'Blueberry', sciName: 'Vaccinium virgatum',
     growthPhaseGIDs: [5729,5730,5731,5732,5733,5734],
     growthPhaseNames: ['Planted', 'Leafing', 'Budding', 'Flowering', 'Fruiting'],
     growthTimePerPhase: 35, yieldGold: 600, marketIconGID: 5736,
-    unlockCriteria: { totalSold: 30000 },
+    unlockCriteria: { totalHarvested: 30000 },
   }),
   parsnip: new CropType({
     // Note: sprite is a pale root; represents peach fruit
@@ -126,14 +126,14 @@ export const CROPS = {
     growthPhaseGIDs: [5979,5980,5981,5982,5983],
     growthPhaseNames: ['Leafing', 'Budding', 'Flowering', 'Fruiting'],
     growthTimePerPhase: 45, yieldGold: 1200, marketIconGID: 5986,
-    unlockCriteria: { totalSold: 55000 },
+    unlockCriteria: { totalHarvested: 55000 },
   }),
   lettuce: new CropType({
     id: 'lettuce', name: 'Lettuce', sciName: 'Lactuca sativa',
     growthPhaseGIDs: [6229,6230,6231,6232,6233,6234,6235],
     growthPhaseNames: ['Seeded', 'Germinating', 'Seedling', 'Leafing', 'Heading', 'Maturing'],
     growthTimePerPhase: 55, yieldGold: 2500, marketIconGID: 6236,
-    unlockCriteria: { totalSold: 45000 },
+    unlockCriteria: { totalHarvested: 45000 },
   }),
   cauliflower: new CropType({
     // Note: sprite is a white brassica head; represents collard greens
@@ -141,21 +141,21 @@ export const CROPS = {
     growthPhaseGIDs: [6479,6480,6481,6482,6483,6484],
     growthPhaseNames: ['Seeded', 'Germinating', 'Seedling', 'Leafing', 'Maturing'],
     growthTimePerPhase: 70, yieldGold: 5500, marketIconGID: 6486,
-    unlockCriteria: { totalSold: 140000 },
+    unlockCriteria: { totalHarvested: 140000 },
   }),
   rice: new CropType({
     id: 'rice', name: 'Carolina Gold Rice', sciName: 'Oryza sativa',
     growthPhaseGIDs: [6729,6730,6731,6732,6733,6734],
     growthPhaseNames: ['Flooded', 'Seedling', 'Tillering', 'Heading', 'Ripening'],
     growthTimePerPhase: 90, yieldGold: 12000, marketIconGID: 6736,
-    unlockCriteria: { totalSold: 210000 },
+    unlockCriteria: { totalHarvested: 210000 },
   }),
   broccoli: new CropType({
     id: 'broccoli', name: 'Broccoli', sciName: 'Brassica oleracea var. italica',
     growthPhaseGIDs: [6979,6980,6981,6982,6983],
     growthPhaseNames: ['Transplanted', 'Vegetative', 'Budding', 'Heading'],
     growthTimePerPhase: 110, yieldGold: 28000, marketIconGID: 6986,
-    unlockCriteria: { totalSold: 310000 },
+    unlockCriteria: { totalHarvested: 310000 },
   }),
   asparagus: new CropType({
     // Note: sprite is tall stalks; represents tomato plants
@@ -163,6 +163,6 @@ export const CROPS = {
     growthPhaseGIDs: [7229,7230,7231,7232,7233],
     growthPhaseNames: ['Transplanted', 'Flowering', 'Setting fruit', 'Ripening'],
     growthTimePerPhase: 130, yieldGold: 65000, marketIconGID: 7236,
-    unlockCriteria: { totalSold: 450000 },
+    unlockCriteria: { totalHarvested: 450000 },
   }),
 };

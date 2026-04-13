@@ -290,12 +290,12 @@ const TUTORIAL_SEEN_KEY = 'idle-ecologist-tutorial-seen-v1';
 const TUTORIAL_STEPS = [
   {
     title: 'Welcome to Idle Ecologist',
-    body: 'This tutorial walks you through the core loop: grow crops, sell for gold, expand your farm, and build biodiversity.',
+    body: 'This tutorial walks you through the core loop: grow crops, harvest for gold, expand your farm, and build biodiversity.',
     focusSelector: '#header',
   },
   {
     title: 'Step 1: Grow and Harvest Crops',
-    body: 'In Crops, each unlocked zone grows over time. Harvested yields sell for gold, and gold funds more acres and workers for faster output.',
+    body: 'In Crops, each unlocked zone grows over time. Harvested yields convert directly into gold, and that gold funds more acres and workers for faster output.',
     tab: 'crops',
     focusSelector: '#content',
   },
@@ -1519,13 +1519,13 @@ function renderCrops() {
       `;
       card.appendChild(lockRow);
       if (boundCrop?.unlockCriteria) {
-        const { totalSold: required } = boundCrop.unlockCriteria;
-        const soldNow = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
-        const soldPct = Math.min(100, Math.round(soldNow / required * 100));
+        const { totalHarvested: required } = boundCrop.unlockCriteria;
+        const harvestedNow = engine.getTotalCropsHarvested();
+        const harvestedPct = Math.min(100, Math.round(harvestedNow / required * 100));
         const reqsEl  = el('div', 'unlock-reqs');
         reqsEl.innerHTML = `
-          <span class="unlock-req">${shortNumber(soldNow)}<span class="next-sep">/</span>${shortNumber(required)} total crops sold
-            <span class="next-mini-bar"><span class="next-mini-fill" style="width:${soldPct}%"></span></span>
+          <span class="unlock-req">${shortNumber(harvestedNow)}<span class="next-sep">/</span>${shortNumber(required)} total crops harvested
+            <span class="next-mini-bar"><span class="next-mini-fill" style="width:${harvestedPct}%"></span></span>
           </span>
         `;
         card.appendChild(reqsEl);
@@ -1621,12 +1621,11 @@ function renderCrops() {
       }
       card.appendChild(acreRow);
 
-      const cropStatsRow = engine.cropStats.get(ct?.id) ?? { grown: 0, sold: 0, lifetimeSales: 0 };
+      const cropStatsRow = engine.cropStats.get(ct?.id) ?? { grown: 0, lifetimeSales: 0 };
       const mastery = ct ? getCropMasterySummary(ct.id) : null;
       const statsEl = el('div', 'ranch-stats-row');
       statsEl.innerHTML = `
-        <span>🌾 Grown: <strong>${shortNumber(cropStatsRow.grown)}</strong></span>
-        <span>💰 Sold: <strong>${shortNumber(cropStatsRow.sold)}</strong></span>
+        <span>🌾 Harvested: <strong>${shortNumber(cropStatsRow.grown)}</strong></span>
         <span>🪙 Earned: <strong>${shortNumber(cropStatsRow.lifetimeSales)}g</strong></span>
         ${mastery ? `<span>🌱 Mastery: <strong>${mastery.level}/${mastery.maxLevel}</strong>${mastery.nextThreshold == null ? ' · complete' : ` · next ${shortNumber(mastery.nextThreshold)}`}</span>` : ''}
       `;
@@ -1645,12 +1644,12 @@ function renderRanch() {
   const ranchAcres = engine.ranchAcres;
   const ranchWorkers = engine.ranchWorkers;
   const ranchStats = engine.ranchStats;
-  const totalSoldAllCrops = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
+  const totalHarvestedCrops = engine.getTotalCropsHarvested();
 
   const header = el('div', 'ranch-header');
   header.innerHTML = `
     <h2 class="ranch-title">🐄 Ranch</h2>
-    <p class="ranch-subtitle">Unlock farm animals by selling crops. Each animal produces gold passively — expand with more acreage and hire workers to increase output.</p>
+    <p class="ranch-subtitle">Unlock farm animals by harvesting crops. Each animal produces gold passively — expand with more acreage and hire workers to increase output.</p>
   `;
   content.appendChild(header);
 
@@ -1659,8 +1658,8 @@ function renderRanch() {
 
     if (!isUnlocked) {
       // ── Locked animal card ─────────────────────────────────────────────────
-      const required = animal.unlockCriteria.totalSold;
-      const pct      = Math.min(100, Math.round(totalSoldAllCrops / required * 100));
+      const required = animal.unlockCriteria.totalHarvested;
+      const pct      = Math.min(100, Math.round(totalHarvestedCrops / required * 100));
       const card = el('div', 'ranch-card ranch-card-locked');
       card.innerHTML = `
         <div class="ranch-card-head">
@@ -1673,7 +1672,7 @@ function renderRanch() {
         </div>
         <div class="unlock-reqs">
           <span class="unlock-req">
-            🌾 ${shortNumber(totalSoldAllCrops)}<span class="next-sep">/</span>${shortNumber(required)} total crops sold
+            🌾 ${shortNumber(totalHarvestedCrops)}<span class="next-sep">/</span>${shortNumber(required)} total crops harvested
             <span class="next-mini-bar"><span class="next-mini-fill" style="width:${pct}%"></span></span>
           </span>
         </div>
@@ -3414,11 +3413,11 @@ function renderCollection() {
   if (showCrops) {
     content.appendChild(el('h2', 'section-header', `🌾 Crops — ${unlockedCrops.length} of ${Object.keys(getCropCatalog()).length} unlocked`));
     if (unlockedCrops.length === 0) {
-      content.appendChild(el('p', 'research-idle-note', '— Sell crops in the 🌾 Crops tab to unlock new varieties. —'));
+      content.appendChild(el('p', 'research-idle-note', '— Harvest crops in the 🌾 Crops tab to unlock new varieties. —'));
     }
     for (const ct of unlockedCrops) {
       if (showIrlOnly && !isIrl('crop', ct.id)) continue;
-      const stats = engine.cropStats.get(ct.id) ?? { grown: 0, sold: 0, lifetimeSales: 0 };
+      const stats = engine.cropStats.get(ct.id) ?? { grown: 0, lifetimeSales: 0 };
       const mastery = getCropMasterySummary(ct.id);
       const masteryHtml = mastery.thresholds.map((threshold, index) => {
         const met = mastery.grown >= threshold;
@@ -3438,7 +3437,6 @@ function renderCollection() {
         </div>
         <div class="collection-crop-stats">
           <span class="collection-crop-stat">🌾 Harvested: <strong>${shortNumber(stats.grown)}</strong></span>
-          <span class="collection-crop-stat">💰 Sold: <strong>${shortNumber(stats.sold)}</strong></span>
           <span class="collection-crop-stat">🪙 Earned: <strong>${shortNumber(stats.lifetimeSales)}g</strong></span>
         </div>
       `;
@@ -3463,7 +3461,7 @@ function renderCollection() {
   if (showRanch) {
     content.appendChild(el('h2', 'section-header', `🐄 Ranch Animals — ${unlockedRanchAnimals.size} of ${RANCH_ANIMAL_LIST.length} unlocked`));
     if (unlockedRanchAnimals.size === 0) {
-      content.appendChild(el('p', 'research-idle-note', '— Sell crops in the 🌾 Crops tab to unlock ranch animals. —'));
+      content.appendChild(el('p', 'research-idle-note', '— Harvest crops in the 🌾 Crops tab to unlock ranch animals. —'));
     }
     for (const animal of RANCH_ANIMAL_LIST) {
       if (!unlockedRanchAnimals.has(animal.id)) continue;
@@ -4586,7 +4584,7 @@ function _buildNotifList() {
       }
     } else if (type === 'crop') {
       const { cropType } = notif;
-      const cropStatsRow = engine.cropStats.get(cropType.id) ?? { grown: 0, sold: 0, lifetimeSales: 0 };
+      const cropStatsRow = engine.cropStats.get(cropType.id) ?? { grown: 0, lifetimeSales: 0 };
       const mastery = getCropMasterySummary(cropType.id);
       const thumbSrc = STATIC_INAT_PHOTOS[cropType.sciName] || inatPhotoCache[cropType.sciName] || BLANK_GIF;
       thumbHtml = cropType.sciName
@@ -4600,7 +4598,7 @@ function _buildNotifList() {
       subHtml = `
         <div class="notif-entry-host">Now available in 🌾 Crops</div>
         <div class="notif-entry-host">🌱 Mastery: <strong>${mastery.label}</strong></div>
-        <div class="notif-entry-host">🌾 Harvested: <strong>${shortNumber(cropStatsRow.grown)}</strong> · 💰 Sold: <strong>${shortNumber(cropStatsRow.sold)}</strong> · 🪙 Earned: <strong>${shortNumber(cropStatsRow.lifetimeSales)}g</strong></div>
+        <div class="notif-entry-host">🌾 Harvested: <strong>${shortNumber(cropStatsRow.grown)}</strong> · 🪙 Earned: <strong>${shortNumber(cropStatsRow.lifetimeSales)}g</strong></div>
         ${cropType.sciName ? `<div class="notif-entry-desc" data-inat-desc="${cropType.sciName}">${_cropDescCached ?? ''}</div>` : ''}
       `;
       if (cropType.sciName && thumbSrc === BLANK_GIF) {
@@ -4784,12 +4782,12 @@ function zonesFingerprint() {
   const farmParts = getFarmZoneDefs()
     .filter(d => engine.unlockedFarmZones.has(d.name))
     .map(d => `${d.name}:${engine.zoneAcres.get(d.name) ?? 1}:${engine.zoneWorkers.get(d.name) ?? 1}`).join(',');
-  // Sample sold/gold (bucketed) so locked-card criteria bars re-render as progress advances
-  const totalSold = Array.from(engine.cropStats.values()).reduce((s, v) => s + v.sold, 0);
+  // Sample harvested/gold (bucketed) so locked-card criteria bars re-render as progress advances
+  const totalHarvested = engine.getTotalCropsHarvested();
   const masteryLevels = Object.values(getCropCatalog())
     .map(crop => `${crop.id}:${engine.getCropMasteryStatus(crop.id).level}`)
     .join(',');
-  return `f${engine.unlockedFarmZones.size}|${farmParts}|s${Math.floor(totalSold / 10)}|g${Math.floor(lifetimeGold / 10000)}|m:${masteryLevels}`;
+  return `f${engine.unlockedFarmZones.size}|${farmParts}|h${Math.floor(totalHarvested / 10)}|g${Math.floor(lifetimeGold / 10000)}|m:${masteryLevels}`;
 }
 
 function gardenFingerprint() {

@@ -428,12 +428,24 @@ export function createEngine(regionData) {
   const ranchStats   = new Map(); // animalId → { produced, sold, lifetimeSales }
   RANCH_ANIMAL_LIST.forEach(a => ranchStats.set(a.id, { produced: 0, sold: 0, lifetimeSales: 0 }));
 
+  function getTotalCropsHarvested() {
+    return Array.from(cropStats.values()).reduce((sum, value) => sum + value.grown, 0);
+  }
+
+  function getCropHarvestGold(cropId, quantity, yieldMultiplier = getCropYieldMultiplier(), goldMult = goldMultiplier()) {
+    const crop = CROPS[cropId];
+    if (!crop) return 0;
+    const qty = Number.isFinite(quantity) ? Math.max(0, Math.floor(quantity)) : 0;
+    if (qty <= 0) return 0;
+    return crop.yieldGold * qty * yieldMultiplier * goldMult;
+  }
+
   function checkRanchUnlocks() {
     if (!ENABLE_RANCH) return;
-    const totalSold = Array.from(cropStats.values()).reduce((s, v) => s + v.sold, 0);
+    const totalHarvested = getTotalCropsHarvested();
     for (const animal of RANCH_ANIMAL_LIST) {
       if (unlockedRanchAnimals.has(animal.id)) continue;
-      if (totalSold >= animal.unlockCriteria.totalSold) {
+      if (totalHarvested >= animal.unlockCriteria.totalHarvested) {
         unlockedRanchAnimals.add(animal.id);
         // acres are allocated from the land pool — not auto-granted
         if (!ranchWorkers.has(animal.id)) ranchWorkers.set(animal.id, BASE_ZONE_WORKERS);
@@ -442,10 +454,8 @@ export function createEngine(regionData) {
   }
 
   // ── Crop state ──────────────────────────────────────────────────────────────
-  const cropInventory = new Map();
-  const autoSellSet   = new Set(Object.keys(CROPS));
   const cropStats     = new Map();
-  Object.keys(CROPS).forEach(id => cropStats.set(id, { grown: 0, sold: 0, lifetimeSales: 0 }));
+  Object.keys(CROPS).forEach(id => cropStats.set(id, { grown: 0, lifetimeSales: 0 }));
 
   function getCropYieldMultiplier() {
     return 1 + [...completedResearch].reduce((sum, id) => {
@@ -630,7 +640,7 @@ export function createEngine(regionData) {
       if (cyc <= 0) continue;
       const tc = farmTileCount(zoneName);
       const wm  = workerMultiplier(zoneWorkers.get(zoneName) ?? BASE_ZONE_WORKERS);
-      if (autoSellSet.has(ct.id)) gps += (ct.yieldGold * _yieldMult * _goldMult * tc * wm * TICKS_PER_SEC) / cyc;
+      gps += (ct.yieldGold * _yieldMult * _goldMult * tc * wm * TICKS_PER_SEC) / cyc;
     }
     if (ENABLE_RANCH) {
       for (const animalId of unlockedRanchAnimals) {
@@ -856,15 +866,10 @@ export function createEngine(regionData) {
         if (instance.isFullyGrown) {
           const id    = instance.cropType.id;
           const s     = cropStats.get(id);
-          s.grown    += tc;
-          if (autoSellSet.has(id)) {
-            const earned = instance.cropType.yieldGold * tc * _yieldMult * _gMult;
-            gold.add(earned);
-            s.sold          += tc;
-            s.lifetimeSales += earned;
-          } else {
-            cropInventory.set(id, (cropInventory.get(id) || 0) + tc);
-          }
+          const earned = getCropHarvestGold(id, tc, _yieldMult, _gMult);
+          s.grown += tc;
+          gold.add(earned);
+          s.lifetimeSales += earned;
           instance.harvest();
         }
       }
@@ -1082,14 +1087,10 @@ export function createEngine(regionData) {
           if (instance.isFullyGrown) {
             const id = instance.cropType.id;
             const s  = cropStats.get(id);
+            const earned = getCropHarvestGold(id, tc, _yieldMult, _offMult);
             s.grown += tc;
-            if (autoSellSet.has(id)) {
-              const earned = instance.cropType.yieldGold * tc * _yieldMult * _offMult;
-              gold.add(earned);
-              s.sold += tc; s.lifetimeSales += earned;
-            } else {
-              cropInventory.set(id, (cropInventory.get(id) || 0) + tc);
-            }
+            gold.add(earned);
+            s.lifetimeSales += earned;
             instance.harvest();
           }
         }
@@ -1135,8 +1136,6 @@ export function createEngine(regionData) {
       zoneAcres:   Object.fromEntries(zoneAcres),
       zoneWorkers: Object.fromEntries(zoneWorkers),
       zoneCrops: Object.fromEntries([...zoneCrops].map(([k, v]) => [k, { cropId: v.cropType.id, phase: v.phase, timer: v.timer }])),
-      cropInventory: Object.fromEntries(cropInventory),
-      autoSellSet: [...autoSellSet],
       cropStats: Object.fromEntries([...cropStats].map(([k, v]) => [k, { ...v }])),
       researchPoints, researchAccum,
       activeResearchId, activeResearchTimer,
@@ -1244,9 +1243,14 @@ export function createEngine(regionData) {
         zoneCrops.set(name, inst);
       });
     }
-    if (s.cropInventory)    { cropInventory.clear();    Object.entries(s.cropInventory).forEach(([k, v])    => cropInventory.set(k, v)); }
-    if (Array.isArray(s.autoSellSet)) { autoSellSet.clear(); s.autoSellSet.forEach(k => autoSellSet.add(k)); }
-    if (s.cropStats)         Object.entries(s.cropStats).forEach(([id, cs])   => { if (cropStats.has(id))               Object.assign(cropStats.get(id), cs); });
+    if (s.cropStats) {
+      Object.entries(s.cropStats).forEach(([id, cs]) => {
+        const target = cropStats.get(id);
+        if (!target) return;
+        target.grown = safeInt(cs?.grown);
+        target.lifetimeSales = safeNumber(cs?.lifetimeSales);
+      });
+    }
     if (typeof s.researchPoints      === 'number')  researchPoints      = s.researchPoints;
     if (typeof s.researchAccum       === 'number')  researchAccum       = s.researchAccum;
     if ('activeResearchId' in s)                    activeResearchId    = s.activeResearchId;
@@ -1422,6 +1426,20 @@ export function createEngine(regionData) {
     if (s.birdDiscoveryLog) {
       Object.entries(s.birdDiscoveryLog).forEach(([id, day]) => birdDiscoveryLog.set(id, day));
     }
+
+    if (s.cropInventory) {
+      const yieldMult = getCropYieldMultiplier();
+      const goldMult = goldMultiplier();
+      Object.entries(s.cropInventory).forEach(([id, quantity]) => {
+        const qty = safeInt(quantity);
+        if (qty <= 0) return;
+        const earned = getCropHarvestGold(id, qty, yieldMult, goldMult);
+        if (earned <= 0) return;
+        gold.add(earned);
+        const stats = cropStats.get(id);
+        if (stats) stats.lifetimeSales += earned;
+      });
+    }
   }
 
   function clearSave() { localStorage.removeItem(SAVE_KEY); }
@@ -1448,9 +1466,8 @@ export function createEngine(regionData) {
     workerUpgradeCost,
     workerMultiplier,
     zoneCrops,
-    cropInventory,
-    autoSellSet,
     cropStats,
+    getTotalCropsHarvested,
 
     // Computed
     getTotalGPS,
@@ -1502,28 +1519,6 @@ export function createEngine(regionData) {
       gold.add(-cost);
       ranchWorkers.set(animalId, current + 1);
       return true;
-    },
-    setAutoSell(key, value)  { if (value) autoSellSet.add(key); else autoSellSet.delete(key); },
-
-    /**
-     * Manually sell items from inventory.
-     * key    — a cropId (e.g. 'strawberry')
-     * amount — units to sell; omit or pass undefined to sell everything
-     * Returns the gold earned.
-     */
-    sellInventory(key, amount) {
-      const ct = CROPS[key];
-      if (!ct) return 0;
-      const inv = cropInventory.get(key) || 0;
-      if (inv <= 0) return 0;
-      const qty = (amount == null) ? inv : Math.min(Math.floor(amount), inv);
-      if (qty <= 0) return 0;
-      const earned = ct.yieldGold * qty * getCropYieldMultiplier() * goldMultiplier();
-      gold.add(earned);
-      cropInventory.set(key, inv - qty);
-      const s = cropStats.get(key);
-      if (s) { s.sold += qty; s.lifetimeSales += earned; }
-      return earned;
     },
 
     setGameSpeed(v)          { gameSpeed = v; },

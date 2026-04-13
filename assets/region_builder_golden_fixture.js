@@ -66,7 +66,7 @@ const playableScenario = {
         growthTimePerPhase: 45,
         yieldGold: 1200,
         marketIconGID: 5986,
-        unlockCriteria: { totalSold: 55000 },
+        unlockCriteria: { totalHarvested: 55000 },
         seasons: ['Summer'],
       },
     },
@@ -295,7 +295,7 @@ export default {
     growthTimePerPhase: 45,
     yieldGold: 1200,
     marketIconGID: 5986,
-    unlockCriteria: {"totalSold":55000},
+    unlockCriteria: {"totalHarvested":55000},
     seasons: ["Summer"],
   }
   },
@@ -517,7 +517,7 @@ export default {
     growthTimePerPhase: 45,
     yieldGold: 1200,
     marketIconGID: 5986,
-    unlockCriteria: {"totalSold":55000},
+    unlockCriteria: {"totalHarvested":55000},
     seasons: ["Summer"],
   }
   },

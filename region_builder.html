@@ -393,17 +393,17 @@ const BASE_CROP_PHASES = {
 };
 const BASE_CROP_LIBRARY = [
   { id: 'strawberry',  name: 'Strawberry',         sciName: 'Fragaria × ananassa',            growthTimePerPhase: 10,  yieldGold: 25,    marketIconGID: 4486, unlockCriteria: null,                   seasons: ['Spring'],                   defaultZoneName: 'Strawberry Patch',  defaultZoneCost: 0 },
-  { id: 'greenOnion', name: 'Scallion',           sciName: 'Allium fistulosum',              growthTimePerPhase: 14,  yieldGold: 45,    marketIconGID: 4736, unlockCriteria: { totalSold: 500 },    seasons: ['Spring', 'Fall'],           defaultZoneName: 'Scallion Row',      defaultZoneCost: 10000 },
-  { id: 'potato',     name: 'Sweet Potato',       sciName: 'Ipomoea batatas',                growthTimePerPhase: 18,  yieldGold: 85,    marketIconGID: 4986, unlockCriteria: { totalSold: 2000 },   seasons: ['Summer', 'Fall'],           defaultZoneName: 'Sweet Potato Beds', defaultZoneCost: 20000 },
-  { id: 'onion',      name: 'Okra',               sciName: 'Abelmoschus esculentus',         growthTimePerPhase: 22,  yieldGold: 160,   marketIconGID: 5236, unlockCriteria: { totalSold: 6000 },   seasons: ['Summer'],                   defaultZoneName: 'Okra Row',          defaultZoneCost: 30000 },
-  { id: 'carrot',     name: 'Peanut',             sciName: 'Arachis hypogaea',               growthTimePerPhase: 28,  yieldGold: 300,   marketIconGID: 5486, unlockCriteria: { totalSold: 15000 },  seasons: ['Summer', 'Fall'],           defaultZoneName: 'Peanut Bottom',     defaultZoneCost: 50000 },
-  { id: 'blueberry',  name: 'Blueberry',          sciName: 'Vaccinium virgatum',             growthTimePerPhase: 35,  yieldGold: 600,   marketIconGID: 5736, unlockCriteria: { totalSold: 30000 },  seasons: ['Summer'],                   defaultZoneName: 'Berry Thicket',     defaultZoneCost: 70000 },
-  { id: 'parsnip',    name: 'Peach',              sciName: 'Prunus persica',                 growthTimePerPhase: 45,  yieldGold: 1200,  marketIconGID: 5986, unlockCriteria: { totalSold: 55000 },  seasons: ['Summer'],                   defaultZoneName: 'Fruit Orchard',     defaultZoneCost: 100000 },
-  { id: 'lettuce',    name: 'Lettuce',            sciName: 'Lactuca sativa',                 growthTimePerPhase: 55,  yieldGold: 2500,  marketIconGID: 6236, unlockCriteria: { totalSold: 8000 },   seasons: ['Spring', 'Fall', 'Winter'], defaultZoneName: 'Greens Glade',      defaultZoneCost: 150000 },
-  { id: 'cauliflower',name: 'Collard Greens',     sciName: 'Brassica oleracea var. acephala',growthTimePerPhase: 70,  yieldGold: 5500,  marketIconGID: 6486, unlockCriteria: { totalSold: 140000 }, seasons: ['Fall', 'Winter', 'Spring'], defaultZoneName: 'Brassica Patch',    defaultZoneCost: 200000 },
-  { id: 'rice',       name: 'Carolina Gold Rice', sciName: 'Oryza sativa',                   growthTimePerPhase: 90,  yieldGold: 12000, marketIconGID: 6736, unlockCriteria: { totalSold: 210000 }, seasons: ['Summer'],                   defaultZoneName: 'Grain Paddies',     defaultZoneCost: 300000 },
-  { id: 'broccoli',   name: 'Broccoli',           sciName: 'Brassica oleracea var. italica', growthTimePerPhase: 110, yieldGold: 28000, marketIconGID: 6986, unlockCriteria: { totalSold: 310000 }, seasons: ['Spring', 'Fall'],           defaultZoneName: 'Broccoli Field',    defaultZoneCost: 500000 },
-  { id: 'asparagus',  name: 'Tomato',             sciName: 'Solanum lycopersicum',           growthTimePerPhase: 130, yieldGold: 65000, marketIconGID: 7236, unlockCriteria: { totalSold: 450000 }, seasons: ['Spring', 'Summer'],         defaultZoneName: 'Tomato Hill',       defaultZoneCost: 750000 },
+  { id: 'greenOnion', name: 'Scallion',           sciName: 'Allium fistulosum',              growthTimePerPhase: 14,  yieldGold: 45,    marketIconGID: 4736, unlockCriteria: { totalHarvested: 500 },    seasons: ['Spring', 'Fall'],           defaultZoneName: 'Scallion Row',      defaultZoneCost: 10000 },
+  { id: 'potato',     name: 'Sweet Potato',       sciName: 'Ipomoea batatas',                growthTimePerPhase: 18,  yieldGold: 85,    marketIconGID: 4986, unlockCriteria: { totalHarvested: 2000 },   seasons: ['Summer', 'Fall'],           defaultZoneName: 'Sweet Potato Beds', defaultZoneCost: 20000 },
+  { id: 'onion',      name: 'Okra',               sciName: 'Abelmoschus esculentus',         growthTimePerPhase: 22,  yieldGold: 160,   marketIconGID: 5236, unlockCriteria: { totalHarvested: 6000 },   seasons: ['Summer'],                   defaultZoneName: 'Okra Row',          defaultZoneCost: 30000 },
+  { id: 'carrot',     name: 'Peanut',             sciName: 'Arachis hypogaea',               growthTimePerPhase: 28,  yieldGold: 300,   marketIconGID: 5486, unlockCriteria: { totalHarvested: 15000 },  seasons: ['Summer', 'Fall'],           defaultZoneName: 'Peanut Bottom',     defaultZoneCost: 50000 },
+  { id: 'blueberry',  name: 'Blueberry',          sciName: 'Vaccinium virgatum',             growthTimePerPhase: 35,  yieldGold: 600,   marketIconGID: 5736, unlockCriteria: { totalHarvested: 30000 },  seasons: ['Summer'],                   defaultZoneName: 'Berry Thicket',     defaultZoneCost: 70000 },
+  { id: 'parsnip',    name: 'Peach',              sciName: 'Prunus persica',                 growthTimePerPhase: 45,  yieldGold: 1200,  marketIconGID: 5986, unlockCriteria: { totalHarvested: 55000 },  seasons: ['Summer'],                   defaultZoneName: 'Fruit Orchard',     defaultZoneCost: 100000 },
+  { id: 'lettuce',    name: 'Lettuce',            sciName: 'Lactuca sativa',                 growthTimePerPhase: 55,  yieldGold: 2500,  marketIconGID: 6236, unlockCriteria: { totalHarvested: 8000 },   seasons: ['Spring', 'Fall', 'Winter'], defaultZoneName: 'Greens Glade',      defaultZoneCost: 150000 },
+  { id: 'cauliflower',name: 'Collard Greens',     sciName: 'Brassica oleracea var. acephala',growthTimePerPhase: 70,  yieldGold: 5500,  marketIconGID: 6486, unlockCriteria: { totalHarvested: 140000 }, seasons: ['Fall', 'Winter', 'Spring'], defaultZoneName: 'Brassica Patch',    defaultZoneCost: 200000 },
+  { id: 'rice',       name: 'Carolina Gold Rice', sciName: 'Oryza sativa',                   growthTimePerPhase: 90,  yieldGold: 12000, marketIconGID: 6736, unlockCriteria: { totalHarvested: 210000 }, seasons: ['Summer'],                   defaultZoneName: 'Grain Paddies',     defaultZoneCost: 300000 },
+  { id: 'broccoli',   name: 'Broccoli',           sciName: 'Brassica oleracea var. italica', growthTimePerPhase: 110, yieldGold: 28000, marketIconGID: 6986, unlockCriteria: { totalHarvested: 310000 }, seasons: ['Spring', 'Fall'],           defaultZoneName: 'Broccoli Field',    defaultZoneCost: 500000 },
+  { id: 'asparagus',  name: 'Tomato',             sciName: 'Solanum lycopersicum',           growthTimePerPhase: 130, yieldGold: 65000, marketIconGID: 7236, unlockCriteria: { totalHarvested: 450000 }, seasons: ['Spring', 'Summer'],         defaultZoneName: 'Tomato Hill',       defaultZoneCost: 750000 },
 ].map(crop => ({ ...crop, ...BASE_CROP_PHASES[crop.id] }));
 const BASE_CROP_MAP = Object.fromEntries(BASE_CROP_LIBRARY.map(crop => [crop.id, crop]));
 const VALID_WILDLIFE_TYPES = ['butterfly', 'moth', 'bee', 'fly', 'beetle', 'wasp', 'bird', 'mammal'];
@@ -1626,9 +1626,9 @@ function validateBuilderState(options = {}) {
     } else if (merged.seasons.some(season => !VALID_SEASONS.includes(season))) {
       errors.push(`crops.${cropId}.seasons must only contain ${VALID_SEASONS.join(', ')}.`);
     }
-    if (merged.unlockCriteria && merged.unlockCriteria.totalSold != null) {
-      if (!Number.isFinite(merged.unlockCriteria.totalSold) || merged.unlockCriteria.totalSold < 0) {
-        errors.push(`crops.${cropId}.unlockCriteria.totalSold must be non-negative.`);
+    if (merged.unlockCriteria && merged.unlockCriteria.totalHarvested != null) {
+      if (!Number.isFinite(merged.unlockCriteria.totalHarvested) || merged.unlockCriteria.totalHarvested < 0) {
+        errors.push(`crops.${cropId}.unlockCriteria.totalHarvested must be non-negative.`);
       }
     }
 
