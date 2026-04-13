@@ -441,7 +441,7 @@ bindGuardedClick(headerQtyBtn, 'header-qty-cycle', () => {
 const hudInnerLeft  = el('div', 'hud-inner-left');
 const hudInnerRow1  = el('div', 'hud-inner-row');
 const hudInnerRow2  = el('div', 'hud-inner-row');
-[goldEl, bioHeaderEl].forEach(e => hudInnerRow1.appendChild(e));
+[bioHeaderEl, goldEl].forEach(e => hudInnerRow1.appendChild(e));
 [rpHeaderEl, dayEl].forEach(e => hudInnerRow2.appendChild(e));
 hudInnerLeft.appendChild(hudInnerRow1);
 hudInnerLeft.appendChild(hudInnerRow2);
@@ -869,8 +869,23 @@ function renderAll() {
 }
 
 // ── Header update ─────────────────────────────────────────────────────────────
+const headerCompactNumberFmt = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  compactDisplay: 'short',
+  maximumFractionDigits: 1,
+});
+const headerWholeNumberFmt = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 0,
+});
+
+function formatHeaderNumber(value) {
+  if (!Number.isFinite(value)) return '0';
+  if (Math.abs(value) >= 1e12) return headerCompactNumberFmt.format(value);
+  return headerWholeNumberFmt.format(Math.floor(value));
+}
+
 function updateHeader() {
-  goldEl.textContent = `🪙 ${shortNumber(engine.gold.amount)} +${shortNumber(engine.getTotalGPS() * engine.gameSpeed)}/s`;
+  goldEl.textContent = `🪙 ${formatHeaderNumber(engine.gold.amount)} +${formatHeaderNumber(engine.getTotalGPS() * engine.gameSpeed)}/s`;
 
   // Calendar date
   const cal = calendarDate(engine.inGameDay);
@@ -878,13 +893,13 @@ function updateHeader() {
   dayEl.textContent = `📅 ${cal.month.abbr} ${cal.day} Y${cal.year}`;
 
   // Biosphere score + gold multiplier (combined badge)
-  bioHeaderEl.textContent = `🌍 ${engine.getTotalBiosphereScore()}BP ×${engine.getGoldMultiplier().toFixed(2)}`;
+  bioHeaderEl.textContent = `🌍 ${formatHeaderNumber(engine.getTotalBiosphereScore())}BP ×${engine.getGoldMultiplier().toFixed(2)}`;
 
   // Research points
   const pts = engine.researchPoints;
   const hintContext = getTabHintContext(pts);
   const _rpPerDay = engine.unlockedFarmZones.size;
-  rpHeaderEl.textContent = `🌱 ${shortNumber(pts)}CP +${_rpPerDay}/d`;
+  rpHeaderEl.textContent = `🌱 ${formatHeaderNumber(pts)}CP +${formatHeaderNumber(_rpPerDay)}/d`;
 
   const showHeaderQty = tabSupportsHeaderQty(activeTab);
   headerQtyBtn.hidden = !showHeaderQty;

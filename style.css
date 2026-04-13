@@ -91,10 +91,7 @@ body {
   max-width: 1080px;
   width: 100%;
   margin: 0 auto;
-  padding: 12px 18px 8px;
-  padding-top: calc(12px + env(safe-area-inset-top));
-  padding-left: calc(18px + env(safe-area-inset-left));
-  padding-right: calc(18px + env(safe-area-inset-right));
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -110,7 +107,7 @@ body {
   gap: 0;
   min-width: 0;
   padding: 0;
-  border-radius: 999px;
+  border-radius: 0;
   border: 1px solid var(--border-soft);
   background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
@@ -123,9 +120,22 @@ body {
   flex-direction: column;
 }
 .hud-inner-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   padding: 4px 12px;
+}
+.hud-inner-row > span {
+  min-width: 0;
+  overflow: hidden;
+}
+.hud-inner-row > :first-child {
+  justify-content: flex-start;
+  text-align: left;
+}
+.hud-inner-row > :last-child {
+  justify-content: flex-end;
+  text-align: right;
 }
 .hud-inner-row + .hud-inner-row {
   border-top: 1px solid rgba(255,255,255,0.08);
@@ -925,9 +935,9 @@ body {
   position: relative;
   background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
   border: 1px solid var(--border-soft);
-  border-radius: 20px;
+  border-radius: 0;
   padding: 16px 16px 14px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   overflow: hidden;
   box-shadow: var(--shadow-raise), inset 0 1px 0 rgba(255,255,255,0.04);
 }
@@ -1109,6 +1119,7 @@ body {
 .zone-card .acre-upgrade-row {
   margin-top: 12px;
   padding-top: 12px;
+  gap: 0;
 }
 
 .zone-card .acre-upgrade-row + .acre-upgrade-row,
@@ -1153,6 +1164,10 @@ body {
   margin-top: 4px;
   padding-top: 0;
   border-top: 0;
+}
+
+.zone-card .acre-upgrade-row .worker-btn {
+  margin-left: auto;
 }
 
 .zone-card .ranch-stats-row {
@@ -1250,6 +1265,12 @@ body {
 }
 .acre-btn { font-size: 12px; padding: 0 12px; }
 .acre-upgrade-row .worker-btn { margin-left: auto; }
+
+.zone-card .buy-btn,
+.zone-card .action-btn,
+.zone-card .acre-btn {
+  border-radius: 0;
+}
 .acre-max { font-size: 12px; color: #6dbd5a; }
 
 /* ── Set-all picker ──────────────────────────────────────── */
@@ -3014,10 +3035,7 @@ body {
 
 @media (max-width: 720px) {
   #header {
-    padding: 10px 14px 7px;
-    padding-top: calc(10px + env(safe-area-inset-top));
-    padding-left: calc(14px + env(safe-area-inset-left));
-    padding-right: calc(14px + env(safe-area-inset-right));
+    padding: 0;
     gap: 6px;
   }
 
@@ -3056,8 +3074,8 @@ body {
 
   .zone-card {
     padding: 14px 14px 12px;
-    margin-bottom: 10px;
-    border-radius: 18px;
+    margin-bottom: 0;
+    border-radius: 0;
   }
 
   .zone-top-row {
@@ -3108,7 +3126,7 @@ body {
   }
 
   .zone-card .acre-upgrade-row {
-    gap: 8px;
+    gap: 0;
   }
 
   .zone-card .buy-btn {
@@ -3348,8 +3366,7 @@ body {
 
   /* Header: tighter */
   #header {
-    padding: 8px 12px 5px;
-    padding-top: calc(10px + env(safe-area-inset-top));
+    padding: 0;
     gap: 0;
   }
 
@@ -3383,7 +3400,7 @@ body {
 
   .zone-card {
     padding: 12px 12px 10px;
-    border-radius: 16px;
+    border-radius: 0;
   }
 
   .zone-top-row {
@@ -3447,6 +3464,10 @@ body {
     gap: 6px;
     margin-top: 8px;
     padding-top: 8px;
+  }
+
+  .zone-card .acre-upgrade-row {
+    gap: 0;
   }
 
   .zone-card .zone-control-summary,
@@ -3709,8 +3730,7 @@ body {
 
 @media (max-width: 360px) {
   #header {
-    padding: 7px 10px 4px;
-    padding-top: calc(9px + env(safe-area-inset-top));
+    padding: 0;
   }
 
   .hud-row-stats {
@@ -3753,6 +3773,11 @@ body {
     gap: 5px;
     row-gap: 6px;
     align-items: flex-start;
+  }
+
+  .zone-card .acre-upgrade-row {
+    gap: 0;
+    row-gap: 6px;
   }
 
   .zone-card .zone-control-summary,
