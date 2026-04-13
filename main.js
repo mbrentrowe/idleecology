@@ -425,12 +425,12 @@ function bindGuardedClick(button, actionKey, handler) {
 
 // Header
 const header = document.getElementById('header');
-const hudRow1      = el('div', 'hud-row hud-row-stats');
-const goldEl       = el('span', 'gold-amount');
-const bioHeaderEl  = el('span', 'bio-header');
-const rpHeaderEl   = el('span', 'rp-header');
-const dayEl        = el('span', 'day-counter');
-const headerQtyBtn = el('button', 'hud-qty-btn', 'X1');
+const hudRow1       = el('div', 'hud-row hud-row-stats');
+const goldEl        = el('span', 'gold-amount');
+const bioHeaderEl   = el('span', 'bio-header');
+const rpHeaderEl    = el('span', 'rp-header');
+const dayEl         = el('span', 'day-counter');
+const headerQtyBtn  = el('button', 'hud-qty-btn', 'X1');
 headerQtyBtn.type = 'button';
 headerQtyBtn.hidden = true;
 bindGuardedClick(headerQtyBtn, 'header-qty-cycle', () => {
@@ -438,7 +438,15 @@ bindGuardedClick(headerQtyBtn, 'header-qty-cycle', () => {
   cycleHeaderQty(activeTab);
   renderAll();
 });
-[goldEl, bioHeaderEl, rpHeaderEl, dayEl, headerQtyBtn].forEach(e => hudRow1.appendChild(e));
+const hudInnerLeft  = el('div', 'hud-inner-left');
+const hudInnerRow1  = el('div', 'hud-inner-row');
+const hudInnerRow2  = el('div', 'hud-inner-row');
+[goldEl, bioHeaderEl].forEach(e => hudInnerRow1.appendChild(e));
+[rpHeaderEl, dayEl].forEach(e => hudInnerRow2.appendChild(e));
+hudInnerLeft.appendChild(hudInnerRow1);
+hudInnerLeft.appendChild(hudInnerRow2);
+hudRow1.appendChild(hudInnerLeft);
+hudRow1.appendChild(headerQtyBtn);
 header.appendChild(hudRow1);
 
 // ── Bottom Tab Navigation ─────────────────────────────────────────────────────
@@ -4727,22 +4735,8 @@ function _buildNotifList() {
         ${nameHtml}
         ${subHtml}
       </div>
-      <div class="notif-entry-actions">
-        ${gotoHandler ? `<button class="notif-icon-btn notif-goto" title="View" aria-label="View">ℹ️</button>` : ''}
-        <button class="notif-icon-btn notif-dismiss" aria-label="Dismiss">×</button>
-      </div>
+      ${gotoHandler ? `<div class="notif-entry-actions"><button class="notif-icon-btn notif-goto" title="View" aria-label="View">ℹ️</button></div>` : ''}
     `;
-    entry.querySelector('.notif-dismiss').addEventListener('click', () => {
-      if (_notifTab === 'unread') {
-        notif.read = true;
-      } else {
-        const idx = _notifLog.findIndex(n => n.id === notif.id);
-        if (idx >= 0) _notifLog.splice(idx, 1);
-      }
-      _saveNotifs();
-      updateNotifBadge();
-      _buildNotifList();
-    });
     if (gotoHandler) entry.querySelector('.notif-goto')?.addEventListener('click', gotoHandler);
     notifList.appendChild(entry);
   }

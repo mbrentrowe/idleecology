@@ -109,16 +109,29 @@ body {
   flex-wrap: nowrap;
   gap: 0;
   min-width: 0;
-  min-height: 36px;
-  padding: 0 12px;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid var(--border-soft);
   background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
   overflow: hidden;
 }
-.hud-row-stats > span,
-.hud-row-stats > button {
+.hud-inner-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.hud-inner-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+}
+.hud-inner-row + .hud-inner-row {
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.hud-inner-row > span,
+.hud-inner-row > button {
   display: inline-flex;
   align-items: center;
   min-width: 0;
@@ -126,7 +139,7 @@ body {
   padding: 0 8px;
   white-space: nowrap;
 }
-.hud-row-stats > * + * {
+.hud-inner-row > * + * {
   border-left: 1px solid rgba(255,255,255,0.08);
 }
 .hud-row-context {
@@ -176,11 +189,13 @@ body {
 }
 
 .hud-row-stats > .hud-qty-btn {
-  margin-left: auto;
-  justify-content: flex-end;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  min-width: 38px;
-  padding: 0 6px 0 10px;
+  min-width: 40px;
+  padding: 0 10px;
   border: 0;
   border-left: 1px solid rgba(255,255,255,0.12);
   background: none;
@@ -381,11 +396,12 @@ body {
   display: none;
 }
 .tab-notif-btn.has-unread {
-  animation: notif-glow 1.8s ease-in-out infinite;
-}
-@keyframes notif-glow {
-  0%, 100% { box-shadow: 0 0 0 2px #e09030, 0 0 10px 3px rgba(224,144,48,0.4); }
-  50%       { box-shadow: 0 0 0 2px #ffb84d, 0 0 18px 7px rgba(255,184,60,0.65); }
+  border-color: rgba(var(--s-warn-rgb), 0.72);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--s-warn-rgb), 0.26),
+    0 0 0 1px rgba(var(--s-warn-rgb), 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    var(--shadow-raise);
 }
 
 /* ── Notification Modal ─────────────────────────────────────────── */
@@ -437,6 +453,11 @@ body {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-strong);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #notif-header-actions { display: flex; align-items: center; gap: 8px; }
 #notif-dismiss-all {
@@ -3005,12 +3026,16 @@ body {
   }
 
   .hud-row-stats {
-    min-height: 32px;
-    padding: 0 10px;
+    min-height: 0;
+    padding: 0;
   }
 
-  .hud-row-stats > span,
-  .hud-row-stats > button {
+  .hud-inner-row {
+    padding: 3px 10px;
+  }
+
+  .hud-inner-row > span,
+  .hud-inner-row > button {
     padding: 0 6px;
   }
 
@@ -3024,8 +3049,8 @@ body {
   }
 
   .hud-row-stats > .hud-qty-btn {
-    min-width: 34px;
-    padding: 0 5px 0 8px;
+    min-width: 36px;
+    padding: 0 8px;
     font-size: 13px;
   }
 
@@ -3259,13 +3284,6 @@ body {
 
   #notif-header {
     padding: 16px 16px 12px;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-
-  #notif-header-actions {
-    width: 100%;
-    justify-content: flex-end;
   }
 
   #notif-tabs {
@@ -3340,13 +3358,17 @@ body {
   }
 
   .hud-row-stats {
-    min-height: 30px;
-    padding: 0 6px;
+    min-height: 0;
+    padding: 0;
   }
 
-  .hud-row-stats > span,
-  .hud-row-stats > button {
-    padding: 0 2px;
+  .hud-inner-row {
+    padding: 3px 6px;
+  }
+
+  .hud-inner-row > span,
+  .hud-inner-row > button {
+    padding: 0 4px;
   }
 
   .gold-amount, .gps, .bio-header, .rp-header, .day-counter, .time-display {
@@ -3354,8 +3376,8 @@ body {
   }
 
   .hud-row-stats > .hud-qty-btn {
-    min-width: 30px;
-    padding: 0 3px 0 6px;
+    min-width: 32px;
+    padding: 0 6px;
     font-size: 12px;
   }
 
@@ -3518,14 +3540,6 @@ body {
   #tutorial-panel {
     padding-left: 14px;
     padding-right: 14px;
-  }
-
-  #notif-header-actions {
-    justify-content: space-between;
-  }
-
-  #notif-dismiss-all {
-    flex: 1 1 auto;
   }
 
   #notif-tabs,
@@ -3700,13 +3714,17 @@ body {
   }
 
   .hud-row-stats {
-    min-height: 28px;
-    padding: 0 4px;
+    min-height: 0;
+    padding: 0;
   }
 
-  .hud-row-stats > span,
-  .hud-row-stats > button {
-    padding: 0 1px;
+  .hud-inner-row {
+    padding: 2px 4px;
+  }
+
+  .hud-inner-row > span,
+  .hud-inner-row > button {
+    padding: 0 3px;
   }
 
   .gold-amount,
@@ -3720,8 +3738,8 @@ body {
   }
 
   .hud-row-stats > .hud-qty-btn {
-    min-width: 26px;
-    padding: 0 2px 0 5px;
+    min-width: 28px;
+    padding: 0 5px;
     font-size: 11px;
     letter-spacing: 0.02em;
   }
